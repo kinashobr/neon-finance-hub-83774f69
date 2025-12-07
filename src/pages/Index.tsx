@@ -397,7 +397,7 @@ const Index = () => {
       case "evolucao-chart":
         return <EvolucaoPatrimonialChart data={evolucaoData} />;
       case "heatmap":
-        return <FluxoCaixaHeatmap month="12" year={2024} />;
+        return <FluxoCaixaHeatmap data={heatmapData} month="12" year={2024} />;
       case "indicadores":
         return <IndicadoresFinanceiros indicadores={indicadores} />;
       case "alertas":
