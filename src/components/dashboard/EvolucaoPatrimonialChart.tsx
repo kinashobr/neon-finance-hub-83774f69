@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
+import { useFinance } from "@/contexts/FinanceContext";
 
 interface EvolucaoData {
   mes: string;
@@ -13,19 +14,16 @@ interface EvolucaoData {
   dividas: number;
 }
 
-interface EvolucaoPatrimonialChartProps {
-  data: EvolucaoData[];
-}
-
 const lineOptions = [
-  { id: "patrimonioTotal", label: "Patrimônio Total", color: "hsl(199, 89%, 48%)" },
+  { id: "patrimonioTotal", label: "Patrimônio", color: "hsl(199, 89%, 48%)" },
   { id: "receitas", label: "Receitas", color: "hsl(142, 76%, 36%)" },
   { id: "despesas", label: "Despesas", color: "hsl(0, 72%, 51%)" },
   { id: "investimentos", label: "Investimentos", color: "hsl(270, 100%, 65%)" },
-  { id: "dividas", label: "Endividamento", color: "hsl(38, 92%, 50%)" },
+  { id: "dividas", label: "Dívidas", color: "hsl(38, 92%, 50%)" },
 ];
 
-export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps) {
+export function EvolucaoPatrimonialChart() {
+  const { transacoes, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos } = useFinance();
   const [periodo, setPeriodo] = useState("12m");
   const [activeLines, setActiveLines] = useState<Set<string>>(
     new Set(["patrimonioTotal", "receitas", "despesas"])
@@ -34,23 +32,44 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
   const toggleLine = (lineId: string) => {
     setActiveLines(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(lineId)) {
-        newSet.delete(lineId);
-      } else {
-        newSet.add(lineId);
-      }
+      if (newSet.has(lineId)) newSet.delete(lineId);
+      else newSet.add(lineId);
       return newSet;
     });
   };
 
-  const filteredData = () => {
+  const filteredData = useMemo(() => {
+    const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    
+    return meses.slice(0, 12).map((mes, i) => {
+      const mesNum = String(i + 1).padStart(2, "0");
+      const transacoesMes = transacoes.filter(t => t.data.includes(`-${mesNum}-`));
+      
+      const receitas = transacoesMes.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
+      const despesas = transacoesMes.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0);
+      
+      const totalInvestimentos = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0) +
+        criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) +
+        stablecoins.reduce((acc, s) => acc + s.valorBRL, 0) +
+        objetivos.reduce((acc, o) => acc + o.atual, 0);
+      
+      const totalDividas = emprestimos.reduce((acc, e) => acc + e.valorTotal * 0.7, 0);
+      const patrimonioTotal = totalInvestimentos + veiculos.reduce((acc, v) => acc + v.valorFipe, 0);
+      
+      return { mes, patrimonioTotal, receitas, despesas, investimentos: totalInvestimentos, dividas: Math.max(totalDividas, 0) };
+    });
+  }, [transacoes, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos]);
+
+  const dataToShow = useMemo(() => {
     switch (periodo) {
-      case "3m": return data.slice(-3);
-      case "6m": return data.slice(-6);
-      case "12m": return data;
-      default: return data;
+      case "3m": return filteredData.slice(-3);
+      case "6m": return filteredData.slice(-6);
+      case "12m": return filteredData;
+      default: return filteredData;
     }
-  };
+  }, [filteredData, periodo]);
 
   return (
     <div className="glass-card p-5 animate-fade-in-up">
@@ -80,10 +99,7 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
                   activeLines.has(line.id) ? "bg-primary/10 text-primary border-primary/30" : "bg-muted/50 text-muted-foreground border-border"
                 )}
               >
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: line.color }}
-                />
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: line.color }} />
               </Button>
             ))}
           </div>
@@ -92,7 +108,7 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
 
       <div className="h-[320px]">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={filteredData()}>
+          <AreaChart data={dataToShow}>
             <defs>
               {lineOptions.map(line => (
                 <linearGradient key={line.id} id={`gradient-${line.id}`} x1="0" y1="0" x2="0" y2="1">
@@ -102,42 +118,20 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
               ))}
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 18%)" vertical={false} />
-            <XAxis
-              dataKey="mes"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }}
-              tickFormatter={(v) => `${(v/1000).toFixed(0)}k`}
-            />
+            <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
+            <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
             <Tooltip
               contentStyle={{
                 backgroundColor: "hsl(220, 20%, 8%)",
                 border: "1px solid hsl(220, 20%, 18%)",
                 borderRadius: "12px",
               }}
-              formatter={(value: number, name: string) => [
-                `R$ ${value.toLocaleString("pt-BR")}`,
-                lineOptions.find(l => l.id === name)?.label || name
-              ]}
+              formatter={(value: number, name: string) => [`R$ ${value.toLocaleString("pt-BR")}`, lineOptions.find(l => l.id === name)?.label || name]}
             />
             <Legend />
             {lineOptions.map(line => (
               activeLines.has(line.id) && (
-                <Area
-                  key={line.id}
-                  type="monotone"
-                  dataKey={line.id}
-                  stroke={line.color}
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill={`url(#gradient-${line.id})`}
-                  name={line.id}
-                />
+                <Area key={line.id} type="monotone" dataKey={line.id} stroke={line.color} strokeWidth={2} fillOpacity={1} fill={`url(#gradient-${line.id})`} />
               )
             ))}
           </AreaChart>
