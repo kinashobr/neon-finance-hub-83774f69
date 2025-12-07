@@ -102,7 +102,7 @@ export function FluxoCaixaHeatmap({ month, year }: FluxoCaixaHeatmapProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-2 mb-2">
+        <div className="grid grid-cols-7 gap-1 mb-2">
           {weekDays.map(day => (
             <div key={day} className="text-center text-xs text-muted-foreground py-1">
               {day}
@@ -110,7 +110,7 @@ export function FluxoCaixaHeatmap({ month, year }: FluxoCaixaHeatmapProps) {
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1">
           {calendarDays.map((dayData, index) => (
             <Tooltip key={index}>
               <TooltipTrigger asChild>
