@@ -170,3 +170,4 @@ export function AlertasFinanceiros({ alertas: initialAlertas, onVerDetalhes, onI
     </div>
   );
 }
+
