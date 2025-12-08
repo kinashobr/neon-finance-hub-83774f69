@@ -65,6 +65,8 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Alerta {
   id: string;
