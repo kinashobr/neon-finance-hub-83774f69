@@ -78,16 +78,12 @@ export interface ObjetivoFinanceiro {
   cor: string;
 }
 
-// ============================================
-// TIPO DE MOVIMENTAÇÕES DE INVESTIMENTO
-// ============================================
-
 export interface MovimentacaoInvestimento {
   id: number;
   data: string;
-  tipo: string; // "Aporte", "Resgate", "Compra", "Venda", "Rendimento"
-  categoria: string; // "Renda Fixa", "Cripto", "Stablecoin", "Objetivo"
-  ativo: string; // ID do investimento ou nome do ativo
+  tipo: string;
+  categoria: string;
+  ativo: string;
   descricao: string;
   valor: number;
 }
@@ -282,12 +278,10 @@ const initialObjetivos: ObjetivoFinanceiro[] = [
 ];
 
 const initialMovimentacoesInv: MovimentacaoInvestimento[] = [
-  { id: 1, data: "2024-01-15", tipo: "Aporte", categoria: "Renda Fixa", ativo: "1", descricao: "Aplicação mensal", valor: 5000 },
-  { id: 2, data: "2024-01-10", tipo: "Compra", categoria: "Cripto", ativo: "1", descricao: "DCA Bitcoin", valor: 2000 },
-  { id: 3, data: "2024-01-08", tipo: "Venda", categoria: "Cripto", ativo: "2", descricao: "Realização parcial", valor: 3500 },
-  { id: 4, data: "2024-01-05", tipo: "Aporte", categoria: "Stablecoin", ativo: "1", descricao: "Reserva dólar", valor: 5000 },
-  { id: 5, data: "2024-01-31", tipo: "Rendimento", categoria: "Renda Fixa", ativo: "1", descricao: "Rendimento mensal CDB Inter", valor: 250 },
-  { id: 6, data: "2024-02-29", tipo: "Rendimento", categoria: "Renda Fixa", ativo: "2", descricao: "Rendimento mensal Tesouro Selic", valor: 420 },
+  { id: 1, data: "2024-01-15", tipo: "Aporte", categoria: "Renda Fixa", ativo: "CDB Banco Inter", descricao: "Aplicação mensal", valor: 5000 },
+  { id: 2, data: "2024-01-10", tipo: "Compra", categoria: "Cripto", ativo: "BTC", descricao: "DCA Bitcoin", valor: 2000 },
+  { id: 3, data: "2024-01-08", tipo: "Venda", categoria: "Cripto", ativo: "ETH", descricao: "Realização parcial", valor: 3500 },
+  { id: 4, data: "2024-01-05", tipo: "Aporte", categoria: "Stablecoin", ativo: "USDC", descricao: "Reserva dólar", valor: 5000 },
 ];
 
 // ============================================
