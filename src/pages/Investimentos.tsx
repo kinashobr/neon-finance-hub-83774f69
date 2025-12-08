@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Plus, Trash2, Search, TrendingUp, Wallet, Target, Shield, Bitcoin, DollarSign, ArrowUpRight, ArrowDownRight, Settings, Coins, LineChart as LineChartIcon, BarChart3, CircleDollarSign, Landmark, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Search, TrendingUp, Wallet, Target, Shield, Bitcoin, DollarSign, ArrowUpRight, ArrowDownRight, Settings, Coins, LineChartIcon, BarChart3, CircleDollarSign, Landmark, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { EditableCell } from "@/components/EditableCell";
@@ -79,10 +79,7 @@ const Investimentos = () => {
     instituicao: "",
     tipo: "CDB",
     valor: "",
-    cdi: "",
-    rentabilidade: "",
-    vencimento: "",
-    risco: "Baixo"
+    dataAplicacao: "",
   });
 
   const [formCripto, setFormCripto] = useState({
@@ -265,26 +262,23 @@ const Investimentos = () => {
   // Handlers
   const handleAddRF = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formRF.aplicacao || !formRF.valor) return;
+    if (!formRF.aplicacao || !formRF.valor || !formRF.dataAplicacao) return;
     addInvestimentoRF({
       aplicacao: formRF.aplicacao,
       instituicao: formRF.instituicao,
       tipo: formRF.tipo,
       valor: Number(formRF.valor),
-      cdi: Number(formRF.cdi) || 100,
-      rentabilidade: Number(formRF.rentabilidade) || 0,
-      vencimento: formRF.vencimento,
-      risco: formRF.risco,
+      cdi: 100, // Valor padrão
+      rentabilidade: 0, // Valor padrão
+      vencimento: formRF.dataAplicacao, // Usando data de aplicação como vencimento padrão
+      risco: "Baixo" // Valor padrão
     });
     setFormRF({
       aplicacao: "",
       instituicao: "",
       tipo: "CDB",
       valor: "",
-      cdi: "",
-      rentabilidade: "",
-      vencimento: "",
-      risco: "Baixo"
+      dataAplicacao: "",
     });
     setShowAddRF(false);
     toast({ title: "Investimento adicionado!" });
@@ -410,60 +404,54 @@ const Investimentos = () => {
                       placeholder="Ex: CDB Banco Inter"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Instituição</Label>
-                      <Input
-                        value={formRF.instituicao}
-                        onChange={(e) => setFormRF({ ...formRF, instituicao: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                      />
-                    </div>
-                    <div>
-                      <Label>Tipo</Label>
-                      <Select value={formRF.tipo} onValueChange={(v) => setFormRF({ ...formRF, tipo: v })}>
-                        <SelectTrigger className="mt-1 bg-muted border-border">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="CDB">CDB</SelectItem>
-                          <SelectItem value="LCI">LCI</SelectItem>
-                          <SelectItem value="LCA">LCA</SelectItem>
-                          <SelectItem value="Tesouro">Tesouro</SelectItem>
-                          <SelectItem value="Debênture">Debênture</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div>
+                    <Label>Instituição</Label>
+                    <Input
+                      value={formRF.instituicao}
+                      onChange={(e) => setFormRF({ ...formRF, instituicao: e.target.value })}
+                      className="mt-1 bg-muted border-border"
+                      placeholder="Ex: Banco Inter"
+                    />
+                  </div>
+                  <div>
+                    <Label>Tipo</Label>
+                    <Select value={formRF.tipo} onValueChange={(v) => setFormRF({ ...formRF, tipo: v })}>
+                      <SelectTrigger className="mt-1 bg-muted border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="CDB">CDB</SelectItem>
+                        <SelectItem value="RDB">RDB</SelectItem>
+                        <SelectItem value="Renda Fixa">Renda Fixa</SelectItem>
+                        <SelectItem value="Poupança">Poupança</SelectItem>
+                        <SelectItem value="LCI">LCI</SelectItem>
+                        <SelectItem value="LCA">LCA</SelectItem>
+                        <SelectItem value="Tesouro">Tesouro</SelectItem>
+                        <SelectItem value="Debênture">Debênture</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>Valor (R$)</Label>
                       <Input
                         type="number"
+                        step="0.01"
                         value={formRF.valor}
                         onChange={(e) => setFormRF({ ...formRF, valor: e.target.value })}
                         className="mt-1 bg-muted border-border"
+                        placeholder="0,00"
                       />
                     </div>
                     <div>
-                      <Label>% CDI</Label>
+                      <Label>Data de Aplicação</Label>
                       <Input
-                        type="number"
-                        value={formRF.cdi}
-                        onChange={(e) => setFormRF({ ...formRF, cdi: e.target.value })}
+                        type="date"
+                        value={formRF.dataAplicacao}
+                        onChange={(e) => setFormRF({ ...formRF, dataAplicacao: e.target.value })}
                         className="mt-1 bg-muted border-border"
-                        placeholder="110"
                       />
                     </div>
-                  </div>
-                  <div>
-                    <Label>Vencimento</Label>
-                    <Input
-                      type="date"
-                      value={formRF.vencimento}
-                      onChange={(e) => setFormRF({ ...formRF, vencimento: e.target.value })}
-                      className="mt-1 bg-muted border-border"
-                    />
                   </div>
                   <Button type="submit" className="w-full bg-primary">Adicionar</Button>
                 </form>
@@ -683,6 +671,9 @@ const Investimentos = () => {
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="CDB">CDB</SelectItem>
+                  <SelectItem value="RDB">RDB</SelectItem>
+                  <SelectItem value="Renda Fixa">Renda Fixa</SelectItem>
+                  <SelectItem value="Poupança">Poupança</SelectItem>
                   <SelectItem value="LCI">LCI</SelectItem>
                   <SelectItem value="LCA">LCA</SelectItem>
                   <SelectItem value="Tesouro">Tesouro</SelectItem>
