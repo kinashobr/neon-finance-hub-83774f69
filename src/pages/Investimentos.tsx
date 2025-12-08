@@ -26,15 +26,6 @@ const pieColors = [
 
 const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
-const evolucaoPatrimonial = [
-  { mes: "Jul", valor: 280000 },
-  { mes: "Ago", valor: 295000 },
-  { mes: "Set", valor: 310000 },
-  { mes: "Out", valor: 325000 },
-  { mes: "Nov", valor: 340000 },
-  { mes: "Dez", valor: 333000 },
-];
-
 const Investimentos = () => {
   const { toast } = useToast();
   const { 
@@ -166,73 +157,110 @@ const Investimentos = () => {
     });
   }, [movimentacoesInvestimento, dateRange]);
 
-  // Cálculos corrigidos
-  const totalRF = filteredInvestimentosRF.reduce((acc, i) => acc + i.valor, 0);
-  const totalCripto = filteredCriptomoedas.reduce((acc, c) => acc + c.valorBRL, 0);
-  const totalStables = filteredStablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
-  const totalObjetivos = filteredObjetivos.reduce((acc, o) => acc + o.atual, 0);
-  
-  // Patrimônio Total: RF + Cripto + Stables + Objetivos + Veículos (FIPE)
-  const patrimonioTotal = useMemo(() => {
+  // Cálculos padronizados e reais
+  const calculosPatrimonio = useMemo(() => {
+    // Valores reais dos investimentos
+    const totalRF = filteredInvestimentosRF.reduce((acc, i) => acc + i.valor, 0);
+    const totalCripto = filteredCriptomoedas.reduce((acc, c) => acc + c.valorBRL, 0);
+    const totalStables = filteredStablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
+    const totalObjetivos = filteredObjetivos.reduce((acc, o) => acc + o.atual, 0);
     const valorVeiculos = getValorFipeTotal();
-    return totalRF + totalCripto + totalStables + totalObjetivos + valorVeiculos;
-  }, [totalRF, totalCripto, totalStables, totalObjetivos]);
-
-  // Reserva de Emergência - busca objetivo específico
-  const reservaEmergencia = useMemo(() => {
-    return filteredObjetivos.find(o => 
+    
+    // Patrimônio Total: RF + Cripto + Stables + Objetivos + Veículos (FIPE)
+    const patrimonioTotal = totalRF + totalCripto + totalStables + totalObjetivos + valorVeiculos;
+    
+    // Reserva de Emergência - busca objetivo específico
+    const reservaEmergencia = filteredObjetivos.find(o => 
       o.nome.toLowerCase().includes("reserva") || 
       o.nome.toLowerCase().includes("emergência") ||
       o.nome.toLowerCase().includes("reserva de emergencia")
     );
-  }, [filteredObjetivos]);
-
-  // Exposição em Cripto
-  const exposicaoCripto = useMemo(() => {
+    
+    // Exposição em Cripto
     const patrimonioInvestimentos = totalRF + totalCripto + totalStables + totalObjetivos;
-    return patrimonioInvestimentos > 0 ? (totalCripto / patrimonioInvestimentos) * 100 : 0;
-  }, [totalRF, totalCripto, totalStables, totalObjetivos]);
+    const exposicaoCripto = patrimonioInvestimentos > 0 ? (totalCripto / patrimonioInvestimentos) * 100 : 0;
+    
+    // Rentabilidade média ponderada
+    const rentabilidadeRF = filteredInvestimentosRF.length > 0 
+      ? filteredInvestimentosRF.reduce((acc, i) => acc + (i.rentabilidade * i.valor), 0) / totalRF 
+      : 0;
+    const rentabilidadeCripto = filteredCriptomoedas.length > 0 
+      ? filteredCriptomoedas.reduce((acc, c) => acc + (c.percentual * c.valorBRL), 0) / totalCripto 
+      : 0;
+    const rentabilidadeObjetivos = filteredObjetivos.length > 0 
+      ? filteredObjetivos.reduce((acc, o) => acc + (o.rentabilidade * o.atual), 0) / totalObjetivos 
+      : 0;
+    
+    const rentabilidadeMedia = patrimonioInvestimentos > 0 
+      ? ((rentabilidadeRF * totalRF) + (rentabilidadeCripto * totalCripto) + (rentabilidadeObjetivos * totalObjetivos)) / patrimonioInvestimentos 
+      : 0;
+    
+    // Variação mensal (simulação baseada em fluxo de caixa)
+    const receitasMes = getTotalReceitas();
+    const despesasMes = getTotalDespesas();
+    const variacaoMensal = ((receitasMes - despesasMes) / Math.max(receitasMes, 1)) * 100;
+    
+    return {
+      patrimonioTotal,
+      totalRF,
+      totalCripto,
+      totalStables,
+      totalObjetivos,
+      valorVeiculos,
+      reservaEmergencia,
+      exposicaoCripto,
+      rentabilidadeMedia,
+      variacaoMensal,
+      patrimonioInvestimentos
+    };
+  }, [filteredInvestimentosRF, filteredCriptomoedas, filteredStablecoins, filteredObjetivos, getValorFipeTotal, getTotalReceitas, getTotalDespesas]);
 
-  const distribuicaoCarteira = [
-    { name: "Renda Fixa", value: totalRF },
-    { name: "Criptomoedas", value: totalCripto },
-    { name: "Stablecoins", value: totalStables },
-  ];
+  const distribuicaoCarteira = useMemo(() => [
+    { name: "Renda Fixa", value: calculosPatrimonio.totalRF },
+    { name: "Criptomoedas", value: calculosPatrimonio.totalCripto },
+    { name: "Stablecoins", value: calculosPatrimonio.totalStables },
+  ], [calculosPatrimonio]);
 
   const carteiraConsolidada = useMemo(() => [
     {
       categoria: "Renda Fixa",
-      valor: totalRF,
-      percentual: patrimonioTotal > 0 ? (totalRF / patrimonioTotal) * 100 : 0,
-      rentabilidade: 11.8,
+      valor: calculosPatrimonio.totalRF,
+      percentual: calculosPatrimonio.patrimonioTotal > 0 ? (calculosPatrimonio.totalRF / calculosPatrimonio.patrimonioTotal) * 100 : 0,
+      rentabilidade: filteredInvestimentosRF.length > 0 
+        ? filteredInvestimentosRF.reduce((acc, i) => acc + (i.rentabilidade * i.valor), 0) / calculosPatrimonio.totalRF 
+        : 0,
       volatilidade: "Baixa",
       risco: "A"
     },
     {
       categoria: "Criptomoedas",
-      valor: totalCripto,
-      percentual: patrimonioTotal > 0 ? (totalCripto / patrimonioTotal) * 100 : 0,
-      rentabilidade: 25.5,
+      valor: calculosPatrimonio.totalCripto,
+      percentual: calculosPatrimonio.patrimonioTotal > 0 ? (calculosPatrimonio.totalCripto / calculosPatrimonio.patrimonioTotal) * 100 : 0,
+      rentabilidade: filteredCriptomoedas.length > 0 
+        ? filteredCriptomoedas.reduce((acc, c) => acc + (c.percentual * c.valorBRL), 0) / calculosPatrimonio.totalCripto 
+        : 0,
       volatilidade: "Alta",
       risco: "C"
     },
     {
       categoria: "Stablecoins",
-      valor: totalStables,
-      percentual: patrimonioTotal > 0 ? (totalStables / patrimonioTotal) * 100 : 0,
+      valor: calculosPatrimonio.totalStables,
+      percentual: calculosPatrimonio.patrimonioTotal > 0 ? (calculosPatrimonio.totalStables / calculosPatrimonio.patrimonioTotal) * 100 : 0,
       rentabilidade: 0,
       volatilidade: "Baixa",
       risco: "A"
     },
     {
       categoria: "Objetivos",
-      valor: totalObjetivos,
-      percentual: patrimonioTotal > 0 ? (totalObjetivos / patrimonioTotal) * 100 : 0,
-      rentabilidade: 12.4,
+      valor: calculosPatrimonio.totalObjetivos,
+      percentual: calculosPatrimonio.patrimonioTotal > 0 ? (calculosPatrimonio.totalObjetivos / calculosPatrimonio.patrimonioTotal) * 100 : 0,
+      rentabilidade: filteredObjetivos.length > 0 
+        ? filteredObjetivos.reduce((acc, o) => acc + (o.rentabilidade * o.atual), 0) / calculosPatrimonio.totalObjetivos 
+        : 0,
       volatilidade: "Baixa",
       risco: "B"
     },
-  ], [totalRF, totalCripto, totalStables, totalObjetivos, patrimonioTotal]);
+  ], [calculosPatrimonio, filteredInvestimentosRF, filteredCriptomoedas, filteredObjetivos]);
 
   // Handlers
   const handleAddRF = (e: React.FormEvent) => {
@@ -444,17 +472,23 @@ const Investimentos = () => {
           </div>
         </div>
 
-        {/* Cards Resumo */}
+        {/* Cards Resumo Padronizados */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card className="glass-card border-l-4 border-l-primary animate-fade-in-up">
             <CardContent className="pt-5">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">Patrimônio Total</p>
-                  <p className="text-2xl font-bold text-foreground mt-1">{formatCurrency(patrimonioTotal)}</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">
+                    {formatCurrency(calculosPatrimonio.patrimonioTotal)}
+                  </p>
                   <div className="flex items-center gap-1 mt-1">
-                    <ArrowUpRight className="w-3 h-3 text-success" />
-                    <span className="text-xs text-success">+5.2% vs mês anterior</span>
+                    <span className={cn(
+                      "text-xs font-medium",
+                      calculosPatrimonio.variacaoMensal >= 0 ? "text-success" : "text-destructive"
+                    )}>
+                      {calculosPatrimonio.variacaoMensal >= 0 ? "▲" : "▼"} {Math.abs(calculosPatrimonio.variacaoMensal).toFixed(1)}% vs mês anterior
+                    </span>
                   </div>
                 </div>
                 <div className="p-2.5 rounded-xl bg-primary/10">
@@ -469,10 +503,16 @@ const Investimentos = () => {
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">Reserva Emergência</p>
                   <p className="text-2xl font-bold text-foreground mt-1">
-                    {reservaEmergencia ? `${((reservaEmergencia.atual / reservaEmergencia.meta) * 100).toFixed(0)}%` : "N/A"}
+                    {calculosPatrimonio.reservaEmergencia 
+                      ? `${((calculosPatrimonio.reservaEmergencia.atual / calculosPatrimonio.reservaEmergencia.meta) * 100).toFixed(0)}%`
+                      : "N/A"
+                    }
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {reservaEmergencia ? `${formatCurrency(reservaEmergencia.atual)} / ${formatCurrency(reservaEmergencia.meta)}` : "Sem objetivo definido"}
+                    {calculosPatrimonio.reservaEmergencia 
+                      ? `${formatCurrency(calculosPatrimonio.reservaEmergencia.atual)} / ${formatCurrency(calculosPatrimonio.reservaEmergencia.meta)}`
+                      : "Sem objetivo definido"
+                    }
                   </p>
                 </div>
                 <div className="p-2.5 rounded-xl bg-accent/10">
@@ -486,8 +526,12 @@ const Investimentos = () => {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">Exposição Cripto</p>
-                  <p className="text-2xl font-bold text-warning mt-1">{exposicaoCripto.toFixed(1)}%</p>
-                  <p className="text-xs text-muted-foreground mt-1">{formatCurrency(totalCripto)}</p>
+                  <p className="text-2xl font-bold text-warning mt-1">
+                    {calculosPatrimonio.exposicaoCripto.toFixed(1)}%
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatCurrency(calculosPatrimonio.totalCripto)}
+                  </p>
                 </div>
                 <div className="p-2.5 rounded-xl bg-warning/10">
                   <Bitcoin className="w-5 h-5 text-warning" />
@@ -580,7 +624,7 @@ const Investimentos = () => {
                         "font-medium",
                         item.rentabilidade > 0 ? "text-success" : item.rentabilidade < 0 ? "text-destructive" : "text-muted-foreground"
                       )}>
-                        {item.rentabilidade > 0 ? "+" : ""}{item.rentabilidade}%
+                        {item.rentabilidade > 0 ? "+" : ""}{item.rentabilidade.toFixed(1)}%
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
