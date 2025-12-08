@@ -1,319 +1,219 @@
 import { useState, useMemo, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Trash2, Search, X, Tag, TrendingUp, TrendingDown, Repeat, Circle, DollarSign, Calculator, Percent, Calendar, Clock, Target, Award, Zap } from "lucide-react";
-import { useFinance, Transacao } from "@/contexts/FinanceContext";
-import { EditableCell } from "@/components/EditableCell";
-import { EnhancedStatCards } from "@/components/transactions/EnhancedStatCards";
-import { SmartSummaryPanel } from "@/components/transactions/SmartSummaryPanel";
-import { CashFlowProjection } from "@/components/transactions/CashFlowProjection";
-import { EnhancedFilters } from "@/components/transactions/EnhancedFilters";
-import { EnhancedCharts } from "@/components/transactions/EnhancedCharts";
+import { Download, Upload, RefreshCw, Settings, Link2 } from "lucide-react";
+import { toast } from "sonner";
+
+// Types
+import { 
+  ContaCorrente, Categoria, TipoContabil, TransacaoCompleta, TransferGroup,
+  AccountSummary, OperationType, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, 
+  DEFAULT_ACCOUNTING_TYPES, generateTransactionId, formatCurrency
+} from "@/types/finance";
+
+// Components
+import { AccountsCarousel } from "@/components/transactions/AccountsCarousel";
+import { MovimentarContaModal } from "@/components/transactions/MovimentarContaModal";
+import { TransactionTable } from "@/components/transactions/TransactionTable";
+import { TransactionFilters } from "@/components/transactions/TransactionFilters";
+import { KPISidebar } from "@/components/transactions/KPISidebar";
+import { ReconciliationPanel } from "@/components/transactions/ReconciliationPanel";
 import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
-import { cn } from "@/lib/utils";
 
-// Categorias consideradas como despesas fixas
-const CATEGORIAS_FIXAS = ["Moradia", "Saúde", "Transporte", "Salário"];
+// Hooks
+import { useFinanceEvents } from "@/hooks/useFinanceEvents";
 
-// Ícones por categoria
-const CATEGORIA_ICONS: Record<string, string> = {
-  "Alimentação": "🍽️",
-  "Transporte": "🚗",
-  "Lazer": "🎮",
-  "Saúde": "💊",
-  "Moradia": "🏠",
-  "Salário": "💰",
-  "Freelance": "💻",
-  "Outros": "📦",
+// Storage keys
+const STORAGE_KEYS = {
+  ACCOUNTS: "fin_accounts_v1",
+  TRANSACTIONS: "fin_transactions_v1", 
+  CATEGORIES: "fin_categories_v1",
+  ACCOUNTING_TYPES: "fin_accounting_types_v1",
+  TRANSFER_GROUPS: "fin_transfer_groups_v1",
 };
 
+function loadFromStorage<T>(key: string, defaultValue: T): T {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : defaultValue;
+  } catch { return defaultValue; }
+}
+
+function saveToStorage<T>(key: string, data: T): void {
+  localStorage.setItem(key, JSON.stringify(data));
+}
+
 const ReceitasDespesas = () => {
-  const { transacoes, addTransacao, updateTransacao, deleteTransacao, categorias, addCategoria, removeCategoria, getTotalReceitas, getTotalDespesas } = useFinance();
+  // Data state
+  const [accounts, setAccounts] = useState<ContaCorrente[]>(() => 
+    loadFromStorage(STORAGE_KEYS.ACCOUNTS, DEFAULT_ACCOUNTS)
+  );
+  const [transactions, setTransactions] = useState<TransacaoCompleta[]>(() => 
+    loadFromStorage(STORAGE_KEYS.TRANSACTIONS, [])
+  );
+  const [categories, setCategories] = useState<Categoria[]>(() => 
+    loadFromStorage(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES)
+  );
+  const [accountingTypes, setAccountingTypes] = useState<TipoContabil[]>(() => 
+    loadFromStorage(STORAGE_KEYS.ACCOUNTING_TYPES, DEFAULT_ACCOUNTING_TYPES)
+  );
+  const [transferGroups, setTransferGroups] = useState<TransferGroup[]>(() => 
+    loadFromStorage(STORAGE_KEYS.TRANSFER_GROUPS, [])
+  );
+
+  // UI state
+  const [showMovimentarModal, setShowMovimentarModal] = useState(false);
+  const [selectedAccountForModal, setSelectedAccountForModal] = useState<string>();
+  const [showReconciliation, setShowReconciliation] = useState(false);
+  const [periodRange, setPeriodRange] = useState<PeriodRange>({ startMonth: null, startYear: null, endMonth: null, endYear: null });
+
+  // Filter state
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterCategoria, setFilterCategoria] = useState<string>("all");
-  const [filterTipo, setFilterTipo] = useState<string>("all");
-  const [filterDataInicio, setFilterDataInicio] = useState("");
-  const [filterDataFim, setFilterDataFim] = useState("");
-  const [novaCategoria, setNovaCategoria] = useState("");
-  const [showCategoriaManager, setShowCategoriaManager] = useState(false);
-  const [periodRange, setPeriodRange] = useState<PeriodRange>({
-    startMonth: null,
-    startYear: null,
-    endMonth: null,
-    endYear: null,
-  });
+  const [selectedAccountId, setSelectedAccountId] = useState("all");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("all");
+  const [selectedTypes, setSelectedTypes] = useState<OperationType[]>(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo']);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
-  // Novos filtros
-  const [filterValorMin, setFilterValorMin] = useState("");
-  const [filterValorMax, setFilterValorMax] = useState("");
-  const [filterMes, setFilterMes] = useState("all");
-  const [sortBy, setSortBy] = useState("recente");
-  const [tiposAtivos, setTiposAtivos] = useState<string[]>(["receita", "despesa"]);
+  const { emitEvent } = useFinanceEvents();
 
-  // Form state
-  const [formData, setFormData] = useState({
-    data: "",
-    descricao: "",
-    valor: "",
-    categoria: "",
-    tipo: "receita" as "receita" | "despesa",
-  });
+  // Persist data
+  const saveAll = useCallback(() => {
+    saveToStorage(STORAGE_KEYS.ACCOUNTS, accounts);
+    saveToStorage(STORAGE_KEYS.TRANSACTIONS, transactions);
+    saveToStorage(STORAGE_KEYS.CATEGORIES, categories);
+    saveToStorage(STORAGE_KEYS.ACCOUNTING_TYPES, accountingTypes);
+    saveToStorage(STORAGE_KEYS.TRANSFER_GROUPS, transferGroups);
+  }, [accounts, transactions, categories, accountingTypes, transferGroups]);
 
-  const handlePeriodChange = useCallback((period: PeriodRange) => {
-    setPeriodRange(period);
-  }, []);
-
-  // Converte PeriodRange para DateRange
+  // Filter transactions
   const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
+  
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const matchSearch = !searchTerm || t.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchAccount = selectedAccountId === 'all' || t.accountId === selectedAccountId;
+      const matchCategory = selectedCategoryId === 'all' || t.categoryId === selectedCategoryId;
+      const matchType = selectedTypes.includes(t.operationType);
+      const matchDateFrom = !dateFrom || t.date >= dateFrom;
+      const matchDateTo = !dateTo || t.date <= dateTo;
+      const matchPeriod = !dateRange.from || !dateRange.to || 
+        (new Date(t.date) >= dateRange.from && new Date(t.date) <= dateRange.to);
+      
+      return matchSearch && matchAccount && matchCategory && matchType && matchDateFrom && matchDateTo && matchPeriod;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [transactions, searchTerm, selectedAccountId, selectedCategoryId, selectedTypes, dateFrom, dateTo, dateRange]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.data || !formData.descricao || !formData.valor || !formData.categoria) return;
-
-    addTransacao({
-      data: formData.data,
-      descricao: formData.descricao,
-      valor: Number(formData.valor),
-      categoria: formData.categoria,
-      tipo: formData.tipo,
+  // Calculate account summaries
+  const accountSummaries: AccountSummary[] = useMemo(() => {
+    return accounts.map(account => {
+      const accountTx = transactions.filter(t => t.accountId === account.id);
+      const totalIn = accountTx.filter(t => t.flow === 'in' || t.flow === 'transfer_in').reduce((s, t) => s + t.amount, 0);
+      const totalOut = accountTx.filter(t => t.flow === 'out' || t.flow === 'transfer_out').reduce((s, t) => s + t.amount, 0);
+      const currentBalance = account.initialBalance + totalIn - totalOut;
+      
+      return {
+        accountId: account.id,
+        accountName: account.name,
+        initialBalance: account.initialBalance,
+        currentBalance,
+        projectedBalance: currentBalance,
+        totalIn,
+        totalOut,
+        reconciliationStatus: accountTx.every(t => t.conciliated) ? 'ok' : 'warning' as const,
+        transactionCount: accountTx.length
+      };
     });
+  }, [accounts, transactions]);
 
-    setFormData({
-      data: "",
-      descricao: "",
-      valor: "",
-      categoria: "",
-      tipo: "receita"
-    });
+  // Handlers
+  const handleMovimentar = (accountId: string) => {
+    setSelectedAccountForModal(accountId);
+    setShowMovimentarModal(true);
   };
 
-  const handleAddCategoria = () => {
-    if (novaCategoria.trim()) {
-      addCategoria(novaCategoria.trim());
-      setNovaCategoria("");
-    }
+  const handleViewHistory = (accountId: string) => {
+    setSelectedAccountId(accountId);
   };
 
-  // Filter transactions by date range
-  const filteredTransacoesByDate = useMemo(() => {
-    if (!dateRange.from || !dateRange.to) return transacoes;
+  const handleTransactionSubmit = (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => {
+    const newTransactions = [transaction];
     
-    return transacoes.filter(t => {
-      const transactionDate = new Date(t.data);
-      return transactionDate >= dateRange.from! && transactionDate <= dateRange.to!;
-    });
-  }, [transacoes, dateRange]);
-
-  // Filter and sort transactions
-  const filteredTransacoes = useMemo(() => {
-    let result = filteredTransacoesByDate.filter(t => {
-      const matchSearch = t.descricao.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchCategoria = filterCategoria === "all" || t.categoria === filterCategoria;
-      const matchTipo = tiposAtivos.includes(t.tipo);
-      const matchDataInicio = !filterDataInicio || t.data >= filterDataInicio;
-      const matchDataFim = !filterDataFim || t.data <= filterDataFim;
-      const matchValorMin = !filterValorMin || t.valor >= Number(filterValorMin);
-      const matchValorMax = !filterValorMax || t.valor <= Number(filterValorMax);
-      const matchMes = filterMes === "all" || t.data.split("-")[1] === filterMes;
-
-      return matchSearch && matchCategoria && matchTipo && matchDataInicio && matchDataFim && matchValorMin && matchValorMax && matchMes;
-    });
-
-    // Ordenação
-    switch (sortBy) {
-      case "recente":
-        result.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-        break;
-      case "antigo":
-        result.sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
-        break;
-      case "maior":
-        result.sort((a, b) => b.valor - a.valor);
-        break;
-      case "menor":
-        result.sort((a, b) => a.valor - b.valor);
-        break;
+    if (transferGroup) {
+      setTransferGroups(prev => [...prev, transferGroup]);
+      const incomingTx: TransacaoCompleta = {
+        ...transaction,
+        id: generateTransactionId(),
+        accountId: transferGroup.toAccountId,
+        flow: 'transfer_in',
+        links: { ...transaction.links, transferGroupId: transferGroup.id }
+      };
+      newTransactions.push(incomingTx);
+      emitEvent('transfer.created', { transferGroupId: transferGroup.id });
     }
 
-    return result;
-  }, [filteredTransacoesByDate, searchTerm, filterCategoria, tiposAtivos, filterDataInicio, filterDataFim, filterValorMin, filterValorMax, filterMes, sortBy]);
-
-  // Cálculos corrigidos
-  const totalReceitas = useMemo(() => {
-    return filteredTransacoes.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
-  }, [filteredTransacoes]);
-
-  const totalDespesas = useMemo(() => {
-    return filteredTransacoes.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0);
-  }, [filteredTransacoes]);
-
-  const saldo = useMemo(() => {
-    return totalReceitas - totalDespesas;
-  }, [totalReceitas, totalDespesas]);
-
-  // Cálculos por período (mês atual)
-  const currentDate = new Date();
-  const currentMonth = currentDate.getMonth();
-  const currentYear = currentDate.getFullYear();
-
-  const transacoesMesAtual = useMemo(() => {
-    return filteredTransacoes.filter(t => {
-      const date = new Date(t.data);
-      return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-    });
-  }, [filteredTransacoes, currentMonth, currentYear]);
-
-  const receitasMesAtual = useMemo(() => {
-    return transacoesMesAtual.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
-  }, [transacoesMesAtual]);
-
-  const despesasMesAtual = useMemo(() => {
-    return transacoesMesAtual.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0);
-  }, [transacoesMesAtual]);
-
-  const saldoMesAtual = useMemo(() => {
-    return receitasMesAtual - despesasMesAtual;
-  }, [receitasMesAtual, despesasMesAtual]);
-
-  // Cálculos avançados
-  const despesasFixas = useMemo(() => {
-    return filteredTransacoes
-      .filter(t => t.tipo === "despesa" && CATEGORIAS_FIXAS.includes(t.categoria))
-      .reduce((acc, t) => acc + t.valor, 0);
-  }, [filteredTransacoes]);
-
-  const despesasVariaveis = useMemo(() => {
-    return totalDespesas - despesasFixas;
-  }, [totalDespesas, despesasFixas]);
-
-  const ticketMedioReceitas = useMemo(() => {
-    const receitasCount = filteredTransacoes.filter(t => t.tipo === "receita").length;
-    return receitasCount > 0 ? totalReceitas / receitasCount : 0;
-  }, [filteredTransacoes, totalReceitas]);
-
-  const ticketMedioDespesas = useMemo(() => {
-    const despesasCount = filteredTransacoes.filter(t => t.tipo === "despesa").length;
-    return despesasCount > 0 ? totalDespesas / despesasCount : 0;
-  }, [filteredTransacoes, totalDespesas]);
-
-  // Categorias de gasto
-  const despesasPorCategoria = useMemo(() => {
-    const despesas = filteredTransacoes.filter(t => t.tipo === "despesa");
-    const categorias = despesas.reduce((acc, t) => {
-      acc[t.categoria] = (acc[t.categoria] || 0) + t.valor;
-      return acc;
-    }, {} as Record<string, number>);
+    setTransactions(prev => [...prev, ...newTransactions]);
+    emitEvent('transaction.created', { transactionId: transaction.id, links: transaction.links });
     
-    return Object.entries(categorias)
-      .sort(([,a], [,b]) => b - a)
-      .map(([categoria, valor]) => ({
-        categoria,
-        valor,
-        percentual: totalDespesas > 0 ? (valor / totalDespesas) * 100 : 0
-      }));
-  }, [filteredTransacoes, totalDespesas]);
+    if (transaction.links.investmentId) {
+      emitEvent('investment.linked', { transactionId: transaction.id, investmentId: transaction.links.investmentId });
+    }
+    if (transaction.links.loanId) {
+      emitEvent('loan.payment', { transactionId: transaction.id, loanId: transaction.links.loanId, parcelaId: transaction.links.parcelaId || undefined });
+    }
 
-  const categoriaMaiorGasto = despesasPorCategoria[0];
-
-  // Receitas por categoria
-  const receitasPorCategoria = useMemo(() => {
-    const receitas = filteredTransacoes.filter(t => t.tipo === "receita");
-    const categorias = receitas.reduce((acc, t) => {
-      acc[t.categoria] = (acc[t.categoria] || 0) + t.valor;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    return Object.entries(categorias)
-      .sort(([,a], [,b]) => b - a)
-      .map(([categoria, valor]) => ({
-        categoria,
-        valor,
-        percentual: totalReceitas > 0 ? (valor / totalReceitas) * 100 : 0
-      }));
-  }, [filteredTransacoes, totalReceitas]);
-
-  const principalFonteReceita = receitasPorCategoria[0];
-
-  // Comparação com período anterior
-  const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-  const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-
-  const transacoesMesAnterior = useMemo(() => {
-    return transacoes.filter(t => {
-      const date = new Date(t.data);
-      return date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
-    });
-  }, [transacoes, lastMonth, lastMonthYear]);
-
-  const receitasMesAnterior = useMemo(() => {
-    return transacoesMesAnterior.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
-  }, [transacoesMesAnterior]);
-
-  const despesasMesAnterior = useMemo(() => {
-    return transacoesMesAnterior.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0);
-  }, [transacoesMesAnterior]);
-
-  const variacaoReceitas = useMemo(() => {
-    if (receitasMesAnterior === 0) return 0;
-    return ((receitasMesAtual - receitasMesAnterior) / receitasMesAnterior) * 100;
-  }, [receitasMesAtual, receitasMesAnterior]);
-
-  const variacaoDespesas = useMemo(() => {
-    if (despesasMesAnterior === 0) return 0;
-    return ((despesasMesAtual - despesasMesAnterior) / despesasMesAnterior) * 100;
-  }, [despesasMesAtual, despesasMesAnterior]);
-
-  // Indicadores de eficiência
-  const margemPoupanca = useMemo(() => {
-    if (receitasMesAtual === 0) return 0;
-    return (saldoMesAtual / receitasMesAtual) * 100;
-  }, [saldoMesAtual, receitasMesAtual]);
-
-  const indiceEndividamento = useMemo(() => {
-    if (receitasMesAtual === 0) return 0;
-    return (despesasMesAtual / receitasMesAtual) * 100;
-  }, [despesasMesAtual, receitasMesAtual]);
-
-  const indiceCobertura = useMemo(() => {
-    if (despesasFixas === 0) return 0;
-    return (receitasMesAtual / despesasFixas) * 100;
-  }, [receitasMesAtual, despesasFixas]);
-
-  // Projeção de saldo
-  const projecaoSaldo = useMemo(() => {
-    const diasNoMes = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const diaAtual = currentDate.getDate();
-    
-    if (diaAtual === 0) return saldoMesAtual;
-    
-    const mediaDiaria = saldoMesAtual / diaAtual;
-    const diasRestantes = diasNoMes - diaAtual;
-    
-    return saldoMesAtual + (mediaDiaria * diasRestantes);
-  }, [saldoMesAtual, currentYear, currentMonth, currentDate]);
-
-  const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-
-  const calcularVariacao = () => {
-    // Simplificado: compara com média geral
-    const totalReceitasGeral = getTotalReceitas();
-    const totalDespesasGeral = getTotalDespesas();
-    const mediaReceitas = totalReceitasGeral / Math.max(1, new Set(transacoes.filter(t => t.tipo === "receita").map(t => t.data.substring(0, 7))).size);
-    const mediaDespesas = totalDespesasGeral / Math.max(1, new Set(transacoes.filter(t => t.tipo === "despesa").map(t => t.data.substring(0, 7))).size);
-
-    const variacaoReceitas = mediaReceitas > 0 ? ((totalReceitas - mediaReceitas) / mediaReceitas) * 100 : 0;
-    const variacaoDespesas = mediaDespesas > 0 ? ((totalDespesas - mediaDespesas) / mediaDespesas) * 100 : 0;
-
-    return { variacaoReceitas, variacaoDespesas };
+    saveAll();
   };
 
-  const { variacaoReceitas: variacaoGeralReceitas, variacaoDespesas: variacaoGeralDespesas } = calcularVariacao();
+  const handleDeleteTransaction = (id: string) => {
+    if (!confirm("Excluir esta transação?")) return;
+    setTransactions(prev => prev.filter(t => t.id !== id));
+    emitEvent('transaction.deleted', { transactionId: id });
+    saveAll();
+    toast.success("Transação excluída");
+  };
+
+  const handleToggleConciliated = (id: string, value: boolean) => {
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, conciliated: value } : t));
+    saveAll();
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setSelectedAccountId("all");
+    setSelectedCategoryId("all");
+    setSelectedTypes(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo']);
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  const handleExport = () => {
+    const exportData = {
+      schemaVersion: "1.0",
+      exportedAt: new Date().toISOString(),
+      data: { accounts, accountingTypes, categories, investments: [], loans: [], transferGroups, transactions }
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fin_export_v1_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Dados exportados!");
+  };
+
+  const handleReconcile = (accountId: string) => {
+    setTransactions(prev => prev.map(t => 
+      t.accountId === accountId ? { ...t, conciliated: true } : t
+    ));
+    saveAll();
+    toast.success("Conta conciliada!");
+  };
+
+  // Mock data for investments/loans
+  const investments = [{ id: 'inv_1', name: 'CDB Banco X' }, { id: 'inv_2', name: 'Tesouro Selic' }];
+  const loans = [{ id: 'loan_1', institution: 'Banco Y' }];
 
   return (
     <MainLayout>
@@ -322,365 +222,106 @@ const ReceitasDespesas = () => {
         <div className="flex items-center justify-between animate-fade-in">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Receitas e Despesas</h1>
-            <p className="text-muted-foreground mt-1">Gerencie suas transações financeiras</p>
+            <p className="text-muted-foreground mt-1">Movimentação de caixa e conciliação bancária</p>
           </div>
-          <div className="flex items-center gap-3">
-            <PeriodSelector 
-              tabId="receitas-despesas" 
-              onPeriodChange={handlePeriodChange} 
-            />
-            <Button 
-              variant="outline" 
-              className="gap-2 border-border" 
-              onClick={() => setShowCategoriaManager(!showCategoriaManager)}
-            >
-              <Tag className="w-4 h-4" /> Gerenciar Categorias
+          <div className="flex items-center gap-2">
+            <PeriodSelector tabId="receitas-despesas" onPeriodChange={setPeriodRange} />
+            <Button variant="outline" size="sm" onClick={() => setShowReconciliation(!showReconciliation)}>
+              <RefreshCw className="w-4 h-4 mr-2" />Conciliar
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExport}>
+              <Download className="w-4 h-4 mr-2" />Exportar
             </Button>
           </div>
         </div>
 
-        {/* Enhanced Stat Cards */}
-        <EnhancedStatCards 
-          transacoes={filteredTransacoes} 
-          totalReceitas={totalReceitas} 
-          totalDespesas={totalDespesas} 
-        />
+        {/* Accounts Carousel */}
+        <div className="glass-card p-4">
+          <AccountsCarousel
+            accounts={accountSummaries}
+            onMovimentar={handleMovimentar}
+            onViewHistory={handleViewHistory}
+          />
+        </div>
 
-        {/* Smart Summary Panel */}
-        <SmartSummaryPanel transacoes={filteredTransacoes} />
-
-        {/* Cash Flow Projection */}
-        <CashFlowProjection transacoes={filteredTransacoes} />
-
-        {/* Charts */}
-        <EnhancedCharts transacoes={filteredTransacoes} categorias={categorias} />
-
-        {/* Category Manager */}
-        {showCategoriaManager && (
-          <div className="glass-card p-5 animate-fade-in">
-            <h3 className="text-lg font-semibold text-foreground mb-4">Gerenciar Categorias</h3>
-            <div className="flex gap-2 mb-4">
-              <Input
-                value={novaCategoria}
-                onChange={(e) => setNovaCategoria(e.target.value)}
-                placeholder="Nova categoria..."
-                className="bg-muted border-border"
-                onKeyDown={(e) => e.key === "Enter" && handleAddCategoria()}
-              />
-              <Button onClick={handleAddCategoria} className="bg-primary">
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {categorias.map((cat) => (
-                <div key={cat} className="flex items-center gap-1 px-3 py-1 rounded-full bg-muted text-sm">
-                  <span>{CATEGORIA_ICONS[cat] || "📌"}</span>
-                  <span>{cat}</span>
-                  <button onClick={() => removeCategoria(cat)} className="ml-1 hover:text-destructive">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* Reconciliation Panel */}
+        {showReconciliation && (
+          <ReconciliationPanel
+            accounts={accounts}
+            transactions={transactions}
+            onReconcile={handleReconcile}
+          />
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Form */}
-          <div className="glass-card p-5 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
-            <h3 className="text-lg font-semibold text-foreground mb-4">Nova Transação</h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={formData.tipo === "receita" ? "default" : "outline"}
-                  className={formData.tipo === "receita" ? "bg-success flex-1" : "border-border flex-1"}
-                  onClick={() => setFormData({ ...formData, tipo: "receita" })}
-                >
-                  Receita
-                </Button>
-                <Button
-                  type="button"
-                  variant={formData.tipo === "despesa" ? "default" : "outline"}
-                  className={formData.tipo === "despesa" ? "bg-destructive flex-1" : "border-border flex-1"}
-                  onClick={() => setFormData({ ...formData, tipo: "despesa" })}
-                >
-                  Despesa
-                </Button>
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Transactions Area */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* Filters */}
+            <div className="glass-card p-4">
+              <TransactionFilters
+                accounts={accounts}
+                categories={categories}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                selectedAccountId={selectedAccountId}
+                onAccountChange={setSelectedAccountId}
+                selectedCategoryId={selectedCategoryId}
+                onCategoryChange={setSelectedCategoryId}
+                selectedTypes={selectedTypes}
+                onTypesChange={setSelectedTypes}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onDateFromChange={setDateFrom}
+                onDateToChange={setDateTo}
+                onClearFilters={handleClearFilters}
+              />
+            </div>
+
+            {/* Table */}
+            <div className="glass-card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold">Histórico de Transações</h3>
+                <span className="text-sm text-muted-foreground">{filteredTransactions.length} transações</span>
               </div>
-              <div>
-                <Label htmlFor="data">Data</Label>
-                <Input
-                  id="data"
-                  type="date"
-                  value={formData.data}
-                  onChange={(e) => setFormData({ ...formData, data: e.target.value })}
-                  className="mt-1.5 bg-muted border-border"
-                />
-              </div>
-              <div>
-                <Label htmlFor="descricao">Descrição</Label>
-                <Input
-                  id="descricao"
-                  value={formData.descricao}
-                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  placeholder="Descrição da transação..."
-                  className="mt-1.5 bg-muted border-border"
-                />
-              </div>
-              <div>
-                <Label htmlFor="valor">Valor (R$)</Label>
-                <Input
-                  id="valor"
-                  type="number"
-                  step="0.01"
-                  value={formData.valor}
-                  onChange={(e) => setFormData({ ...formData, valor: e.target.value })}
-                  placeholder="0,00"
-                  className="mt-1.5 bg-muted border-border"
-                />
-              </div>
-              <div>
-                <Label htmlFor="categoria">Categoria</Label>
-                <Select value={formData.categoria} onValueChange={(v) => setFormData({ ...formData, categoria: v })}>
-                  <SelectTrigger className="mt-1.5 bg-muted border-border">
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categorias.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        <span className="flex items-center gap-2">
-                          <span>{CATEGORIA_ICONS[cat] || "📌"}</span>
-                          {cat}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button type="submit" className="w-full bg-neon-gradient hover:opacity-90">
-                <Plus className="w-4 h-4 mr-2" /> Adicionar
-              </Button>
-            </form>
+              <TransactionTable
+                transactions={filteredTransactions}
+                accounts={accounts}
+                categories={categories}
+                onEdit={(t) => toast.info("Edição em desenvolvimento")}
+                onDelete={handleDeleteTransaction}
+                onToggleConciliated={handleToggleConciliated}
+              />
+            </div>
           </div>
 
-          {/* Detalhes de Categorias */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="glass-card p-5 animate-fade-in-up">
-              <h3 className="text-lg font-semibold text-foreground mb-4">Maior Gasto por Categoria</h3>
-              <div className="space-y-3">
-                {despesasPorCategoria.slice(0, 5).map((cat, index) => (
-                  <div key={cat.categoria} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <p className="font-medium">{cat.categoria}</p>
-                        <p className="text-xs text-muted-foreground">{cat.percentual.toFixed(1)}% do total</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-destructive">{formatCurrency(cat.valor)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {categoriaMaiorGasto && categoriaMaiorGasto.categoria === cat.categoria ? "Maior gasto" : ""}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                {despesasPorCategoria.length === 0 && (
-                  <p className="text-muted-foreground text-center py-4">Nenhuma despesa registrada</p>
-                )}
-              </div>
-            </div>
-
-            <div className="glass-card p-5 animate-fade-in-up">
-              <h3 className="text-lg font-semibold text-foreground mb-4">Principais Fontes de Receita</h3>
-              <div className="space-y-3">
-                {receitasPorCategoria.slice(0, 5).map((cat, index) => (
-                  <div key={cat.categoria} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-success/10 text-success flex items-center justify-center font-semibold text-sm">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <p className="font-medium">{cat.categoria}</p>
-                        <p className="text-xs text-muted-foreground">{cat.percentual.toFixed(1)}% do total</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-success">{formatCurrency(cat.valor)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {principalFonteReceita && principalFonteReceita.categoria === cat.categoria ? "Principal fonte" : ""}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                {receitasPorCategoria.length === 0 && (
-                  <p className="text-muted-foreground text-center py-4">Nenhuma receita registrada</p>
-                )}
-              </div>
-            </div>
+          {/* KPI Sidebar */}
+          <div className="lg:col-span-1">
+            <KPISidebar transactions={filteredTransactions} categories={categories} />
           </div>
         </div>
 
-        {/* Filters & Table */}
-        <div className="glass-card p-5 animate-fade-in-up" style={{ animationDelay: "300ms" }}>
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-            <h3 className="text-lg font-semibold text-foreground">Histórico de Transações</h3>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 w-48 bg-muted border-border"
-                />
-              </div>
-              <Select value={filterCategoria} onValueChange={setFilterCategoria}>
-                <SelectTrigger className="w-36 bg-muted border-border">
-                  <SelectValue placeholder="Categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {categorias.map((cat) => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                type="date"
-                value={filterDataInicio}
-                onChange={(e) => setFilterDataInicio(e.target.value)}
-                className="w-36 bg-muted border-border"
-                placeholder="Data início"
-              />
-              <Input
-                type="date"
-                value={filterDataFim}
-                onChange={(e) => setFilterDataFim(e.target.value)}
-                className="w-36 bg-muted border-border"
-                placeholder="Data fim"
-              />
-
-              {/* Enhanced Filters */}
-              <EnhancedFilters
-                filterValorMin={filterValorMin}
-                setFilterValorMin={setFilterValorMin}
-                filterValorMax={filterValorMax}
-                setFilterValorMax={setFilterValorMax}
-                filterMes={filterMes}
-                setFilterMes={setFilterMes}
-                sortBy={sortBy}
-                setSortBy={setSortBy}
-                tiposAtivos={tiposAtivos}
-                setTiposAtivos={setTiposAtivos}
-              />
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-border overflow-hidden">
-            <TooltipProvider>
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-transparent">
-                    <TableHead className="text-muted-foreground">Data</TableHead>
-                    <TableHead className="text-muted-foreground">Descrição</TableHead>
-                    <TableHead className="text-muted-foreground">Categoria</TableHead>
-                    <TableHead className="text-muted-foreground">Valor</TableHead>
-                    <TableHead className="text-muted-foreground">Tipo</TableHead>
-                    <TableHead className="text-muted-foreground">Info</TableHead>
-                    <TableHead className="text-muted-foreground w-16">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTransacoes.map((item) => {
-                    const isFixa = CATEGORIAS_FIXAS.includes(item.categoria);
-                    return (
-                      <TableRow key={item.id} className="border-border hover:bg-muted/30 transition-colors">
-                        <TableCell className="text-muted-foreground">
-                          <EditableCell
-                            value={item.data}
-                            type="date"
-                            onSave={(v) => updateTransacao(item.id, { data: String(v) })}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditableCell
-                            value={item.descricao}
-                            onSave={(v) => updateTransacao(item.id, { descricao: String(v) })}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span>{CATEGORIA_ICONS[item.categoria] || "📌"}</span>
-                            <EditableCell
-                              value={item.categoria}
-                              onSave={(v) => updateTransacao(item.id, { categoria: String(v) })}
-                            />
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <EditableCell
-                            value={item.valor}
-                            type="currency"
-                            onSave={(v) => updateTransacao(item.id, { valor: Number(v) })}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={item.tipo === "receita" ? "default" : "destructive"} className={cn(
-                            "capitalize",
-                            item.tipo === "receita" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"
-                          )}>
-                            {item.tipo === "receita" ? (
-                              <TrendingUp className="w-3 h-3 mr-1" />
-                            ) : (
-                              <TrendingDown className="w-3 h-3 mr-1" />
-                            )}
-                            {item.tipo}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            {isFixa && (
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <Repeat className="w-4 h-4 text-muted-foreground" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Despesa/Receita Fixa</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteTransacao(item.id)}
-                            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {filteredTransacoes.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                        Nenhuma transação encontrada
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TooltipProvider>
+        {/* Footer */}
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center gap-4">
+            <Link2 className="w-4 h-4" />
+            <span>Vincule operações a Investimentos e Empréstimos</span>
           </div>
         </div>
       </div>
+
+      {/* Modal */}
+      <MovimentarContaModal
+        open={showMovimentarModal}
+        onOpenChange={setShowMovimentarModal}
+        accounts={accounts}
+        categories={categories}
+        accountingTypes={accountingTypes}
+        investments={investments}
+        loans={loans}
+        selectedAccountId={selectedAccountForModal}
+        onSubmit={handleTransactionSubmit}
+      />
     </MainLayout>
   );
 };
