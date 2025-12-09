@@ -35,7 +35,7 @@ export function AccountsCarousel({
   return (
     <div className="relative">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-semibold text-foreground">Contas Correntes</h3>
+        <h3 className="text-lg font-semibold text-foreground">Contas Movimento</h3>
         <div className="flex items-center gap-2">
           {onAddAccount && (
             <Button variant="outline" size="sm" onClick={onAddAccount} className="gap-1">
