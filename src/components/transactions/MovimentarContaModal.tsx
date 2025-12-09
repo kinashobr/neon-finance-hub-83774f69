@@ -10,10 +10,10 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   TrendingUp, TrendingDown, ArrowLeftRight, PiggyBank, Wallet, 
-  CreditCard, AlertTriangle, Check, Plus, Info
+  CreditCard, AlertTriangle, Check, Plus, Info, Car
 } from "lucide-react";
 import { 
-  OperationType, ContaCorrente, Categoria, TipoContabil, 
+  OperationType, ContaCorrente, Categoria, 
   TransacaoCompleta, formatCurrency, generateTransactionId,
   generateTransferGroupId, getFlowTypeFromOperation, getDomainFromOperation,
   TransferGroup
@@ -26,12 +26,11 @@ interface MovimentarContaModalProps {
   onOpenChange: (open: boolean) => void;
   accounts: ContaCorrente[];
   categories: Categoria[];
-  accountingTypes: TipoContabil[];
   investments: Array<{ id: string; name: string }>;
   loans: Array<{ id: string; institution: string; parcelas?: Array<{ id: string; numero: number; pago: boolean }> }>;
   selectedAccountId?: string;
   onSubmit: (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => void;
-  onCreateAccountingType?: (type: Omit<TipoContabil, 'id'>) => TipoContabil;
+  editingTransaction?: TransacaoCompleta;
 }
 
 const OPERATION_TYPES: { value: OperationType; label: string; icon: typeof TrendingUp; color: string }[] = [
@@ -41,6 +40,7 @@ const OPERATION_TYPES: { value: OperationType; label: string; icon: typeof Trend
   { value: 'aplicacao', label: 'Aplicação', icon: PiggyBank, color: 'text-purple-500' },
   { value: 'resgate', label: 'Resgate', icon: Wallet, color: 'text-amber-500' },
   { value: 'pagamento_emprestimo', label: 'Pagar Empréstimo', icon: CreditCard, color: 'text-orange-500' },
+  { value: 'veiculo', label: 'Veículos', icon: Car, color: 'text-blue-500' },
 ];
 
 export function MovimentarContaModal({
@@ -48,12 +48,11 @@ export function MovimentarContaModal({
   onOpenChange,
   accounts,
   categories,
-  accountingTypes,
   investments,
   loans,
   selectedAccountId,
   onSubmit,
-  onCreateAccountingType
+  editingTransaction
 }: MovimentarContaModalProps) {
   const [operationType, setOperationType] = useState<OperationType>('receita');
   const [accountId, setAccountId] = useState(selectedAccountId || '');
@@ -62,26 +61,42 @@ export function MovimentarContaModal({
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [accountingTypeId, setAccountingTypeId] = useState('');
   const [investmentId, setInvestmentId] = useState('');
   const [loanId, setLoanId] = useState('');
   const [parcelaId, setParcelaId] = useState('');
-  const [showNewAccountingType, setShowNewAccountingType] = useState(false);
-  const [newAccountingTypeLabel, setNewAccountingTypeLabel] = useState('');
+  const [vehicleOperation, setVehicleOperation] = useState<'compra' | 'venda'>('compra');
 
-  // Reset quando modal abre
+  const isEditing = !!editingTransaction;
+
+  // Reset ou preencher quando modal abre
   useEffect(() => {
     if (open) {
-      setAccountId(selectedAccountId || accounts[0]?.id || '');
-      setAmount('');
-      setDescription('');
-      setCategoryId('');
-      setAccountDestinoId('');
-      setInvestmentId('');
-      setLoanId('');
-      setParcelaId('');
+      if (editingTransaction) {
+        setOperationType(editingTransaction.operationType);
+        setAccountId(editingTransaction.accountId);
+        setDate(editingTransaction.date);
+        setAmount(editingTransaction.amount.toString());
+        setDescription(editingTransaction.description);
+        setCategoryId(editingTransaction.categoryId || '');
+        setInvestmentId(editingTransaction.links.investmentId || '');
+        setLoanId(editingTransaction.links.loanId || '');
+        setParcelaId(editingTransaction.links.parcelaId || '');
+        setVehicleOperation(editingTransaction.meta.vehicleOperation || 'compra');
+      } else {
+        setAccountId(selectedAccountId || accounts[0]?.id || '');
+        setOperationType('receita');
+        setDate(new Date().toISOString().split('T')[0]);
+        setAmount('');
+        setDescription('');
+        setCategoryId('');
+        setAccountDestinoId('');
+        setInvestmentId('');
+        setLoanId('');
+        setParcelaId('');
+        setVehicleOperation('compra');
+      }
     }
-  }, [open, selectedAccountId, accounts]);
+  }, [open, selectedAccountId, accounts, editingTransaction]);
 
   const selectedAccount = useMemo(() => 
     accounts.find(a => a.id === accountId),
@@ -95,7 +110,7 @@ export function MovimentarContaModal({
 
   const currentBalance = useMemo(() => {
     if (!selectedAccount) return 0;
-    return selectedAccount.initialBalance; // Em produção: calcular saldo real
+    return selectedAccount.initialBalance;
   }, [selectedAccount]);
 
   const parsedAmount = useMemo(() => {
@@ -105,21 +120,21 @@ export function MovimentarContaModal({
 
   const projectedBalance = useMemo(() => {
     const op = operationType;
-    if (op === 'receita' || op === 'resgate') {
+    if (op === 'receita' || op === 'resgate' || (op === 'veiculo' && vehicleOperation === 'venda')) {
       return currentBalance + parsedAmount;
-    } else if (op === 'despesa' || op === 'aplicacao' || op === 'pagamento_emprestimo' || op === 'transferencia') {
+    } else if (op === 'despesa' || op === 'aplicacao' || op === 'pagamento_emprestimo' || op === 'transferencia' || (op === 'veiculo' && vehicleOperation === 'compra')) {
       return currentBalance - parsedAmount;
     }
     return currentBalance;
-  }, [currentBalance, parsedAmount, operationType]);
+  }, [currentBalance, parsedAmount, operationType, vehicleOperation]);
 
   const isNegativeBalance = projectedBalance < 0;
 
   const filteredCategories = useMemo(() => {
     if (operationType === 'receita') {
-      return categories.filter(c => c.type === 'income' || c.type === 'both');
+      return categories.filter(c => c.nature === 'receita' || c.type === 'income' || c.type === 'both');
     } else if (operationType === 'despesa') {
-      return categories.filter(c => c.type === 'expense' || c.type === 'both');
+      return categories.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel' || c.type === 'expense' || c.type === 'both');
     }
     return categories;
   }, [categories, operationType]);
@@ -142,44 +157,44 @@ export function MovimentarContaModal({
       return;
     }
 
-    if (isNegativeBalance) {
+    if (isNegativeBalance && !isEditing) {
       const confirmed = window.confirm(
         `Atenção: Esta operação deixará a conta com saldo negativo (${formatCurrency(projectedBalance)}). Deseja continuar?`
       );
       if (!confirmed) return;
     }
 
-    const transactionId = generateTransactionId();
+    const transactionId = editingTransaction?.id || generateTransactionId();
     const now = new Date().toISOString();
 
-    // Criar transação principal
     const transaction: TransacaoCompleta = {
       id: transactionId,
       date,
       accountId,
-      flow: getFlowTypeFromOperation(operationType),
+      flow: getFlowTypeFromOperation(operationType, operationType === 'veiculo' ? vehicleOperation : undefined),
       operationType,
       domain: getDomainFromOperation(operationType),
       amount: parsedAmount,
-      accountingTypeId: accountingTypeId || null,
       categoryId: (operationType === 'receita' || operationType === 'despesa') ? categoryId : null,
       description: description || `${operationType} - ${formatCurrency(parsedAmount)}`,
       links: {
         investmentId: (operationType === 'aplicacao' || operationType === 'resgate') ? investmentId : null,
         loanId: operationType === 'pagamento_emprestimo' ? loanId : null,
         transferGroupId: null,
-        parcelaId: operationType === 'pagamento_emprestimo' ? parcelaId || null : null
+        parcelaId: operationType === 'pagamento_emprestimo' ? parcelaId || null : null,
+        vehicleTransactionId: operationType === 'veiculo' ? `veh_${transactionId}` : null
       },
-      conciliated: false,
-      attachments: [],
+      conciliated: editingTransaction?.conciliated || false,
+      attachments: editingTransaction?.attachments || [],
       meta: {
         createdBy: 'user',
         source: 'manual',
-        createdAt: now
+        createdAt: editingTransaction?.meta.createdAt || now,
+        updatedAt: isEditing ? now : undefined,
+        vehicleOperation: operationType === 'veiculo' ? vehicleOperation : undefined
       }
     };
 
-    // Se for transferência, criar grupo de transferência
     let transferGroup: TransferGroup | undefined;
     if (operationType === 'transferencia') {
       const groupId = generateTransferGroupId();
@@ -198,22 +213,7 @@ export function MovimentarContaModal({
 
     onSubmit(transaction, transferGroup);
     onOpenChange(false);
-    toast.success("Movimentação registrada com sucesso!");
-  };
-
-  const handleCreateAccountingType = () => {
-    if (!newAccountingTypeLabel.trim() || !onCreateAccountingType) return;
-    
-    const newType = onCreateAccountingType({
-      label: newAccountingTypeLabel,
-      nature: operationType === 'receita' ? 'credit' : 'debit',
-      dreGroup: 'OUTROS'
-    });
-    
-    setAccountingTypeId(newType.id);
-    setShowNewAccountingType(false);
-    setNewAccountingTypeLabel('');
-    toast.success("Tipo contábil criado!");
+    toast.success(isEditing ? "Transação atualizada!" : "Movimentação registrada!");
   };
 
   return (
@@ -222,7 +222,7 @@ export function MovimentarContaModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wallet className="w-5 h-5 text-primary" />
-            Movimentar Conta
+            {isEditing ? "Editar Transação" : "Movimentar Conta"}
           </DialogTitle>
           <DialogDescription>
             Registre receitas, despesas, transferências e operações vinculadas.
@@ -233,7 +233,7 @@ export function MovimentarContaModal({
           {/* Tipo de Operação */}
           <div className="space-y-2">
             <Label>Tipo de Operação</Label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {OPERATION_TYPES.map(({ value, label, icon: Icon, color }) => (
                 <Button
                   key={value}
@@ -254,6 +254,39 @@ export function MovimentarContaModal({
           </div>
 
           <Separator />
+
+          {/* Operação de Veículo */}
+          {operationType === 'veiculo' && (
+            <div className="space-y-2">
+              <Label>Tipo de Operação com Veículo</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={vehicleOperation === 'compra' ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setVehicleOperation('compra')}
+                >
+                  <TrendingDown className="w-4 h-4 mr-2" />
+                  Compra de Veículo
+                </Button>
+                <Button
+                  type="button"
+                  variant={vehicleOperation === 'venda' ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setVehicleOperation('venda')}
+                >
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Venda de Veículo
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                <Info className="w-3 h-3 inline mr-1" />
+                O vínculo com o veículo será feito na tela de Veículos.
+              </p>
+            </div>
+          )}
 
           {/* Conta Origem */}
           <div className="space-y-2">
@@ -354,53 +387,6 @@ export function MovimentarContaModal({
             </div>
           )}
 
-          {/* Tipo Contábil */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="accountingTypeId">Tipo Contábil</Label>
-              <Button 
-                type="button" 
-                variant="ghost" 
-                size="sm" 
-                className="h-6 text-xs"
-                onClick={() => setShowNewAccountingType(!showNewAccountingType)}
-              >
-                <Plus className="w-3 h-3 mr-1" />
-                Novo
-              </Button>
-            </div>
-            {showNewAccountingType ? (
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Nome do novo tipo..."
-                  value={newAccountingTypeLabel}
-                  onChange={e => setNewAccountingTypeLabel(e.target.value)}
-                />
-                <Button type="button" size="sm" onClick={handleCreateAccountingType}>
-                  <Check className="w-4 h-4" />
-                </Button>
-              </div>
-            ) : (
-              <Select value={accountingTypeId} onValueChange={setAccountingTypeId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Opcional..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {accountingTypes.map(type => (
-                    <SelectItem key={type.id} value={type.id}>
-                      <span className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {type.nature === 'credit' ? 'C' : 'D'}
-                        </Badge>
-                        {type.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
           {/* Investimento (para aplicação/resgate) */}
           {(operationType === 'aplicacao' || operationType === 'resgate') && (
             <div className="space-y-2">
@@ -475,52 +461,39 @@ export function MovimentarContaModal({
 
           <Separator />
 
-          {/* Preview do impacto */}
-          <div className="p-3 rounded-lg bg-muted/50 space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Info className="w-4 h-4 text-muted-foreground" />
-              Impacto na Conta
-            </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Saldo Atual</span>
-                <p className="font-semibold">{formatCurrency(currentBalance)}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Saldo Após</span>
-                <p className={cn(
-                  "font-semibold",
-                  isNegativeBalance ? "text-destructive" : "text-success"
-                )}>
-                  {formatCurrency(projectedBalance)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {isNegativeBalance && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
+          {/* Preview de Impacto */}
+          {selectedAccount && parsedAmount > 0 && (
+            <Alert className={isNegativeBalance ? "border-warning" : "border-success/30"}>
+              {isNegativeBalance && <AlertTriangle className="h-4 w-4 text-warning" />}
               <AlertDescription>
-                Esta operação deixará a conta com saldo negativo.
+                <div className="space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span>Saldo atual:</span>
+                    <span className="font-medium">{formatCurrency(currentBalance)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Após operação:</span>
+                    <span className={cn(
+                      "font-bold",
+                      isNegativeBalance ? "text-destructive" : "text-success"
+                    )}>
+                      {formatCurrency(projectedBalance)}
+                    </span>
+                  </div>
+                </div>
               </AlertDescription>
             </Alert>
           )}
 
-          {/* Botões */}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              type="button" 
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-              className="bg-primary"
-            >
-              Confirmar
-            </Button>
-          </div>
+          {/* Botão de Submissão */}
+          <Button 
+            className="w-full" 
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+          >
+            <Check className="w-4 h-4 mr-2" />
+            {isEditing ? "Salvar Alterações" : "Registrar Movimentação"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

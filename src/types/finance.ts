@@ -1,12 +1,40 @@
 // ============================================
-// SCHEMA v1.0 - Tipos para Receitas & Despesas
+// SCHEMA v1.1 - Tipos para Receitas & Despesas
 // ============================================
 
-// Conta Corrente
+// Tipos de Conta Movimento
+export type AccountType = 
+  | 'conta_corrente' 
+  | 'aplicacao_renda_fixa' 
+  | 'poupanca' 
+  | 'criptoativos' 
+  | 'reserva_emergencia' 
+  | 'objetivos_financeiros';
+
+export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  conta_corrente: 'Conta Corrente',
+  aplicacao_renda_fixa: 'Aplicação Renda Fixa',
+  poupanca: 'Poupança',
+  criptoativos: 'Criptoativos',
+  reserva_emergencia: 'Reserva de Emergência',
+  objetivos_financeiros: 'Objetivos Financeiros',
+};
+
+// Tipos de Categoria
+export type CategoryNature = 'receita' | 'despesa_fixa' | 'despesa_variavel';
+
+export const CATEGORY_NATURE_LABELS: Record<CategoryNature, string> = {
+  receita: 'Receita',
+  despesa_fixa: 'Despesa Fixa',
+  despesa_variavel: 'Despesa Variável',
+};
+
+// Conta Movimento (antes ContaCorrente)
 export interface ContaCorrente {
   id: string;
   name: string;
-  type: 'checking' | 'savings' | 'wallet' | 'investment';
+  accountType: AccountType;
+  institution?: string;
   currency: string;
   initialBalance: number;
   color?: string;
@@ -15,20 +43,65 @@ export interface ContaCorrente {
   meta: Record<string, unknown>;
 }
 
-// Tipo Contábil (para DRE)
-export interface TipoContabil {
-  id: string;
-  label: string;
-  nature: 'credit' | 'debit';
-  dreGroup: string;
-}
-
-// Categoria de Transação
+// Categoria de Transação (atualizada)
 export interface Categoria {
   id: string;
   label: string;
   icon?: string;
-  type?: 'income' | 'expense' | 'both';
+  nature: CategoryNature;
+  type?: 'income' | 'expense' | 'both'; // Compatibilidade
+}
+
+// Links de vinculação (atualizado com veículos)
+export interface TransactionLinks {
+  investmentId: string | null;
+  loanId: string | null;
+  transferGroupId: string | null;
+  parcelaId?: string | null;
+  vehicleTransactionId?: string | null;
+}
+
+// Tipos de Fluxo
+export type FlowType = 'in' | 'out' | 'transfer_in' | 'transfer_out';
+
+// Tipos de Operação no Modal (atualizado com veículos)
+export type OperationType = 
+  | 'receita' 
+  | 'despesa' 
+  | 'transferencia' 
+  | 'aplicacao' 
+  | 'resgate' 
+  | 'pagamento_emprestimo'
+  | 'veiculo';
+
+// Domínio da Transação
+export type TransactionDomain = 'operational' | 'investment' | 'financing' | 'asset';
+
+// Meta informações
+export interface TransactionMeta {
+  createdBy: string;
+  source: 'manual' | 'import' | 'api';
+  createdAt: string;
+  updatedAt?: string;
+  notes?: string;
+  vehicleOperation?: 'compra' | 'venda';
+}
+
+// Transação Completa (atualizado)
+export interface TransacaoCompleta {
+  id: string;
+  date: string;
+  accountId: string;
+  flow: FlowType;
+  operationType: OperationType;
+  domain: TransactionDomain;
+  amount: number;
+  categoryId: string | null;
+  description: string;
+  links: TransactionLinks;
+  conciliated: boolean;
+  attachments: string[];
+  meta: TransactionMeta;
 }
 
 // Grupo de Transferência
@@ -41,63 +114,12 @@ export interface TransferGroup {
   description?: string;
 }
 
-// Links de vinculação
-export interface TransactionLinks {
-  investmentId: string | null;
-  loanId: string | null;
-  transferGroupId: string | null;
-  parcelaId?: string | null;
-}
-
-// Tipos de Fluxo
-export type FlowType = 'in' | 'out' | 'transfer_in' | 'transfer_out';
-
-// Tipos de Operação no Modal
-export type OperationType = 
-  | 'receita' 
-  | 'despesa' 
-  | 'transferencia' 
-  | 'aplicacao' 
-  | 'resgate' 
-  | 'pagamento_emprestimo';
-
-// Domínio da Transação
-export type TransactionDomain = 'operational' | 'investment' | 'financing';
-
-// Meta informações
-export interface TransactionMeta {
-  createdBy: string;
-  source: 'manual' | 'import' | 'api';
-  createdAt: string;
-  updatedAt?: string;
-  notes?: string;
-}
-
-// Transação Completa (novo schema)
-export interface TransacaoCompleta {
-  id: string;
-  date: string;
-  accountId: string;
-  flow: FlowType;
-  operationType: OperationType;
-  domain: TransactionDomain;
-  amount: number;
-  accountingTypeId: string | null;
-  categoryId: string | null;
-  description: string;
-  links: TransactionLinks;
-  conciliated: boolean;
-  attachments: string[];
-  meta: TransactionMeta;
-}
-
-// Schema de Exportação v1.0
+// Schema de Exportação v1.1
 export interface FinanceExportV1 {
-  schemaVersion: '1.0';
+  schemaVersion: '1.1';
   exportedAt: string;
   data: {
     accounts: ContaCorrente[];
-    accountingTypes: TipoContabil[];
     categories: Categoria[];
     investments: Array<{ id: string; name: string; status: string; meta: Record<string, unknown> }>;
     loans: Array<{ id: string; institution: string; currentBalance: number; meta: Record<string, unknown> }>;
@@ -126,7 +148,8 @@ export type FinanceEventType =
   | 'transaction.deleted'
   | 'transfer.created'
   | 'investment.linked'
-  | 'loan.payment';
+  | 'loan.payment'
+  | 'vehicle.transaction';
 
 export interface FinanceEvent {
   type: FinanceEventType;
@@ -136,6 +159,7 @@ export interface FinanceEvent {
     investmentId?: string;
     loanId?: string;
     parcelaId?: string;
+    vehicleTransactionId?: string;
     links?: TransactionLinks;
   };
   timestamp: string;
@@ -155,6 +179,8 @@ export interface BalanceProjection {
 export interface AccountSummary {
   accountId: string;
   accountName: string;
+  accountType: AccountType;
+  institution?: string;
   initialBalance: number;
   currentBalance: number;
   projectedBalance: number;
@@ -169,7 +195,8 @@ export const DEFAULT_ACCOUNTS: ContaCorrente[] = [
   {
     id: 'acc_principal',
     name: 'Conta Principal',
-    type: 'checking',
+    accountType: 'conta_corrente',
+    institution: 'Banco Principal',
     currency: 'BRL',
     initialBalance: 10000,
     color: 'hsl(var(--primary))',
@@ -180,7 +207,8 @@ export const DEFAULT_ACCOUNTS: ContaCorrente[] = [
   {
     id: 'acc_poupanca',
     name: 'Poupança',
-    type: 'savings',
+    accountType: 'poupanca',
+    institution: 'Banco Principal',
     currency: 'BRL',
     initialBalance: 5000,
     color: 'hsl(var(--success))',
@@ -191,7 +219,7 @@ export const DEFAULT_ACCOUNTS: ContaCorrente[] = [
   {
     id: 'acc_carteira',
     name: 'Carteira',
-    type: 'wallet',
+    accountType: 'reserva_emergencia',
     currency: 'BRL',
     initialBalance: 500,
     color: 'hsl(var(--warning))',
@@ -201,25 +229,17 @@ export const DEFAULT_ACCOUNTS: ContaCorrente[] = [
   }
 ];
 
-export const DEFAULT_ACCOUNTING_TYPES: TipoContabil[] = [
-  { id: 'receita_operacional', label: 'Receita Operacional', nature: 'credit', dreGroup: 'RECEITAS_OPERACIONAIS' },
-  { id: 'receita_financeira', label: 'Receita Financeira', nature: 'credit', dreGroup: 'RECEITAS_FINANCEIRAS' },
-  { id: 'despesa_fixa', label: 'Despesa Fixa', nature: 'debit', dreGroup: 'DESPESAS_OPERACIONAIS' },
-  { id: 'despesa_variavel', label: 'Despesa Variável', nature: 'debit', dreGroup: 'DESPESAS_OPERACIONAIS' },
-  { id: 'investimento', label: 'Investimento', nature: 'debit', dreGroup: 'INVESTIMENTOS' },
-  { id: 'financiamento', label: 'Financiamento', nature: 'debit', dreGroup: 'FINANCIAMENTOS' },
-];
-
 export const DEFAULT_CATEGORIES: Categoria[] = [
-  { id: 'alimentacao', label: 'Alimentação', icon: '🍽️', type: 'expense' },
-  { id: 'transporte', label: 'Transporte', icon: '🚗', type: 'expense' },
-  { id: 'lazer', label: 'Lazer', icon: '🎮', type: 'expense' },
-  { id: 'saude', label: 'Saúde', icon: '💊', type: 'expense' },
-  { id: 'moradia', label: 'Moradia', icon: '🏠', type: 'expense' },
-  { id: 'salario', label: 'Salário', icon: '💰', type: 'income' },
-  { id: 'freelance', label: 'Freelance', icon: '💻', type: 'income' },
-  { id: 'investimentos', label: 'Investimentos', icon: '📈', type: 'both' },
-  { id: 'outros', label: 'Outros', icon: '📦', type: 'both' },
+  { id: 'alimentacao', label: 'Alimentação', icon: '🍽️', nature: 'despesa_variavel', type: 'expense' },
+  { id: 'transporte', label: 'Transporte', icon: '🚗', nature: 'despesa_variavel', type: 'expense' },
+  { id: 'lazer', label: 'Lazer', icon: '🎮', nature: 'despesa_variavel', type: 'expense' },
+  { id: 'saude', label: 'Saúde', icon: '💊', nature: 'despesa_variavel', type: 'expense' },
+  { id: 'moradia', label: 'Moradia', icon: '🏠', nature: 'despesa_fixa', type: 'expense' },
+  { id: 'salario', label: 'Salário', icon: '💰', nature: 'receita', type: 'income' },
+  { id: 'freelance', label: 'Freelance', icon: '💻', nature: 'receita', type: 'income' },
+  { id: 'investimentos', label: 'Investimentos', icon: '📈', nature: 'receita', type: 'both' },
+  { id: 'seguro', label: 'Seguro', icon: '🛡️', nature: 'despesa_fixa', type: 'expense' },
+  { id: 'outros', label: 'Outros', icon: '📦', nature: 'despesa_variavel', type: 'both' },
 ];
 
 // Helpers
@@ -231,6 +251,14 @@ export function generateTransferGroupId(): string {
   return `tr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
+export function generateAccountId(): string {
+  return `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+export function generateCategoryId(): string {
+  return `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
 export function formatCurrency(value: number, currency = 'BRL'): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -238,7 +266,7 @@ export function formatCurrency(value: number, currency = 'BRL'): string {
   }).format(value);
 }
 
-export function getFlowTypeFromOperation(op: OperationType): FlowType {
+export function getFlowTypeFromOperation(op: OperationType, vehicleOp?: 'compra' | 'venda'): FlowType {
   switch (op) {
     case 'receita':
     case 'resgate':
@@ -249,6 +277,8 @@ export function getFlowTypeFromOperation(op: OperationType): FlowType {
       return 'out';
     case 'transferencia':
       return 'transfer_out';
+    case 'veiculo':
+      return vehicleOp === 'venda' ? 'in' : 'out';
     default:
       return 'out';
   }
@@ -264,9 +294,15 @@ export function getDomainFromOperation(op: OperationType): TransactionDomain {
       return 'investment';
     case 'pagamento_emprestimo':
       return 'financing';
+    case 'veiculo':
+      return 'asset';
     case 'transferencia':
       return 'operational';
     default:
       return 'operational';
   }
+}
+
+export function getCategoryTypeFromNature(nature: CategoryNature): 'income' | 'expense' | 'both' {
+  return nature === 'receita' ? 'income' : 'expense';
 }

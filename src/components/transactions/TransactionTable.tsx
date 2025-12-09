@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { 
-  TrendingUp, TrendingDown, ArrowLeftRight, PiggyBank, Wallet, CreditCard,
+  TrendingUp, TrendingDown, ArrowLeftRight, PiggyBank, Wallet, CreditCard, Car,
   MoreVertical, Pencil, Trash2, Link2, CheckCircle2, XCircle, Paperclip, Eye
 } from "lucide-react";
 import { TransacaoCompleta, OperationType, formatCurrency, ContaCorrente, Categoria } from "@/types/finance";
@@ -31,6 +31,7 @@ const OPERATION_ICONS: Record<OperationType, typeof TrendingUp> = {
   aplicacao: PiggyBank,
   resgate: Wallet,
   pagamento_emprestimo: CreditCard,
+  veiculo: Car,
 };
 
 const OPERATION_COLORS: Record<OperationType, string> = {
@@ -40,6 +41,7 @@ const OPERATION_COLORS: Record<OperationType, string> = {
   aplicacao: 'bg-purple-500/20 text-purple-500',
   resgate: 'bg-amber-500/20 text-amber-500',
   pagamento_emprestimo: 'bg-orange-500/20 text-orange-500',
+  veiculo: 'bg-blue-500/20 text-blue-500',
 };
 
 const OPERATION_LABELS: Record<OperationType, string> = {
@@ -49,6 +51,7 @@ const OPERATION_LABELS: Record<OperationType, string> = {
   aplicacao: 'Aplicação',
   resgate: 'Resgate',
   pagamento_emprestimo: 'Pag. Empréstimo',
+  veiculo: 'Veículo',
 };
 
 export function TransactionTable({
