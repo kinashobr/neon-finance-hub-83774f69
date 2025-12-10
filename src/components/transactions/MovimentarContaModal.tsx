@@ -10,10 +10,10 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   TrendingUp, TrendingDown, ArrowLeftRight, PiggyBank, Wallet, 
-  CreditCard, AlertTriangle, Check, Plus, Info, Car
+  CreditCard, AlertTriangle, Check, Plus, Info, Car, Banknote, DollarSign
 } from "lucide-react";
 import { 
-  OperationType, ContaCorrente, Categoria, 
+  OperationType, ContaCorrente, Categoria, AccountType,
   TransacaoCompleta, formatCurrency, generateTransactionId,
   generateTransferGroupId, getFlowTypeFromOperation, getDomainFromOperation,
   TransferGroup
@@ -27,21 +27,43 @@ interface MovimentarContaModalProps {
   accounts: ContaCorrente[];
   categories: Categoria[];
   investments: Array<{ id: string; name: string }>;
-  loans: Array<{ id: string; institution: string; parcelas?: Array<{ id: string; numero: number; pago: boolean }> }>;
+  loans: Array<{ id: string; institution: string; numeroContrato?: string; parcelas?: Array<{ id: string; numero: number; pago: boolean }> }>;
   selectedAccountId?: string;
   onSubmit: (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => void;
   editingTransaction?: TransacaoCompleta;
 }
 
-const OPERATION_TYPES: { value: OperationType; label: string; icon: typeof TrendingUp; color: string }[] = [
-  { value: 'receita', label: 'Receita', icon: TrendingUp, color: 'text-success' },
-  { value: 'despesa', label: 'Despesa', icon: TrendingDown, color: 'text-destructive' },
-  { value: 'transferencia', label: 'Transferência', icon: ArrowLeftRight, color: 'text-primary' },
-  { value: 'aplicacao', label: 'Aplicação', icon: PiggyBank, color: 'text-purple-500' },
-  { value: 'resgate', label: 'Resgate', icon: Wallet, color: 'text-amber-500' },
-  { value: 'pagamento_emprestimo', label: 'Pagar Empréstimo', icon: CreditCard, color: 'text-orange-500' },
-  { value: 'veiculo', label: 'Veículos', icon: Car, color: 'text-blue-500' },
-];
+// Operações disponíveis por tipo de conta
+const getOperationsForAccountType = (accountType: AccountType): OperationType[] => {
+  switch (accountType) {
+    case 'conta_corrente':
+      // Conta corrente: Receita, Despesa, Aplicação, Resgate, Pagamento/Liberação Empréstimo, Veículos
+      return ['receita', 'despesa', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo'];
+    case 'aplicacao_renda_fixa':
+    case 'poupanca':
+    case 'reserva_emergencia':
+    case 'objetivos_financeiros':
+      // Investimentos com rendimentos: apenas rendimentos (aplicação/resgate via conta corrente)
+      return ['rendimento'];
+    case 'criptoativos':
+      // Criptoativos: sem operações diretas, tudo via conta corrente
+      return [];
+    default:
+      return ['receita', 'despesa'];
+  }
+};
+
+const OPERATION_CONFIG: Record<OperationType, { label: string; icon: typeof TrendingUp; color: string }> = {
+  receita: { label: 'Receita', icon: TrendingUp, color: 'text-success' },
+  despesa: { label: 'Despesa', icon: TrendingDown, color: 'text-destructive' },
+  transferencia: { label: 'Transferência', icon: ArrowLeftRight, color: 'text-primary' },
+  aplicacao: { label: 'Aplicação', icon: PiggyBank, color: 'text-purple-500' },
+  resgate: { label: 'Resgate', icon: Wallet, color: 'text-amber-500' },
+  pagamento_emprestimo: { label: 'Pagar Empréstimo', icon: CreditCard, color: 'text-orange-500' },
+  liberacao_emprestimo: { label: 'Liberação Empréstimo', icon: Banknote, color: 'text-emerald-500' },
+  veiculo: { label: 'Veículos', icon: Car, color: 'text-blue-500' },
+  rendimento: { label: 'Rendimento', icon: DollarSign, color: 'text-teal-500' },
+};
 
 export function MovimentarContaModal({
   open,
@@ -65,8 +87,20 @@ export function MovimentarContaModal({
   const [loanId, setLoanId] = useState('');
   const [parcelaId, setParcelaId] = useState('');
   const [vehicleOperation, setVehicleOperation] = useState<'compra' | 'venda'>('compra');
+  const [numeroContrato, setNumeroContrato] = useState('');
 
   const isEditing = !!editingTransaction;
+
+  const selectedAccount = useMemo(() => 
+    accounts.find(a => a.id === accountId),
+    [accounts, accountId]
+  );
+
+  // Operações disponíveis baseadas no tipo da conta selecionada
+  const availableOperations = useMemo(() => {
+    if (!selectedAccount) return ['receita', 'despesa'] as OperationType[];
+    return getOperationsForAccountType(selectedAccount.accountType);
+  }, [selectedAccount]);
 
   // Reset ou preencher quando modal abre
   useEffect(() => {
@@ -82,9 +116,19 @@ export function MovimentarContaModal({
         setLoanId(editingTransaction.links.loanId || '');
         setParcelaId(editingTransaction.links.parcelaId || '');
         setVehicleOperation(editingTransaction.meta.vehicleOperation || 'compra');
+        setNumeroContrato(editingTransaction.meta.numeroContrato || '');
       } else {
-        setAccountId(selectedAccountId || accounts[0]?.id || '');
-        setOperationType('receita');
+        const defaultAccount = accounts.find(a => a.id === selectedAccountId) || accounts[0];
+        setAccountId(defaultAccount?.id || '');
+        
+        // Set default operation based on account type
+        if (defaultAccount) {
+          const ops = getOperationsForAccountType(defaultAccount.accountType);
+          setOperationType(ops[0] || 'receita');
+        } else {
+          setOperationType('receita');
+        }
+        
         setDate(new Date().toISOString().split('T')[0]);
         setAmount('');
         setDescription('');
@@ -94,14 +138,20 @@ export function MovimentarContaModal({
         setLoanId('');
         setParcelaId('');
         setVehicleOperation('compra');
+        setNumeroContrato('');
       }
     }
   }, [open, selectedAccountId, accounts, editingTransaction]);
 
-  const selectedAccount = useMemo(() => 
-    accounts.find(a => a.id === accountId),
-    [accounts, accountId]
-  );
+  // Update operation when account changes
+  useEffect(() => {
+    if (selectedAccount && !isEditing) {
+      const ops = getOperationsForAccountType(selectedAccount.accountType);
+      if (!ops.includes(operationType)) {
+        setOperationType(ops[0] || 'receita');
+      }
+    }
+  }, [selectedAccount, isEditing, operationType]);
 
   const selectedLoan = useMemo(() =>
     loans.find(l => l.id === loanId),
@@ -120,12 +170,14 @@ export function MovimentarContaModal({
 
   const projectedBalance = useMemo(() => {
     const op = operationType;
-    if (op === 'receita' || op === 'resgate' || (op === 'veiculo' && vehicleOperation === 'venda')) {
+    const isIncoming = op === 'receita' || op === 'resgate' || op === 'liberacao_emprestimo' || 
+                       op === 'rendimento' || (op === 'veiculo' && vehicleOperation === 'venda');
+    
+    if (isIncoming) {
       return currentBalance + parsedAmount;
-    } else if (op === 'despesa' || op === 'aplicacao' || op === 'pagamento_emprestimo' || op === 'transferencia' || (op === 'veiculo' && vehicleOperation === 'compra')) {
+    } else {
       return currentBalance - parsedAmount;
     }
-    return currentBalance;
   }, [currentBalance, parsedAmount, operationType, vehicleOperation]);
 
   const isNegativeBalance = projectedBalance < 0;
@@ -139,6 +191,18 @@ export function MovimentarContaModal({
     return categories;
   }, [categories, operationType]);
 
+  // Contas de investimento disponíveis para aplicação/resgate
+  const investmentAccounts = useMemo(() => 
+    accounts.filter(a => 
+      a.accountType === 'aplicacao_renda_fixa' || 
+      a.accountType === 'poupanca' || 
+      a.accountType === 'criptoativos' ||
+      a.accountType === 'reserva_emergencia' ||
+      a.accountType === 'objetivos_financeiros'
+    ),
+    [accounts]
+  );
+
   const canSubmit = useMemo(() => {
     if (!accountId || parsedAmount <= 0 || !date) return false;
     
@@ -147,9 +211,10 @@ export function MovimentarContaModal({
     if ((operationType === 'receita' || operationType === 'despesa') && !categoryId) return false;
     if ((operationType === 'aplicacao' || operationType === 'resgate') && !investmentId) return false;
     if (operationType === 'pagamento_emprestimo' && !loanId) return false;
+    if (operationType === 'liberacao_emprestimo' && !numeroContrato.trim()) return false;
 
     return true;
-  }, [accountId, parsedAmount, date, operationType, accountDestinoId, categoryId, investmentId, loanId]);
+  }, [accountId, parsedAmount, date, operationType, accountDestinoId, categoryId, investmentId, loanId, numeroContrato]);
 
   const handleSubmit = () => {
     if (!canSubmit) {
@@ -167,19 +232,24 @@ export function MovimentarContaModal({
     const transactionId = editingTransaction?.id || generateTransactionId();
     const now = new Date().toISOString();
 
+    // Determine flow type
+    const isIncoming = operationType === 'receita' || operationType === 'resgate' || 
+                       operationType === 'liberacao_emprestimo' || operationType === 'rendimento' ||
+                       (operationType === 'veiculo' && vehicleOperation === 'venda');
+
     const transaction: TransacaoCompleta = {
       id: transactionId,
       date,
       accountId,
-      flow: getFlowTypeFromOperation(operationType, operationType === 'veiculo' ? vehicleOperation : undefined),
+      flow: isIncoming ? 'in' : 'out',
       operationType,
       domain: getDomainFromOperation(operationType),
       amount: parsedAmount,
       categoryId: (operationType === 'receita' || operationType === 'despesa') ? categoryId : null,
-      description: description || `${operationType} - ${formatCurrency(parsedAmount)}`,
+      description: description || `${OPERATION_CONFIG[operationType]?.label || operationType} - ${formatCurrency(parsedAmount)}`,
       links: {
         investmentId: (operationType === 'aplicacao' || operationType === 'resgate') ? investmentId : null,
-        loanId: operationType === 'pagamento_emprestimo' ? loanId : null,
+        loanId: (operationType === 'pagamento_emprestimo' || operationType === 'liberacao_emprestimo') ? loanId || `loan_pending_${transactionId}` : null,
         transferGroupId: null,
         parcelaId: operationType === 'pagamento_emprestimo' ? parcelaId || null : null,
         vehicleTransactionId: operationType === 'veiculo' ? `veh_${transactionId}` : null
@@ -191,7 +261,9 @@ export function MovimentarContaModal({
         source: 'manual',
         createdAt: editingTransaction?.meta.createdAt || now,
         updatedAt: isEditing ? now : undefined,
-        vehicleOperation: operationType === 'veiculo' ? vehicleOperation : undefined
+        vehicleOperation: operationType === 'veiculo' ? vehicleOperation : undefined,
+        numeroContrato: operationType === 'liberacao_emprestimo' ? numeroContrato : undefined,
+        pendingLoanConfig: operationType === 'liberacao_emprestimo' ? true : undefined
       }
     };
 
@@ -216,6 +288,66 @@ export function MovimentarContaModal({
     toast.success(isEditing ? "Transação atualizada!" : "Movimentação registrada!");
   };
 
+  // Renderização condicional baseada no tipo de conta
+  const renderOperationOptions = () => {
+    if (availableOperations.length === 0) {
+      return (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Esta conta não suporta operações diretas. Use "Aplicação" ou "Resgate" a partir de uma Conta Corrente.
+          </AlertDescription>
+        </Alert>
+      );
+    }
+
+    // Para contas de renda fixa - mostrar apenas Rendimento com layout simplificado
+    if (availableOperations.length === 1 && availableOperations[0] === 'rendimento') {
+      return (
+        <div className="p-3 rounded-lg bg-teal-500/10 border border-teal-500/20">
+          <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400">
+            <DollarSign className="w-5 h-5" />
+            <span className="font-medium">Adicionar Rendimento</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Registre rendimentos (juros, dividendos) desta aplicação financeira.
+          </p>
+        </div>
+      );
+    }
+
+    // Para conta corrente - grid de operações
+    return (
+      <div className="space-y-2">
+        <Label>Tipo de Operação</Label>
+        <div className="grid grid-cols-3 gap-2">
+          {availableOperations.map((opType) => {
+            const config = OPERATION_CONFIG[opType];
+            if (!config) return null;
+            const Icon = config.icon;
+            
+            return (
+              <Button
+                key={opType}
+                type="button"
+                variant={operationType === opType ? "default" : "outline"}
+                size="sm"
+                className={cn(
+                  "flex flex-col items-center gap-1 h-auto py-2",
+                  operationType === opType && "ring-2 ring-primary"
+                )}
+                onClick={() => setOperationType(opType)}
+              >
+                <Icon className={cn("w-4 h-4", operationType === opType ? "text-primary-foreground" : config.color)} />
+                <span className="text-xs">{config.label}</span>
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -225,35 +357,34 @@ export function MovimentarContaModal({
             {isEditing ? "Editar Transação" : "Movimentar Conta"}
           </DialogTitle>
           <DialogDescription>
-            Registre receitas, despesas, transferências e operações vinculadas.
+            {selectedAccount?.accountType === 'conta_corrente' 
+              ? "Registre receitas, despesas, aplicações e operações de empréstimo."
+              : "Registre movimentações nesta conta."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
-          {/* Tipo de Operação */}
+          {/* Conta */}
           <div className="space-y-2">
-            <Label>Tipo de Operação</Label>
-            <div className="grid grid-cols-4 gap-2">
-              {OPERATION_TYPES.map(({ value, label, icon: Icon, color }) => (
-                <Button
-                  key={value}
-                  type="button"
-                  variant={operationType === value ? "default" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "flex flex-col items-center gap-1 h-auto py-2",
-                    operationType === value && "ring-2 ring-primary"
-                  )}
-                  onClick={() => setOperationType(value)}
-                >
-                  <Icon className={cn("w-4 h-4", operationType === value ? "text-primary-foreground" : color)} />
-                  <span className="text-xs">{label}</span>
-                </Button>
-              ))}
-            </div>
+            <Label htmlFor="accountId">Conta *</Label>
+            <Select value={accountId} onValueChange={setAccountId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a conta..." />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map(account => (
+                  <SelectItem key={account.id} value={account.id}>
+                    {account.name} - {formatCurrency(account.initialBalance)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <Separator />
+
+          {/* Tipo de Operação */}
+          {renderOperationOptions()}
 
           {/* Operação de Veículo */}
           {operationType === 'veiculo' && (
@@ -288,44 +419,26 @@ export function MovimentarContaModal({
             </div>
           )}
 
-          {/* Conta Origem */}
-          <div className="space-y-2">
-            <Label htmlFor="accountId">Conta {operationType === 'transferencia' ? 'Origem' : ''} *</Label>
-            <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a conta..." />
-              </SelectTrigger>
-              <SelectContent>
-                {accounts.map(account => (
-                  <SelectItem key={account.id} value={account.id}>
-                    {account.name} - {formatCurrency(account.initialBalance)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Conta Destino (só para transferência) */}
-          {operationType === 'transferencia' && (
-            <div className="space-y-2">
-              <Label htmlFor="accountDestinoId">Conta Destino *</Label>
-              <Select value={accountDestinoId} onValueChange={setAccountDestinoId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a conta destino..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts
-                    .filter(a => a.id !== accountId)
-                    .map(account => (
-                      <SelectItem key={account.id} value={account.id}>
-                        {account.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              {accountId === accountDestinoId && accountDestinoId && (
-                <p className="text-xs text-destructive">Conta destino deve ser diferente da origem</p>
-              )}
+          {/* Liberação de Empréstimo - campos específicos */}
+          {operationType === 'liberacao_emprestimo' && (
+            <div className="space-y-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                <Banknote className="w-4 h-4" />
+                <span className="text-sm font-medium">Pré-cadastro de Empréstimo</span>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="numeroContrato">Número do Contrato *</Label>
+                <Input
+                  id="numeroContrato"
+                  placeholder="Ex: 123456789"
+                  value={numeroContrato}
+                  onChange={e => setNumeroContrato(e.target.value)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                <Info className="w-3 h-3 inline mr-1" />
+                O empréstimo aparecerá como "Pendente de Configuração" na aba Empréstimos.
+              </p>
             </div>
           )}
 
@@ -390,31 +503,30 @@ export function MovimentarContaModal({
           {/* Investimento (para aplicação/resgate) */}
           {(operationType === 'aplicacao' || operationType === 'resgate') && (
             <div className="space-y-2">
-              <Label htmlFor="investmentId">Investimento *</Label>
+              <Label htmlFor="investmentId">Conta de Investimento *</Label>
               <Select value={investmentId} onValueChange={setInvestmentId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o investimento..." />
+                  <SelectValue placeholder="Selecione a conta destino..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {investments.map(inv => (
-                    <SelectItem key={inv.id} value={inv.id}>
-                      {inv.name}
+                  {investmentAccounts.map(acc => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.name}
                     </SelectItem>
                   ))}
-                  <SelectItem value="new">
-                    <span className="flex items-center gap-2 text-primary">
-                      <Plus className="w-3 h-3" />
-                      Criar novo investimento
-                    </span>
-                  </SelectItem>
+                  {investmentAccounts.length === 0 && (
+                    <SelectItem value="new" disabled>
+                      Nenhuma conta de investimento cadastrada
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
-              {investmentId === 'new' && (
-                <p className="text-xs text-muted-foreground">
-                  <Info className="w-3 h-3 inline mr-1" />
-                  Um rascunho será criado. Complete os dados na tela de Investimentos.
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                <Info className="w-3 h-3 inline mr-1" />
+                {operationType === 'aplicacao' 
+                  ? "Transfere dinheiro desta conta para o investimento." 
+                  : "Resgata dinheiro do investimento para esta conta."}
+              </p>
             </div>
           )}
 
@@ -430,7 +542,7 @@ export function MovimentarContaModal({
                   <SelectContent>
                     {loans.map(loan => (
                       <SelectItem key={loan.id} value={loan.id}>
-                        {loan.institution}
+                        {loan.institution} {loan.numeroContrato ? `(${loan.numeroContrato})` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>

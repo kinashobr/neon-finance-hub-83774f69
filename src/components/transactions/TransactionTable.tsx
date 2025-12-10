@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,8 +5,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { 
-  TrendingUp, TrendingDown, ArrowLeftRight, PiggyBank, Wallet, CreditCard, Car,
-  MoreVertical, Pencil, Trash2, Link2, CheckCircle2, XCircle, Paperclip, Eye
+  TrendingUp, TrendingDown, ArrowLeftRight, PiggyBank, Wallet, CreditCard, Car, Banknote, DollarSign,
+  MoreVertical, Pencil, Trash2, CheckCircle2, XCircle, Paperclip, Eye
 } from "lucide-react";
 import { TransacaoCompleta, OperationType, formatCurrency, ContaCorrente, Categoria } from "@/types/finance";
 import { cn } from "@/lib/utils";
@@ -31,7 +30,9 @@ const OPERATION_ICONS: Record<OperationType, typeof TrendingUp> = {
   aplicacao: PiggyBank,
   resgate: Wallet,
   pagamento_emprestimo: CreditCard,
+  liberacao_emprestimo: Banknote,
   veiculo: Car,
+  rendimento: DollarSign,
 };
 
 const OPERATION_COLORS: Record<OperationType, string> = {
@@ -41,7 +42,9 @@ const OPERATION_COLORS: Record<OperationType, string> = {
   aplicacao: 'bg-purple-500/20 text-purple-500',
   resgate: 'bg-amber-500/20 text-amber-500',
   pagamento_emprestimo: 'bg-orange-500/20 text-orange-500',
+  liberacao_emprestimo: 'bg-emerald-500/20 text-emerald-500',
   veiculo: 'bg-blue-500/20 text-blue-500',
+  rendimento: 'bg-teal-500/20 text-teal-500',
 };
 
 const OPERATION_LABELS: Record<OperationType, string> = {
@@ -51,7 +54,9 @@ const OPERATION_LABELS: Record<OperationType, string> = {
   aplicacao: 'Aplicação',
   resgate: 'Resgate',
   pagamento_emprestimo: 'Pag. Empréstimo',
+  liberacao_emprestimo: 'Liberação Empréstimo',
   veiculo: 'Veículo',
+  rendimento: 'Rendimento',
 };
 
 export function TransactionTable({

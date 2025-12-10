@@ -64,7 +64,7 @@ export interface TransactionLinks {
 // Tipos de Fluxo
 export type FlowType = 'in' | 'out' | 'transfer_in' | 'transfer_out';
 
-// Tipos de Operação no Modal (atualizado com veículos)
+// Tipos de Operação no Modal (atualizado com veículos e liberação empréstimo)
 export type OperationType = 
   | 'receita' 
   | 'despesa' 
@@ -72,7 +72,9 @@ export type OperationType =
   | 'aplicacao' 
   | 'resgate' 
   | 'pagamento_emprestimo'
-  | 'veiculo';
+  | 'liberacao_emprestimo'
+  | 'veiculo'
+  | 'rendimento';
 
 // Domínio da Transação
 export type TransactionDomain = 'operational' | 'investment' | 'financing' | 'asset';
@@ -85,6 +87,8 @@ export interface TransactionMeta {
   updatedAt?: string;
   notes?: string;
   vehicleOperation?: 'compra' | 'venda';
+  numeroContrato?: string;
+  pendingLoanConfig?: boolean;
 }
 
 // Transação Completa (atualizado)

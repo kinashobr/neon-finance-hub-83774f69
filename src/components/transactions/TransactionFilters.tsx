@@ -36,7 +36,9 @@ const OPERATION_TYPE_OPTIONS: { value: OperationType; label: string }[] = [
   { value: 'aplicacao', label: 'Aplicação' },
   { value: 'resgate', label: 'Resgate' },
   { value: 'pagamento_emprestimo', label: 'Pag. Empréstimo' },
+  { value: 'liberacao_emprestimo', label: 'Liberação Empréstimo' },
   { value: 'veiculo', label: 'Veículo' },
+  { value: 'rendimento', label: 'Rendimento' },
 ];
 
 export function TransactionFilters({

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { Download, Upload, RefreshCw, Settings, Link2, Tags, Plus } from "lucide-react";
+import { Download, RefreshCw, Tags, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 // Types
@@ -14,13 +14,13 @@ import {
 // Components
 import { AccountsCarousel } from "@/components/transactions/AccountsCarousel";
 import { MovimentarContaModal } from "@/components/transactions/MovimentarContaModal";
-import { TransactionTable } from "@/components/transactions/TransactionTable";
 import { TransactionFilters } from "@/components/transactions/TransactionFilters";
 import { KPISidebar } from "@/components/transactions/KPISidebar";
 import { ReconciliationPanel } from "@/components/transactions/ReconciliationPanel";
 import { AccountFormModal } from "@/components/transactions/AccountFormModal";
 import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
-import { AccountStatementPage } from "@/components/transactions/AccountStatementPage";
+import { CategoryListModal } from "@/components/transactions/CategoryListModal";
+import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
 import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
 
 // Hooks
@@ -70,17 +70,19 @@ const ReceitasDespesas = () => {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<ContaCorrente>();
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showCategoryListModal, setShowCategoryListModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Categoria>();
   const [editingTransaction, setEditingTransaction] = useState<TransacaoCompleta>();
   
-  // Statement view
+  // Statement dialog
   const [viewingAccountId, setViewingAccountId] = useState<string | null>(null);
+  const [showStatementDialog, setShowStatementDialog] = useState(false);
 
   // Filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
-  const [selectedTypes, setSelectedTypes] = useState<OperationType[]>(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'veiculo']);
+  const [selectedTypes, setSelectedTypes] = useState<OperationType[]>(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'rendimento']);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -145,6 +147,7 @@ const ReceitasDespesas = () => {
 
   const handleViewStatement = (accountId: string) => {
     setViewingAccountId(accountId);
+    setShowStatementDialog(true);
   };
 
   const handleTransactionSubmit = (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => {
@@ -207,10 +210,21 @@ const ReceitasDespesas = () => {
     setSearchTerm("");
     setSelectedAccountId("all");
     setSelectedCategoryId("all");
-    setSelectedTypes(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'veiculo']);
+    setSelectedTypes(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'rendimento']);
     setDateFrom("");
     setDateTo("");
   };
+
+  // Transaction count by category
+  const transactionCountByCategory = useMemo(() => {
+    const counts: Record<string, number> = {};
+    transactions.forEach(t => {
+      if (t.categoryId) {
+        counts[t.categoryId] = (counts[t.categoryId] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [transactions]);
 
   const handleExport = () => {
     const exportData = {
@@ -290,42 +304,10 @@ const ReceitasDespesas = () => {
   const investments = [{ id: 'inv_1', name: 'CDB Banco X' }, { id: 'inv_2', name: 'Tesouro Selic' }];
   const loans = [{ id: 'loan_1', institution: 'Banco Y' }];
 
-  // If viewing account statement, show dedicated page
-  if (viewingAccountId) {
-    const account = accounts.find(a => a.id === viewingAccountId);
-    const summary = accountSummaries.find(s => s.accountId === viewingAccountId);
-    const accountTransactions = transactions.filter(t => t.accountId === viewingAccountId);
-
-    if (account && summary) {
-      return (
-        <MainLayout>
-          <AccountStatementPage
-            account={account}
-            accountSummary={summary}
-            transactions={accountTransactions}
-            categories={categories}
-            onBack={() => setViewingAccountId(null)}
-            onEditTransaction={handleEditTransaction}
-            onDeleteTransaction={handleDeleteTransaction}
-            onToggleConciliated={handleToggleConciliated}
-            onReconcileAll={() => handleReconcile(viewingAccountId)}
-          />
-          
-          <MovimentarContaModal
-            open={showMovimentarModal}
-            onOpenChange={setShowMovimentarModal}
-            accounts={accounts}
-            categories={categories}
-            investments={investments}
-            loans={loans}
-            selectedAccountId={selectedAccountForModal}
-            onSubmit={handleTransactionSubmit}
-            editingTransaction={editingTransaction}
-          />
-        </MainLayout>
-      );
-    }
-  }
+  // Get viewing account data
+  const viewingAccount = viewingAccountId ? accounts.find(a => a.id === viewingAccountId) : null;
+  const viewingSummary = viewingAccountId ? accountSummaries.find(s => s.accountId === viewingAccountId) : null;
+  const viewingTransactions = viewingAccountId ? transactions.filter(t => t.accountId === viewingAccountId) : [];
 
   return (
     <MainLayout>
@@ -338,7 +320,7 @@ const ReceitasDespesas = () => {
           </div>
           <div className="flex items-center gap-2">
             <PeriodSelector tabId="receitas-despesas" onPeriodChange={setPeriodRange} />
-            <Button variant="outline" size="sm" onClick={() => { setEditingCategory(undefined); setShowCategoryModal(true); }}>
+            <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)}>
               <Tags className="w-4 h-4 mr-2" />Categorias
             </Button>
             <Button variant="outline" size="sm" onClick={() => setShowReconciliation(!showReconciliation)}>
@@ -370,60 +352,9 @@ const ReceitasDespesas = () => {
           />
         )}
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Transactions Area */}
-          <div className="lg:col-span-3 space-y-4">
-            {/* Filters */}
-            <div className="glass-card p-4">
-              <TransactionFilters
-                accounts={accounts}
-                categories={categories}
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                selectedAccountId={selectedAccountId}
-                onAccountChange={setSelectedAccountId}
-                selectedCategoryId={selectedCategoryId}
-                onCategoryChange={setSelectedCategoryId}
-                selectedTypes={selectedTypes}
-                onTypesChange={setSelectedTypes}
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                onDateFromChange={setDateFrom}
-                onDateToChange={setDateTo}
-                onClearFilters={handleClearFilters}
-              />
-            </div>
-
-            {/* Table */}
-            <div className="glass-card p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">Histórico de Transações</h3>
-                <span className="text-sm text-muted-foreground">{filteredTransactions.length} transações</span>
-              </div>
-              <TransactionTable
-                transactions={filteredTransactions}
-                accounts={accounts}
-                categories={categories}
-                onEdit={handleEditTransaction}
-                onDelete={handleDeleteTransaction}
-                onToggleConciliated={handleToggleConciliated}
-              />
-            </div>
-          </div>
-
-          {/* KPI Sidebar */}
-          <div className="lg:col-span-1">
-            <KPISidebar transactions={filteredTransactions} categories={categories} />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <div className="flex items-center gap-4">
-            <Link2 className="w-4 h-4" />
-            <span>Vincule operações a Investimentos e Empréstimos</span>
-          </div>
+        {/* KPI Sidebar - full width */}
+        <div className="glass-card p-4">
+          <KPISidebar transactions={filteredTransactions} categories={categories} />
         </div>
       </div>
 
@@ -457,6 +388,32 @@ const ReceitasDespesas = () => {
         onDelete={handleCategoryDelete}
         hasTransactions={editingCategory ? transactions.some(t => t.categoryId === editingCategory.id) : false}
       />
+
+      <CategoryListModal
+        open={showCategoryListModal}
+        onOpenChange={setShowCategoryListModal}
+        categories={categories}
+        onAddCategory={() => { setEditingCategory(undefined); setShowCategoryModal(true); }}
+        onEditCategory={(cat) => { setEditingCategory(cat); setShowCategoryModal(true); }}
+        onDeleteCategory={handleCategoryDelete}
+        transactionCountByCategory={transactionCountByCategory}
+      />
+
+      {viewingAccount && viewingSummary && (
+        <AccountStatementDialog
+          open={showStatementDialog}
+          onOpenChange={setShowStatementDialog}
+          account={viewingAccount}
+          accountSummary={viewingSummary}
+          transactions={viewingTransactions}
+          categories={categories}
+          allAccounts={accounts}
+          onEditTransaction={handleEditTransaction}
+          onDeleteTransaction={handleDeleteTransaction}
+          onToggleConciliated={handleToggleConciliated}
+          onReconcileAll={() => handleReconcile(viewingAccountId!)}
+        />
+      )}
     </MainLayout>
   );
 };
