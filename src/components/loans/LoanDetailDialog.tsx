@@ -45,12 +45,13 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   if (!emprestimo) return null;
 
   const calculos = useMemo(() => {
-    const parcelasPagas = Math.floor(emprestimo.meses * 0.3);
+    // Use actual parcelasPagas from data, fallback to 0
+    const parcelasPagas = emprestimo.parcelasPagas || 0;
     const parcelasRestantes = emprestimo.meses - parcelasPagas;
     const saldoDevedor = Math.max(0, emprestimo.valorTotal - (parcelasPagas * emprestimo.parcela));
     const custoTotal = emprestimo.parcela * emprestimo.meses;
     const jurosTotal = custoTotal - emprestimo.valorTotal;
-    const jurosPagos = jurosTotal * (parcelasPagas / emprestimo.meses);
+    const jurosPagos = emprestimo.meses > 0 ? jurosTotal * (parcelasPagas / emprestimo.meses) : 0;
     const jurosRestantes = jurosTotal - jurosPagos;
     const percentualQuitado = (parcelasPagas / emprestimo.meses) * 100;
     const cetEfetivo = ((custoTotal / emprestimo.valorTotal - 1) / emprestimo.meses) * 12 * 100;
@@ -125,7 +126,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
         </DialogHeader>
 
         <Tabs defaultValue="geral" className="flex-1 overflow-hidden flex flex-col">
-          <TabsList className="bg-muted/50 w-full grid grid-cols-5">
+          <TabsList className="bg-muted/50 w-full grid grid-cols-4">
             <TabsTrigger value="geral" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               Geral
             </TabsTrigger>
@@ -134,9 +135,6 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
             </TabsTrigger>
             <TabsTrigger value="graficos" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               Gráficos
-            </TabsTrigger>
-            <TabsTrigger value="documentos" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              Documentos
             </TabsTrigger>
             <TabsTrigger value="observacoes" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               Observações
@@ -315,17 +313,6 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-              </div>
-            </TabsContent>
-
-            {/* Aba Documentos */}
-            <TabsContent value="documentos" className="mt-0">
-              <div className="glass-card p-8 text-center">
-                <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground mb-4">Nenhum documento anexado</p>
-                <p className="text-xs text-muted-foreground">
-                  Arraste arquivos aqui ou clique para fazer upload
-                </p>
               </div>
             </TabsContent>
 

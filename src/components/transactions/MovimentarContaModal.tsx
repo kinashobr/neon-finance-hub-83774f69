@@ -21,13 +21,30 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+interface LoanParcela {
+  numero: number;
+  vencimento: string;
+  valor: number;
+  pago: boolean;
+  dataPagamento?: string;
+}
+
+interface LoanInfo {
+  id: string;
+  institution: string;
+  numeroContrato?: string;
+  parcelas?: LoanParcela[];
+  valorParcela?: number;
+  totalParcelas?: number;
+}
+
 interface MovimentarContaModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   accounts: ContaCorrente[];
   categories: Categoria[];
   investments: Array<{ id: string; name: string }>;
-  loans: Array<{ id: string; institution: string; numeroContrato?: string; parcelas?: Array<{ id: string; numero: number; pago: boolean }> }>;
+  loans: LoanInfo[];
   selectedAccountId?: string;
   onSubmit: (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => void;
   editingTransaction?: TransacaoCompleta;
@@ -158,8 +175,11 @@ export function MovimentarContaModal({
     [loans, loanId]
   );
 
+  // Calculate current balance including all transactions
   const currentBalance = useMemo(() => {
     if (!selectedAccount) return 0;
+    // Note: This is a simplified calculation. In production, you'd get this from context
+    // For now, we use initialBalance as the modal doesn't have access to all transactions
     return selectedAccount.initialBalance;
   }, [selectedAccount]);
 
@@ -204,17 +224,18 @@ export function MovimentarContaModal({
   );
 
   const canSubmit = useMemo(() => {
-    if (!accountId || parsedAmount <= 0 || !date) return false;
+    if (!accountId || !date) return false;
+    if (parsedAmount <= 0) return false; // Validation: no negative or zero values
     
     if (operationType === 'transferencia' && !accountDestinoId) return false;
     if (operationType === 'transferencia' && accountId === accountDestinoId) return false;
     if ((operationType === 'receita' || operationType === 'despesa') && !categoryId) return false;
     if ((operationType === 'aplicacao' || operationType === 'resgate') && !investmentId) return false;
-    if (operationType === 'pagamento_emprestimo' && !loanId) return false;
+    if (operationType === 'pagamento_emprestimo' && (!loanId || !parcelaId)) return false;
     if (operationType === 'liberacao_emprestimo' && !numeroContrato.trim()) return false;
 
     return true;
-  }, [accountId, parsedAmount, date, operationType, accountDestinoId, categoryId, investmentId, loanId, numeroContrato]);
+  }, [accountId, parsedAmount, date, operationType, accountDestinoId, categoryId, investmentId, loanId, parcelaId, numeroContrato]);
 
   const handleSubmit = () => {
     if (!canSubmit) {
@@ -549,23 +570,38 @@ export function MovimentarContaModal({
                 </Select>
               </div>
 
-              {selectedLoan?.parcelas && selectedLoan.parcelas.length > 0 && (
+              {selectedLoan && (
                 <div className="space-y-2">
-                  <Label htmlFor="parcelaId">Parcela (opcional)</Label>
-                  <Select value={parcelaId} onValueChange={setParcelaId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a parcela..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedLoan.parcelas
-                        .filter(p => !p.pago)
-                        .map(parcela => (
-                          <SelectItem key={parcela.id} value={parcela.id}>
-                            Parcela {parcela.numero}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="parcelaId">Número da Parcela *</Label>
+                  {selectedLoan.parcelas && selectedLoan.parcelas.length > 0 ? (
+                    <Select value={parcelaId} onValueChange={setParcelaId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a parcela..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedLoan.parcelas
+                          .filter(p => !p.pago)
+                          .map(parcela => (
+                            <SelectItem key={parcela.numero.toString()} value={parcela.numero.toString()}>
+                              Parcela {parcela.numero} - Venc: {new Date(parcela.vencimento).toLocaleDateString('pt-BR')} - {formatCurrency(parcela.valor)}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="parcelaId"
+                      type="number"
+                      min="1"
+                      placeholder="Ex: 1"
+                      value={parcelaId}
+                      onChange={e => setParcelaId(e.target.value)}
+                    />
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    <Info className="w-3 h-3 inline mr-1" />
+                    Informe o número da parcela para reconciliação automática.
+                  </p>
                 </div>
               )}
             </>

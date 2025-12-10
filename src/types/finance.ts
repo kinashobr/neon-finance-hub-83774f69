@@ -275,6 +275,8 @@ export function getFlowTypeFromOperation(op: OperationType, vehicleOp?: 'compra'
   switch (op) {
     case 'receita':
     case 'resgate':
+    case 'liberacao_emprestimo':
+    case 'rendimento':
       return 'in';
     case 'despesa':
     case 'aplicacao':

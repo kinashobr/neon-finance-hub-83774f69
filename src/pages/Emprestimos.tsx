@@ -10,7 +10,6 @@ import { EditableCell } from "@/components/EditableCell";
 import { LoanCard } from "@/components/loans/LoanCard";
 import { LoanForm } from "@/components/loans/LoanForm";
 import { LoanAlerts } from "@/components/loans/LoanAlerts";
-import { LoanSimulator } from "@/components/loans/LoanSimulator";
 import { LoanCharts } from "@/components/loans/LoanCharts";
 import { LoanDetailDialog } from "@/components/loans/LoanDetailDialog";
 import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
@@ -312,10 +311,9 @@ const Emprestimos = () => {
 
         {/* Layout Principal */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Coluna Esquerda - Alertas e Simulador */}
+          {/* Coluna Esquerda - Alertas */}
           <div className="space-y-6">
             <LoanAlerts emprestimos={filteredEmprestimos} className="animate-fade-in-up" />
-            <LoanSimulator emprestimos={filteredEmprestimos} className="animate-fade-in-up" />
             
             {/* Ranking dos mais caros */}
             <div className="glass-card p-5 animate-fade-in-up">

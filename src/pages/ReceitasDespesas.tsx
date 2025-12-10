@@ -36,10 +36,12 @@ const ReceitasDespesas = () => {
     addTransacaoV2,
     emprestimos,
     addEmprestimo,
+    markLoanParcelPaid,
     veiculos,
     addVeiculo,
     investimentosRF,
     addMovimentacaoInvestimento,
+    exportData: contextExportData,
   } = useFinance();
 
   // Local state for transfer groups
@@ -160,7 +162,17 @@ const ReceitasDespesas = () => {
           status: 'pendente_config',
           liberacaoTransactionId: transaction.id,
           contaCorrenteId: transaction.accountId,
+          dataInicio: transaction.date,
         });
+      }
+
+      // Handle loan payment - mark parcel as paid
+      if (transaction.operationType === 'pagamento_emprestimo' && transaction.links?.loanId) {
+        const loanIdNum = parseInt(transaction.links.loanId.replace('loan_', ''));
+        const parcelaNum = transaction.links.parcelaId ? parseInt(transaction.links.parcelaId) : undefined;
+        if (!isNaN(loanIdNum)) {
+          markLoanParcelPaid(loanIdNum, transaction.amount, transaction.date, parcelaNum);
+        }
       }
 
       if (transaction.operationType === 'veiculo' && transaction.meta?.vehicleOperation === 'compra') {
@@ -224,18 +236,7 @@ const ReceitasDespesas = () => {
   }, [transactions]);
 
   const handleExport = () => {
-    const exportData = {
-      schemaVersion: "1.1",
-      exportedAt: new Date().toISOString(),
-      data: { accounts, categories, investments: [], loans: [], transferGroups, transactions }
-    };
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `fin_export_v1_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    contextExportData();
     toast.success("Dados exportados!");
   };
 
@@ -298,7 +299,30 @@ const ReceitasDespesas = () => {
   }, [investimentosRF]);
 
   const loans = useMemo(() => {
-    return emprestimos.map(e => ({ id: `loan_${e.id}`, institution: e.contrato }));
+    return emprestimos
+      .filter(e => e.status !== 'pendente_config')
+      .map(e => {
+        // Generate parcelas array if loan has meses configured
+        const parcelas = e.meses > 0 ? Array.from({ length: e.meses }, (_, i) => {
+          const vencimento = new Date(e.dataInicio || new Date());
+          vencimento.setMonth(vencimento.getMonth() + i + 1);
+          return {
+            numero: i + 1,
+            vencimento: vencimento.toISOString().split('T')[0],
+            valor: e.parcela,
+            pago: i < (e.parcelasPagas || 0),
+          };
+        }) : [];
+
+        return {
+          id: `loan_${e.id}`,
+          institution: e.contrato,
+          numeroContrato: e.contrato,
+          parcelas,
+          valorParcela: e.parcela,
+          totalParcelas: e.meses,
+        };
+      });
   }, [emprestimos]);
 
   // Get viewing account data

@@ -168,6 +168,7 @@ interface FinanceContextType {
   updateEmprestimo: (id: number, emprestimo: Partial<Emprestimo>) => void;
   deleteEmprestimo: (id: number) => void;
   getPendingLoans: () => Emprestimo[];
+  markLoanParcelPaid: (loanId: number, valorPago: number, dataPagamento: string, parcelaNumero?: number) => void;
   
   // Veículos
   veiculos: Veiculo[];
@@ -427,6 +428,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const getPendingLoans = useCallback(() => {
     return emprestimos.filter(e => e.status === 'pendente_config');
   }, [emprestimos]);
+
+  // Mark a loan parcel as paid
+  const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumero?: number) => {
+    setEmprestimos(prev => prev.map(e => {
+      if (e.id !== loanId) return e;
+      
+      const parcelasPagas = (e.parcelasPagas || 0) + 1;
+      
+      // Calculate if there were interest charges (value paid > expected parcel value)
+      const jurosAdicional = valorPago > e.parcela ? valorPago - e.parcela : 0;
+      
+      return {
+        ...e,
+        parcelasPagas,
+        status: parcelasPagas >= e.meses ? 'quitado' : e.status,
+      };
+    }));
+  }, []);
 
   // ============================================
   // OPERAÇÕES DE VEÍCULOS
@@ -725,6 +744,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     updateEmprestimo,
     deleteEmprestimo,
     getPendingLoans,
+    markLoanParcelPaid,
     veiculos,
     addVeiculo,
     updateVeiculo,
