@@ -45,7 +45,7 @@ export function AccountStatementDialog({
   onReconcileAll
 }: AccountStatementDialogProps) {
   const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateTo] = useState(""); // Mantendo dateTo para compatibilidade, mas usando dateFrom para filtro simples
 
   // Filtrar transações por período
   const filteredTransactions = useMemo(() => {
@@ -102,8 +102,8 @@ export function AccountStatementDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] p-0 overflow-hidden">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+      <DialogContent className="max-w-5xl max-h-[90vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -117,7 +117,7 @@ export function AccountStatementDialog({
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={onReconcileAll}>
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Conciliar Tudo
@@ -130,7 +130,8 @@ export function AccountStatementDialog({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-120px)]">
+        {/* Conteúdo rolável */}
+        <ScrollArea className="flex-1">
           <div className="p-6 space-y-6">
             {/* Resumo de Saldos */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

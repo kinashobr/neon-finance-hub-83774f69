@@ -96,6 +96,7 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
         diasDiferenca = Math.round(diffTime / (1000 * 60 * 60 * 24));
         
         // Diferença de juros: valor pago - valor esperado da parcela
+        // Se positivo: juros por atraso. Se negativo: desconto por adiantamento.
         diferencaJuros = valorPago - emprestimo.parcela;
 
         // Atualiza saldo devedor com base na amortização esperada
@@ -157,7 +158,8 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
       </div>
 
       <div className="rounded-lg border border-border overflow-hidden">
-        <div className="max-h-[400px] overflow-y-auto scrollbar-thin">
+        {/* Aumentando a altura máxima para melhor visualização */}
+        <div className="max-h-[50vh] overflow-y-auto scrollbar-thin">
           <Table>
             <TableHeader className="sticky top-0 bg-card z-10">
               <TableRow className="border-border hover:bg-transparent">

@@ -176,7 +176,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
         ) : (
           /* Show normal details for configured loans */
           <Tabs defaultValue="geral" className="flex-1 overflow-hidden flex flex-col">
-            <TabsList className="bg-muted/50 w-full grid grid-cols-4">
+            <TabsList className="bg-muted/50 w-full grid grid-cols-4 shrink-0">
               <TabsTrigger value="geral" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 Geral
               </TabsTrigger>
