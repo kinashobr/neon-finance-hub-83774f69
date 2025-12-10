@@ -133,10 +133,24 @@ const ReceitasDespesas = () => {
 
   const handleTransactionSubmit = (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => {
     if (editingTransaction) {
-      setTransacoesV2(transacoesV2.map(t => t.id === transaction.id ? transaction : t));
+      // When editing, also update linked transactions
+      const linkedGroupId = editingTransaction.links?.transferGroupId;
+      if (linkedGroupId) {
+        // Update both sides of the transfer
+        setTransacoesV2(transacoesV2.map(t => {
+          if (t.id === transaction.id) return transaction;
+          if (t.links?.transferGroupId === linkedGroupId && t.id !== transaction.id) {
+            return { ...t, amount: transaction.amount, date: transaction.date, description: transaction.description };
+          }
+          return t;
+        }));
+      } else {
+        setTransacoesV2(transacoesV2.map(t => t.id === transaction.id ? transaction : t));
+      }
     } else {
       const newTransactions = [transaction];
       
+      // PARTIDA DOBRADA: Transferência entre contas
       if (transferGroup) {
         setTransferGroups(prev => [...prev, transferGroup]);
         const incomingTx: TransacaoCompleta = {
@@ -147,6 +161,81 @@ const ReceitasDespesas = () => {
           links: { ...transaction.links, transferGroupId: transferGroup.id }
         };
         newTransactions.push(incomingTx);
+      }
+
+      // PARTIDA DOBRADA: Aplicação (Conta Corrente → Conta de Investimento)
+      // Cria DUAS transações: saída na conta corrente, entrada na conta destino
+      if (transaction.operationType === 'aplicacao' && transaction.links?.investmentId) {
+        const groupId = `app_${Date.now()}`;
+        transaction.links.transferGroupId = groupId;
+        transaction.flow = 'out'; // Saída da conta corrente
+        
+        // Transação de entrada na conta de investimento
+        const investmentAccount = accounts.find(a => a.id === transaction.links.investmentId);
+        if (investmentAccount) {
+          const incomingTx: TransacaoCompleta = {
+            id: generateTransactionId(),
+            date: transaction.date,
+            accountId: transaction.links.investmentId, // Conta de investimento
+            flow: 'in',
+            operationType: 'aplicacao',
+            domain: 'investment',
+            amount: transaction.amount,
+            categoryId: null,
+            description: transaction.description || `Aplicação recebida de conta corrente`,
+            links: {
+              investmentId: transaction.accountId, // Referência à conta origem
+              loanId: null,
+              transferGroupId: groupId,
+              parcelaId: null,
+              vehicleTransactionId: null,
+            },
+            conciliated: false,
+            attachments: [],
+            meta: {
+              createdBy: 'user',
+              source: 'manual',
+              createdAt: new Date().toISOString(),
+            }
+          };
+          newTransactions.push(incomingTx);
+        }
+      }
+
+      // PARTIDA DOBRADA: Resgate (Conta de Investimento → Conta Corrente)
+      // Cria DUAS transações: saída na conta de investimento, entrada na conta corrente
+      if (transaction.operationType === 'resgate' && transaction.links?.investmentId) {
+        const groupId = `res_${Date.now()}`;
+        transaction.links.transferGroupId = groupId;
+        transaction.flow = 'in'; // Entrada na conta corrente
+        
+        // Transação de saída na conta de investimento
+        const outgoingTx: TransacaoCompleta = {
+          id: generateTransactionId(),
+          date: transaction.date,
+          accountId: transaction.links.investmentId, // Conta de investimento
+          flow: 'out',
+          operationType: 'resgate',
+          domain: 'investment',
+          amount: transaction.amount,
+          categoryId: null,
+          description: transaction.description || `Resgate para conta corrente`,
+          links: {
+            investmentId: transaction.accountId, // Referência à conta destino
+            loanId: null,
+            transferGroupId: groupId,
+            parcelaId: null,
+            vehicleTransactionId: null,
+          },
+          conciliated: false,
+          attachments: [],
+          meta: {
+            createdBy: 'user',
+            source: 'manual',
+            createdAt: new Date().toISOString(),
+          }
+        };
+        newTransactions.push(outgoingTx);
       }
 
       // Handle special operation types
@@ -215,8 +304,19 @@ const ReceitasDespesas = () => {
 
   const handleDeleteTransaction = (id: string) => {
     if (!confirm("Excluir esta transação?")) return;
-    setTransacoesV2(transacoesV2.filter(t => t.id !== id));
-    toast.success("Transação excluída");
+    
+    // Find if this transaction is part of a linked group (transfer, aplicacao, resgate)
+    const transactionToDelete = transacoesV2.find(t => t.id === id);
+    const linkedGroupId = transactionToDelete?.links?.transferGroupId;
+    
+    if (linkedGroupId) {
+      // Delete both sides of the linked transaction (partida dobrada)
+      setTransacoesV2(transacoesV2.filter(t => t.links?.transferGroupId !== linkedGroupId));
+      toast.success("Transações vinculadas excluídas");
+    } else {
+      setTransacoesV2(transacoesV2.filter(t => t.id !== id));
+      toast.success("Transação excluída");
+    }
   };
 
   const handleToggleConciliated = (id: string, value: boolean) => {

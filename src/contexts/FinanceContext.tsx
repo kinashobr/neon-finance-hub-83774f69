@@ -30,6 +30,7 @@ export interface Emprestimo {
   status?: 'ativo' | 'pendente_config' | 'quitado';
   parcelasPagas?: number;
   liberacaoTransactionId?: string; // Link to liberation transaction
+  observacoes?: string;
 }
 
 export interface Veiculo {
