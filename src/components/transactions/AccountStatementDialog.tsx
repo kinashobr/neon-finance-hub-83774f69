@@ -45,7 +45,8 @@ export function AccountStatementDialog({
   onReconcileAll
 }: AccountStatementDialogProps) {
   const [dateFrom, setDateFrom] = useState("");
-  const [dateTo] = useState(""); // Mantendo dateTo para compatibilidade, mas usando dateFrom para filtro simples
+  // CORREÇÃO: Definindo o setter para dateTo
+  const [dateTo, setDateTo] = useState(""); 
 
   // Filtrar transações por período
   const filteredTransactions = useMemo(() => {
