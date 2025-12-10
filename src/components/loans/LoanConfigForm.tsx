@@ -97,6 +97,9 @@ export function LoanConfigForm({
       status: 'ativo',
       parcelasPagas: 0,
     });
+    
+    // Fecha o modal após salvar
+    onCancel();
   };
 
   return (
