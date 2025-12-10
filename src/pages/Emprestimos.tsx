@@ -3,7 +3,8 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, CreditCard, Calculator, TrendingDown, Percent, Calendar, DollarSign, Eye, Clock, Award, PiggyBank, Target, ChevronRight } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Trash2, CreditCard, Calculator, TrendingDown, Percent, Calendar, DollarSign, Eye, Clock, Award, PiggyBank, Target, ChevronRight, AlertTriangle, Building2 } from "lucide-react";
 import { useFinance, Emprestimo } from "@/contexts/FinanceContext";
 import { EditableCell } from "@/components/EditableCell";
 import { LoanCard } from "@/components/loans/LoanCard";
@@ -16,7 +17,17 @@ import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/das
 import { cn } from "@/lib/utils";
 
 const Emprestimos = () => {
-  const { emprestimos, addEmprestimo, updateEmprestimo, deleteEmprestimo, getTotalDividas } = useFinance();
+  const { 
+    emprestimos, 
+    addEmprestimo, 
+    updateEmprestimo, 
+    deleteEmprestimo, 
+    getTotalDividas,
+    getPendingLoans,
+    getContasCorrentesTipo,
+    transacoesV2
+  } = useFinance();
+  
   const [selectedLoan, setSelectedLoan] = useState<Emprestimo | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [periodRange, setPeriodRange] = useState<PeriodRange>({
@@ -30,23 +41,39 @@ const Emprestimos = () => {
     setPeriodRange(period);
   }, []);
 
-  // Converte PeriodRange para DateRange para filtros
   const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
+
+  // Get pending loans from liberações
+  const pendingLoans = getPendingLoans();
+  const contasCorrentes = getContasCorrentesTipo();
 
   // Filter emprestimos by date range
   const filteredEmprestimos = useMemo(() => {
-    if (!dateRange.from || !dateRange.to) return emprestimos;
+    return emprestimos.filter(e => e.status !== 'pendente_config');
+  }, [emprestimos]);
+
+  // Get payment transactions for each loan
+  const loanPayments = useMemo(() => {
+    const payments: Record<number, { count: number; total: number }> = {};
     
-    // For loans, we filter based on contract date if available
-    // Since we don't have contract dates in the data, we'll return all loans
-    return emprestimos;
-  }, [emprestimos, dateRange]);
+    transacoesV2.forEach(t => {
+      if (t.operationType === 'pagamento_emprestimo' && t.links?.loanId) {
+        const loanId = parseInt(t.links.loanId);
+        if (!payments[loanId]) {
+          payments[loanId] = { count: 0, total: 0 };
+        }
+        payments[loanId].count++;
+        payments[loanId].total += t.amount;
+      }
+    });
+    
+    return payments;
+  }, [transacoesV2]);
 
   // Cálculos avançados
   const calculos = useMemo(() => {
     const totalContratado = getTotalDividas();
     
-    // Parcelas e saldo
     let totalParcelasPagas = 0;
     let totalParcelasRestantes = 0;
     let saldoDevedorTotal = 0;
@@ -56,7 +83,8 @@ const Emprestimos = () => {
     let economiaQuitacao = 0;
     
     filteredEmprestimos.forEach(e => {
-      const parcelasPagas = Math.floor(e.meses * 0.3);
+      const payment = loanPayments[e.id];
+      const parcelasPagas = payment?.count || e.parcelasPagas || 0;
       const parcelasRestantes = e.meses - parcelasPagas;
       const saldoDevedor = Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
       const custoTotal = e.parcela * e.meses;
@@ -76,25 +104,20 @@ const Emprestimos = () => {
     const totalParcelas = filteredEmprestimos.reduce((acc, e) => acc + e.meses, 0);
     const percentualQuitado = totalParcelas > 0 ? (totalParcelasPagas / totalParcelas) * 100 : 0;
     
-    // Parcela do mês
     const parcelaMes = filteredEmprestimos.reduce((acc, e) => acc + e.parcela, 0);
     
-    // Taxa média ponderada
     const taxaMediaPonderada = totalContratado > 0 ? 
       filteredEmprestimos.reduce((acc, e) => acc + (e.taxaMensal * e.valorTotal), 0) / totalContratado : 0;
     
-    // CET médio
     const cetMedio = totalContratado > 0 ? 
       ((custoTotalEmprestimos / totalContratado - 1) / (totalParcelas / filteredEmprestimos.length || 1)) * 12 * 100 : 0;
     
-    // Próxima parcela (dia 10)
     const hoje = new Date();
     const proximaParcela = new Date(hoje.getFullYear(), hoje.getMonth(), 10);
     if (proximaParcela <= hoje) {
       proximaParcela.setMonth(proximaParcela.getMonth() + 1);
     }
     
-    // Ranking dos mais caros
     const ranking = [...filteredEmprestimos]
       .map(e => ({
         ...e,
@@ -119,13 +142,33 @@ const Emprestimos = () => {
       jurosPagos,
       ranking,
     };
-  }, [filteredEmprestimos, getTotalDividas]);
+  }, [filteredEmprestimos, getTotalDividas, loanPayments]);
 
   const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
   const handleViewLoan = (loan: Emprestimo) => {
     setSelectedLoan(loan);
     setDetailDialogOpen(true);
+  };
+
+  const handleConfigurePendingLoan = (loan: Emprestimo) => {
+    setSelectedLoan(loan);
+    setDetailDialogOpen(true);
+  };
+
+  const handleAddLoan = (data: {
+    contrato: string;
+    parcela: number;
+    meses: number;
+    taxaMensal: number;
+    valorTotal: number;
+    contaCorrenteId?: string;
+  }) => {
+    addEmprestimo({
+      ...data,
+      status: 'ativo',
+      parcelasPagas: 0,
+    });
   };
 
   return (
@@ -144,9 +187,39 @@ const Emprestimos = () => {
               tabId="emprestimos" 
               onPeriodChange={handlePeriodChange} 
             />
-            <LoanForm onSubmit={addEmprestimo} />
+            <LoanForm 
+              onSubmit={handleAddLoan} 
+              contasCorrentes={contasCorrentes}
+            />
           </div>
         </div>
+
+        {/* Pending Loans Alert */}
+        {pendingLoans.length > 0 && (
+          <Alert className="border-warning bg-warning/10">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <AlertTitle className="text-warning">Empréstimos Pendentes de Configuração</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Existem {pendingLoans.length} empréstimo(s) liberado(s) aguardando configuração completa.
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {pendingLoans.map(loan => (
+                  <Button
+                    key={loan.id}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleConfigurePendingLoan(loan)}
+                    className="gap-2 border-warning/50 hover:bg-warning/20"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    {loan.contrato} - {formatCurrency(loan.valorTotal)}
+                  </Button>
+                ))}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Cards de Visão Geral - Linha 1 */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -318,7 +391,8 @@ const Emprestimos = () => {
               </TableHeader>
               <TableBody>
                 {filteredEmprestimos.map((item) => {
-                  const parcelasPagas = Math.floor(item.meses * 0.3);
+                  const payment = loanPayments[item.id];
+                  const parcelasPagas = payment?.count || item.parcelasPagas || 0;
                   const saldoDevedor = Math.max(0, item.valorTotal - (parcelasPagas * item.parcela));
                   const progresso = (parcelasPagas / item.meses) * 100;
                   
@@ -408,26 +482,17 @@ const Emprestimos = () => {
                     </TableRow>
                   );
                 })}
-                {filteredEmprestimos.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
-                      Nenhum empréstimo cadastrado
-                    </TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
           </div>
         </div>
 
-        {/* Dialog de Detalhes */}
-        {selectedLoan && (
-          <LoanDetailDialog
-            emprestimo={selectedLoan}
-            open={detailDialogOpen}
-            onOpenChange={setDetailDialogOpen}
-          />
-        )}
+        {/* Detail Dialog */}
+        <LoanDetailDialog
+          emprestimo={selectedLoan}
+          open={detailDialogOpen}
+          onOpenChange={setDetailDialogOpen}
+        />
       </div>
     </MainLayout>
   );

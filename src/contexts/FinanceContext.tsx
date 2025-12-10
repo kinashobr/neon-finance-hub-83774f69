@@ -1,8 +1,12 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import {
+  ContaCorrente, Categoria, TransacaoCompleta, TransferGroup,
+  AccountType, CategoryNature, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
+  generateTransactionId
+} from "@/types/finance";
 
 // ============================================
-// TIPOS DE DADOS
-// Define a estrutura de cada entidade financeira
+// TIPOS DE DADOS LEGADOS (para compatibilidade)
 // ============================================
 
 export interface Transacao {
@@ -21,11 +25,18 @@ export interface Emprestimo {
   meses: number;
   taxaMensal: number;
   valorTotal: number;
+  contaCorrenteId?: string; // Link to conta movimento
+  dataInicio?: string;
+  status?: 'ativo' | 'pendente_config' | 'quitado';
+  parcelasPagas?: number;
+  liberacaoTransactionId?: string; // Link to liberation transaction
 }
 
 export interface Veiculo {
   id: number;
   modelo: string;
+  tipo?: 'carro' | 'moto' | 'caminhao';
+  marca?: string;
   ano: number;
   dataCompra: string;
   valorVeiculo: number;
@@ -33,6 +44,29 @@ export interface Veiculo {
   vencimentoSeguro: string;
   parcelaSeguro: number;
   valorFipe: number;
+  compraTransactionId?: string; // Link to purchase transaction
+  vendaTransactionId?: string; // Link to sale transaction
+  status?: 'ativo' | 'pendente_cadastro' | 'vendido';
+}
+
+// Novo tipo para controle de seguro de veículo
+export interface SeguroVeiculo {
+  id: number;
+  veiculoId: number;
+  numeroApolice: string;
+  seguradora: string;
+  vigenciaInicio: string;
+  vigenciaFim: string;
+  valorTotal: number;
+  numeroParcelas: number;
+  meiaParcela: boolean;
+  parcelas: {
+    numero: number;
+    vencimento: string;
+    valor: number;
+    paga: boolean;
+    transactionId?: string;
+  }[];
 }
 
 // ============================================
@@ -49,6 +83,7 @@ export interface InvestimentoRF {
   rentabilidade: number;
   vencimento: string;
   risco: string;
+  contaMovimentoId?: string; // Link to account in ReceitasDespesas
 }
 
 export interface Criptomoeda {
@@ -59,6 +94,7 @@ export interface Criptomoeda {
   valorBRL: number;
   percentual: number;
   sparkline: number[];
+  contaMovimentoId?: string; // Link to crypto account
 }
 
 export interface Stablecoin {
@@ -67,6 +103,7 @@ export interface Stablecoin {
   quantidade: number;
   valorBRL: number;
   cotacao: number;
+  contaMovimentoId?: string; // Link to crypto account
 }
 
 export interface ObjetivoFinanceiro {
@@ -76,6 +113,7 @@ export interface ObjetivoFinanceiro {
   meta: number;
   rentabilidade: number;
   cor: string;
+  contaMovimentoId?: string; // Link to objetivos account
 }
 
 export interface MovimentacaoInvestimento {
@@ -86,14 +124,13 @@ export interface MovimentacaoInvestimento {
   ativo: string;
   descricao: string;
   valor: number;
+  transactionId?: string; // Link to transaction in ReceitasDespesas
 }
 
 // ============================================
 // INTERFACE DO CONTEXTO
-// Define todas as funções e dados disponíveis
 // ============================================
 
-// Estrutura do arquivo de exportação
 export interface FinanceDataExport {
   version: string;
   exportDate: string;
@@ -106,6 +143,11 @@ export interface FinanceDataExport {
   stablecoins: Stablecoin[];
   objetivos: ObjetivoFinanceiro[];
   movimentacoesInvestimento: MovimentacaoInvestimento[];
+  // New integrated data
+  contasMovimento?: ContaCorrente[];
+  categoriasV2?: Categoria[];
+  transacoesV2?: TransacaoCompleta[];
+  segurosVeiculo?: SeguroVeiculo[];
 }
 
 interface FinanceContextType {
@@ -125,12 +167,20 @@ interface FinanceContextType {
   addEmprestimo: (emprestimo: Omit<Emprestimo, "id">) => void;
   updateEmprestimo: (id: number, emprestimo: Partial<Emprestimo>) => void;
   deleteEmprestimo: (id: number) => void;
+  getPendingLoans: () => Emprestimo[];
   
   // Veículos
   veiculos: Veiculo[];
   addVeiculo: (veiculo: Omit<Veiculo, "id">) => void;
   updateVeiculo: (id: number, veiculo: Partial<Veiculo>) => void;
   deleteVeiculo: (id: number) => void;
+  getPendingVehicles: () => Veiculo[];
+  
+  // Seguros de Veículo
+  segurosVeiculo: SeguroVeiculo[];
+  addSeguroVeiculo: (seguro: Omit<SeguroVeiculo, "id">) => void;
+  updateSeguroVeiculo: (id: number, seguro: Partial<SeguroVeiculo>) => void;
+  deleteSeguroVeiculo: (id: number) => void;
 
   // Investimentos RF
   investimentosRF: InvestimentoRF[];
@@ -162,6 +212,20 @@ interface FinanceContextType {
   updateMovimentacaoInvestimento: (id: number, mov: Partial<MovimentacaoInvestimento>) => void;
   deleteMovimentacaoInvestimento: (id: number) => void;
   
+  // Contas Movimento (new integrated system)
+  contasMovimento: ContaCorrente[];
+  setContasMovimento: (accounts: ContaCorrente[]) => void;
+  getContasCorrentesTipo: () => ContaCorrente[];
+  
+  // Categorias V2 (with nature)
+  categoriasV2: Categoria[];
+  setCategoriasV2: (categories: Categoria[]) => void;
+  
+  // Transações V2 (integrated)
+  transacoesV2: TransacaoCompleta[];
+  setTransacoesV2: (transactions: TransacaoCompleta[]) => void;
+  addTransacaoV2: (transaction: TransacaoCompleta) => void;
+  
   // Cálculos principais
   getTotalReceitas: (mes?: string) => number;
   getTotalDespesas: (mes?: string) => number;
@@ -187,7 +251,6 @@ const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 // ============================================
 // CHAVES DO LOCALSTORAGE
-// Centralizadas para fácil manutenção
 // ============================================
 
 const STORAGE_KEYS = {
@@ -195,94 +258,33 @@ const STORAGE_KEYS = {
   CATEGORIAS: "neon_finance_categorias",
   EMPRESTIMOS: "neon_finance_emprestimos",
   VEICULOS: "neon_finance_veiculos",
+  SEGUROS_VEICULO: "neon_finance_seguros_veiculo",
   INVESTIMENTOS_RF: "neon_finance_investimentos_rf",
   CRIPTOMOEDAS: "neon_finance_criptomoedas",
   STABLECOINS: "neon_finance_stablecoins",
   OBJETIVOS: "neon_finance_objetivos",
   MOVIMENTACOES_INV: "neon_finance_movimentacoes_inv",
+  // New integrated keys
+  CONTAS_MOVIMENTO: "fin_accounts_v1",
+  CATEGORIAS_V2: "fin_categories_v1",
+  TRANSACOES_V2: "fin_transactions_v1",
 };
 
 // ============================================
 // DADOS INICIAIS (usados se localStorage vazio)
 // ============================================
 
-const initialTransacoes: Transacao[] = [
-  { id: 1, data: "2024-01-05", descricao: "Salário", valor: 12000, categoria: "Salário", tipo: "receita" },
-  { id: 2, data: "2024-01-10", descricao: "Freelance projeto web", valor: 2500, categoria: "Freelance", tipo: "receita" },
-  { id: 3, data: "2024-01-03", descricao: "Aluguel apartamento", valor: 3500, categoria: "Moradia", tipo: "despesa" },
-  { id: 4, data: "2024-01-05", descricao: "Supermercado", valor: 850, categoria: "Alimentação", tipo: "despesa" },
-  { id: 5, data: "2024-01-10", descricao: "Combustível", valor: 400, categoria: "Transporte", tipo: "despesa" },
-  { id: 6, data: "2024-01-15", descricao: "Restaurante", valor: 350, categoria: "Lazer", tipo: "despesa" },
-  { id: 7, data: "2024-01-20", descricao: "Plano de saúde", valor: 280, categoria: "Saúde", tipo: "despesa" },
-  { id: 8, data: "2024-02-05", descricao: "Salário", valor: 12000, categoria: "Salário", tipo: "receita" },
-  { id: 9, data: "2024-02-08", descricao: "Farmácia", valor: 150, categoria: "Saúde", tipo: "despesa" },
-];
-
+const initialTransacoes: Transacao[] = [];
 const initialCategorias = ["Alimentação", "Transporte", "Lazer", "Saúde", "Moradia", "Salário", "Freelance", "Outros"];
 
-const initialEmprestimos: Emprestimo[] = [
-  { id: 1, contrato: "Banco Itaú - Pessoal", parcela: 1250, meses: 48, taxaMensal: 1.89, valorTotal: 50000 },
-  { id: 2, contrato: "Nubank - Crédito", parcela: 750, meses: 24, taxaMensal: 1.49, valorTotal: 15000 },
-  { id: 3, contrato: "Santander - Veículo", parcela: 890, meses: 36, taxaMensal: 2.10, valorTotal: 25000 },
-];
-
-const initialVeiculos: Veiculo[] = [
-  {
-    id: 1,
-    modelo: "Honda Civic EXL",
-    ano: 2022,
-    dataCompra: "2022-06-10",
-    valorVeiculo: 120000,
-    valorSeguro: 4800,
-    vencimentoSeguro: "2024-06-10",
-    parcelaSeguro: 400,
-    valorFipe: 115000,
-  },
-  {
-    id: 2,
-    modelo: "Toyota Corolla XEi",
-    ano: 2021,
-    dataCompra: "2021-03-15",
-    valorVeiculo: 95000,
-    valorSeguro: 3600,
-    vencimentoSeguro: "2024-03-15",
-    parcelaSeguro: 300,
-    valorFipe: 88000,
-  },
-];
-
-// Dados iniciais de investimentos
-const initialInvestimentosRF: InvestimentoRF[] = [
-  { id: 1, aplicacao: "CDB Banco Inter", instituicao: "Inter", tipo: "CDB", valor: 25000, cdi: 110, rentabilidade: 12.5, vencimento: "2025-06-15", risco: "Baixo" },
-  { id: 2, aplicacao: "Tesouro Selic 2029", instituicao: "Tesouro", tipo: "Tesouro", valor: 50000, cdi: 100, rentabilidade: 11.2, vencimento: "2029-03-01", risco: "Baixo" },
-  { id: 3, aplicacao: "LCI Nubank", instituicao: "Nubank", tipo: "LCI", valor: 15000, cdi: 95, rentabilidade: 10.8, vencimento: "2024-12-20", risco: "Baixo" },
-  { id: 4, aplicacao: "CDB BTG 3 anos", instituicao: "BTG", tipo: "CDB", valor: 30000, cdi: 115, rentabilidade: 13.1, vencimento: "2027-01-10", risco: "Médio" },
-];
-
-const initialCriptomoedas: Criptomoeda[] = [
-  { id: 1, nome: "Bitcoin", simbolo: "BTC", quantidade: 0.5, valorBRL: 150000, percentual: 45, sparkline: [40000, 42000, 38000, 45000, 48000, 46000, 50000] },
-  { id: 2, nome: "Ethereum", simbolo: "ETH", quantidade: 3.2, valorBRL: 45000, percentual: 13.5, sparkline: [2000, 2100, 1900, 2200, 2400, 2300, 2500] },
-  { id: 3, nome: "Solana", simbolo: "SOL", quantidade: 50, valorBRL: 25000, percentual: 7.5, sparkline: [80, 90, 75, 100, 110, 105, 120] },
-];
-
-const initialStablecoins: Stablecoin[] = [
-  { id: 1, nome: "USDC", quantidade: 10000, valorBRL: 50000, cotacao: 5.0 },
-  { id: 2, nome: "USDT", quantidade: 5000, valorBRL: 25000, cotacao: 5.0 },
-];
-
-const initialObjetivos: ObjetivoFinanceiro[] = [
-  { id: 1, nome: "Reserva de Emergência", atual: 30000, meta: 50000, rentabilidade: 11.2, cor: "hsl(142, 76%, 36%)" },
-  { id: 2, nome: "Viagem Internacional", atual: 15000, meta: 25000, rentabilidade: 10.5, cor: "hsl(199, 89%, 48%)" },
-  { id: 3, nome: "Aposentadoria", atual: 80000, meta: 500000, rentabilidade: 12.8, cor: "hsl(270, 100%, 65%)" },
-  { id: 4, nome: "Fundo de Oportunidades", atual: 20000, meta: 50000, rentabilidade: 15.2, cor: "hsl(38, 92%, 50%)" },
-];
-
-const initialMovimentacoesInv: MovimentacaoInvestimento[] = [
-  { id: 1, data: "2024-01-15", tipo: "Aporte", categoria: "Renda Fixa", ativo: "CDB Banco Inter", descricao: "Aplicação mensal", valor: 5000 },
-  { id: 2, data: "2024-01-10", tipo: "Compra", categoria: "Cripto", ativo: "BTC", descricao: "DCA Bitcoin", valor: 2000 },
-  { id: 3, data: "2024-01-08", tipo: "Venda", categoria: "Cripto", ativo: "ETH", descricao: "Realização parcial", valor: 3500 },
-  { id: 4, data: "2024-01-05", tipo: "Aporte", categoria: "Stablecoin", ativo: "USDC", descricao: "Reserva dólar", valor: 5000 },
-];
+const initialEmprestimos: Emprestimo[] = [];
+const initialVeiculos: Veiculo[] = [];
+const initialSegurosVeiculo: SeguroVeiculo[] = [];
+const initialInvestimentosRF: InvestimentoRF[] = [];
+const initialCriptomoedas: Criptomoeda[] = [];
+const initialStablecoins: Stablecoin[] = [];
+const initialObjetivos: ObjetivoFinanceiro[] = [];
+const initialMovimentacoesInv: MovimentacaoInvestimento[] = [];
 
 // ============================================
 // FUNÇÕES AUXILIARES DE LOCALSTORAGE
@@ -313,7 +315,7 @@ function saveToStorage<T>(key: string, data: T): void {
 // ============================================
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
-  // Inicializa estados com dados do localStorage ou valores padrão
+  // Estados legados
   const [transacoes, setTransacoes] = useState<Transacao[]>(() => 
     loadFromStorage(STORAGE_KEYS.TRANSACOES, initialTransacoes)
   );
@@ -325,6 +327,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   );
   const [veiculos, setVeiculos] = useState<Veiculo[]>(() => 
     loadFromStorage(STORAGE_KEYS.VEICULOS, initialVeiculos)
+  );
+  const [segurosVeiculo, setSegurosVeiculo] = useState<SeguroVeiculo[]>(() => 
+    loadFromStorage(STORAGE_KEYS.SEGUROS_VEICULO, initialSegurosVeiculo)
   );
   const [investimentosRF, setInvestimentosRF] = useState<InvestimentoRF[]>(() => 
     loadFromStorage(STORAGE_KEYS.INVESTIMENTOS_RF, initialInvestimentosRF)
@@ -342,49 +347,37 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     loadFromStorage(STORAGE_KEYS.MOVIMENTACOES_INV, initialMovimentacoesInv)
   );
 
+  // Estados novos integrados
+  const [contasMovimento, setContasMovimento] = useState<ContaCorrente[]>(() => 
+    loadFromStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, DEFAULT_ACCOUNTS)
+  );
+  const [categoriasV2, setCategoriasV2] = useState<Categoria[]>(() => 
+    loadFromStorage(STORAGE_KEYS.CATEGORIAS_V2, DEFAULT_CATEGORIES)
+  );
+  const [transacoesV2, setTransacoesV2] = useState<TransacaoCompleta[]>(() => 
+    loadFromStorage(STORAGE_KEYS.TRANSACOES_V2, [])
+  );
+
   // ============================================
   // EFEITOS PARA PERSISTÊNCIA AUTOMÁTICA
-  // Salva no localStorage sempre que os dados mudam
   // ============================================
 
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.TRANSACOES, transacoes);
-  }, [transacoes]);
-
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.CATEGORIAS, categorias);
-  }, [categorias]);
-
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos);
-  }, [emprestimos]);
-
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.VEICULOS, veiculos);
-  }, [veiculos]);
-
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.INVESTIMENTOS_RF, investimentosRF);
-  }, [investimentosRF]);
-
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.CRIPTOMOEDAS, criptomoedas);
-  }, [criptomoedas]);
-
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.STABLECOINS, stablecoins);
-  }, [stablecoins]);
-
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos);
-  }, [objetivos]);
-
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.MOVIMENTACOES_INV, movimentacoesInvestimento);
-  }, [movimentacoesInvestimento]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES, transacoes); }, [transacoes]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS, categorias); }, [categorias]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos); }, [emprestimos]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.VEICULOS, veiculos); }, [veiculos]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); }, [segurosVeiculo]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.INVESTIMENTOS_RF, investimentosRF); }, [investimentosRF]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CRIPTOMOEDAS, criptomoedas); }, [criptomoedas]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.STABLECOINS, stablecoins); }, [stablecoins]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos); }, [objetivos]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.MOVIMENTACOES_INV, movimentacoesInvestimento); }, [movimentacoesInvestimento]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); }, [categoriasV2]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); }, [transacoesV2]);
 
   // ============================================
-  // OPERAÇÕES DE TRANSAÇÕES
+  // OPERAÇÕES DE TRANSAÇÕES LEGADAS
   // ============================================
 
   const addTransacao = (transacao: Omit<Transacao, "id">) => {
@@ -420,7 +413,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const addEmprestimo = (emprestimo: Omit<Emprestimo, "id">) => {
     const newId = Math.max(0, ...emprestimos.map(e => e.id)) + 1;
-    setEmprestimos([...emprestimos, { ...emprestimo, id: newId }]);
+    setEmprestimos([...emprestimos, { ...emprestimo, id: newId, status: emprestimo.status || 'ativo', parcelasPagas: 0 }]);
   };
 
   const updateEmprestimo = (id: number, updates: Partial<Emprestimo>) => {
@@ -431,13 +424,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setEmprestimos(emprestimos.filter(e => e.id !== id));
   };
 
+  const getPendingLoans = useCallback(() => {
+    return emprestimos.filter(e => e.status === 'pendente_config');
+  }, [emprestimos]);
+
   // ============================================
   // OPERAÇÕES DE VEÍCULOS
   // ============================================
 
   const addVeiculo = (veiculo: Omit<Veiculo, "id">) => {
     const newId = Math.max(0, ...veiculos.map(v => v.id)) + 1;
-    setVeiculos([...veiculos, { ...veiculo, id: newId }]);
+    setVeiculos([...veiculos, { ...veiculo, id: newId, status: veiculo.status || 'ativo' }]);
   };
 
   const updateVeiculo = (id: number, updates: Partial<Veiculo>) => {
@@ -446,6 +443,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const deleteVeiculo = (id: number) => {
     setVeiculos(veiculos.filter(v => v.id !== id));
+  };
+
+  const getPendingVehicles = useCallback(() => {
+    return veiculos.filter(v => v.status === 'pendente_cadastro');
+  }, [veiculos]);
+
+  // ============================================
+  // OPERAÇÕES DE SEGUROS DE VEÍCULO
+  // ============================================
+
+  const addSeguroVeiculo = (seguro: Omit<SeguroVeiculo, "id">) => {
+    const newId = Math.max(0, ...segurosVeiculo.map(s => s.id)) + 1;
+    setSegurosVeiculo([...segurosVeiculo, { ...seguro, id: newId }]);
+  };
+
+  const updateSeguroVeiculo = (id: number, updates: Partial<SeguroVeiculo>) => {
+    setSegurosVeiculo(segurosVeiculo.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const deleteSeguroVeiculo = (id: number) => {
+    setSegurosVeiculo(segurosVeiculo.filter(s => s.id !== id));
   };
 
   // ============================================
@@ -534,90 +552,112 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   // ============================================
-  // CÁLCULOS BÁSICOS
+  // OPERAÇÕES TRANSAÇÕES V2
   // ============================================
 
-  // Total de receitas (opcional: filtrar por mês no formato "YYYY-MM")
+  const addTransacaoV2 = (transaction: TransacaoCompleta) => {
+    setTransacoesV2(prev => [...prev, transaction]);
+  };
+
+  // ============================================
+  // FUNÇÕES DE CONTAS MOVIMENTO
+  // ============================================
+
+  const getContasCorrentesTipo = useCallback(() => {
+    return contasMovimento.filter(c => c.accountType === 'conta_corrente');
+  }, [contasMovimento]);
+
+  // ============================================
+  // CÁLCULOS - Baseados em TransacoesV2
+  // ============================================
+
   const getTotalReceitas = (mes?: string) => {
-    return transacoes
-      .filter(t => t.tipo === "receita" && (!mes || t.data.startsWith(mes)))
-      .reduce((acc, t) => acc + t.valor, 0);
+    const receitas = transacoesV2.filter(t => {
+      const isReceita = t.operationType === 'receita' || t.operationType === 'rendimento';
+      if (!mes) return isReceita;
+      return isReceita && t.date.startsWith(mes);
+    });
+    return receitas.reduce((acc, t) => acc + t.amount, 0);
   };
 
-  // Total de despesas (opcional: filtrar por mês)
   const getTotalDespesas = (mes?: string) => {
-    return transacoes
-      .filter(t => t.tipo === "despesa" && (!mes || t.data.startsWith(mes)))
-      .reduce((acc, t) => acc + t.valor, 0);
+    const despesas = transacoesV2.filter(t => {
+      const isDespesa = t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo';
+      if (!mes) return isDespesa;
+      return isDespesa && t.date.startsWith(mes);
+    });
+    return despesas.reduce((acc, t) => acc + t.amount, 0);
   };
 
-  // Total contratado de empréstimos
-  const getTotalDividas = () => emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
+  const getTotalDividas = () => {
+    return emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
+  };
 
-  // Custo total dos veículos (valor + seguro)
-  const getCustoVeiculos = () => veiculos.reduce((acc, v) => acc + v.valorVeiculo + v.valorSeguro, 0);
+  const getCustoVeiculos = () => {
+    return veiculos.reduce((acc, v) => acc + v.valorSeguro, 0);
+  };
 
-  // Valor FIPE total (valor de mercado dos veículos)
-  const getValorFipeTotal = () => veiculos.reduce((acc, v) => acc + v.valorFipe, 0);
+  const getSaldoAtual = () => {
+    const totalIn = transacoesV2.filter(t => t.flow === 'in' || t.flow === 'transfer_in').reduce((acc, t) => acc + t.amount, 0);
+    const totalOut = transacoesV2.filter(t => t.flow === 'out' || t.flow === 'transfer_out').reduce((acc, t) => acc + t.amount, 0);
+    const initialBalances = contasMovimento.reduce((acc, c) => acc + c.initialBalance, 0);
+    return initialBalances + totalIn - totalOut;
+  };
 
-  // ============================================
-  // CÁLCULOS AVANÇADOS PARA RELATÓRIOS
-  // ============================================
+  const getValorFipeTotal = () => {
+    return veiculos.filter(v => v.status !== 'vendido').reduce((acc, v) => acc + v.valorFipe, 0);
+  };
 
-  // Saldo devedor estimado (assumindo 30% das parcelas pagas)
+  // Cálculos avançados
   const getSaldoDevedor = () => {
     return emprestimos.reduce((acc, e) => {
-      const parcelasPagas = Math.floor(e.meses * 0.3);
-      const saldo = e.valorTotal - (parcelasPagas * e.parcela);
-      return acc + Math.max(0, saldo);
+      const parcelasPagas = e.parcelasPagas || 0;
+      const saldoDevedor = Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
+      return acc + saldoDevedor;
     }, 0);
   };
 
-  // Juros totais estimados
   const getJurosTotais = () => {
     return emprestimos.reduce((acc, e) => {
-      const totalPago = e.parcela * e.meses;
-      return acc + (totalPago - e.valorTotal);
+      const custoTotal = e.parcela * e.meses;
+      const juros = custoTotal - e.valorTotal;
+      return acc + juros;
     }, 0);
   };
 
-  // Despesas fixas (Moradia, Saúde, Transporte são consideradas fixas)
   const getDespesasFixas = () => {
-    const categoriasFixas = ["Moradia", "Saúde", "Transporte"];
-    return transacoes
-      .filter(t => t.tipo === "despesa" && categoriasFixas.includes(t.categoria))
-      .reduce((acc, t) => acc + t.valor, 0);
+    const despesasFixas = transacoesV2.filter(t => {
+      const category = categoriasV2.find(c => c.id === t.categoryId);
+      return category?.nature === 'despesa_fixa';
+    });
+    return despesasFixas.reduce((acc, t) => acc + t.amount, 0);
   };
 
-  // Total de ativos: Caixa (saldo) + Valor FIPE dos veículos
   const getAtivosTotal = () => {
-    const caixa = getTotalReceitas() - getTotalDespesas();
-    const veiculosFipe = getValorFipeTotal();
-    return Math.max(0, caixa) + veiculosFipe;
+    const saldoContas = getSaldoAtual();
+    const valorVeiculos = getValorFipeTotal();
+    const investimentos = investimentosRF.reduce((acc, i) => acc + i.valor, 0) +
+                          criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) +
+                          stablecoins.reduce((acc, s) => acc + s.valorBRL, 0) +
+                          objetivos.reduce((acc, o) => acc + o.atual, 0);
+    return saldoContas + valorVeiculos + investimentos;
   };
 
-  // Total de passivos: Saldo devedor dos empréstimos
   const getPassivosTotal = () => {
     return getSaldoDevedor();
   };
 
-  // Patrimônio líquido: Ativos - Passivos
   const getPatrimonioLiquido = () => {
     return getAtivosTotal() - getPassivosTotal();
   };
 
-  // Saldo atual simplificado
-  const getSaldoAtual = () => {
-    return getTotalReceitas() - getTotalDespesas();
-  };
+  // ============================================
+  // EXPORTAÇÃO E IMPORTAÇÃO
+  // ============================================
 
-  // ============================================
-  // EXPORTAÇÃO DE DADOS
-  // Serializa todos os dados para JSON e baixa arquivo
-  // ============================================
   const exportData = () => {
     const data: FinanceDataExport = {
-      version: "1.0",
+      version: "2.0",
       exportDate: new Date().toISOString(),
       transacoes,
       categorias,
@@ -628,108 +668,118 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       stablecoins,
       objetivos,
       movimentacoesInvestimento,
+      contasMovimento,
+      categoriasV2,
+      transacoesV2,
+      segurosVeiculo,
     };
 
-    const jsonString = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "finance-data.json";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `finance_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
-  // ============================================
-  // IMPORTAÇÃO DE DADOS
-  // Lê arquivo JSON, valida e atualiza estado
-  // ============================================
   const importData = async (file: File): Promise<{ success: boolean; message: string }> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      
-      reader.onload = (event) => {
-        try {
-          const content = event.target?.result as string;
-          const data = JSON.parse(content) as FinanceDataExport;
-          
-          // Validação básica da estrutura
-          if (!data.transacoes || !Array.isArray(data.transacoes)) {
-            resolve({ success: false, message: "Arquivo inválido: transações não encontradas" });
-            return;
-          }
-          if (!data.categorias || !Array.isArray(data.categorias)) {
-            resolve({ success: false, message: "Arquivo inválido: categorias não encontradas" });
-            return;
-          }
-          if (!data.emprestimos || !Array.isArray(data.emprestimos)) {
-            resolve({ success: false, message: "Arquivo inválido: empréstimos não encontrados" });
-            return;
-          }
-          if (!data.veiculos || !Array.isArray(data.veiculos)) {
-            resolve({ success: false, message: "Arquivo inválido: veículos não encontrados" });
-            return;
-          }
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text) as FinanceDataExport;
 
-          // Validação de tipos dos campos essenciais
-          const transacoesValidas = data.transacoes.every(t => 
-            typeof t.id === "number" && 
-            typeof t.data === "string" && 
-            typeof t.valor === "number" &&
-            (t.tipo === "receita" || t.tipo === "despesa")
-          );
-          if (!transacoesValidas) {
-            resolve({ success: false, message: "Arquivo inválido: estrutura de transações incorreta" });
-            return;
-          }
+      if (data.transacoes) setTransacoes(data.transacoes);
+      if (data.categorias) setCategorias(data.categorias);
+      if (data.emprestimos) setEmprestimos(data.emprestimos);
+      if (data.veiculos) setVeiculos(data.veiculos);
+      if (data.investimentosRF) setInvestimentosRF(data.investimentosRF);
+      if (data.criptomoedas) setCriptomoedas(data.criptomoedas);
+      if (data.stablecoins) setStablecoins(data.stablecoins);
+      if (data.objetivos) setObjetivos(data.objetivos);
+      if (data.movimentacoesInvestimento) setMovimentacoesInvestimento(data.movimentacoesInvestimento);
+      if (data.contasMovimento) setContasMovimento(data.contasMovimento);
+      if (data.categoriasV2) setCategoriasV2(data.categoriasV2);
+      if (data.transacoesV2) setTransacoesV2(data.transacoesV2);
+      if (data.segurosVeiculo) setSegurosVeiculo(data.segurosVeiculo);
 
-          // Atualiza o estado com os dados importados
-          setTransacoes(data.transacoes);
-          setCategorias(data.categorias);
-          setEmprestimos(data.emprestimos);
-          setVeiculos(data.veiculos);
-          if (data.investimentosRF) setInvestimentosRF(data.investimentosRF);
-          if (data.criptomoedas) setCriptomoedas(data.criptomoedas);
-          if (data.stablecoins) setStablecoins(data.stablecoins);
-          if (data.objetivos) setObjetivos(data.objetivos);
-          if (data.movimentacoesInvestimento) setMovimentacoesInvestimento(data.movimentacoesInvestimento);
+      return { success: true, message: "Dados importados com sucesso!" };
+    } catch (error) {
+      return { success: false, message: "Erro ao importar dados. Verifique o formato do arquivo." };
+    }
+  };
 
-          resolve({ 
-            success: true, 
-            message: `Dados importados com sucesso! ${data.transacoes.length} transações, ${data.emprestimos.length} empréstimos, ${data.veiculos.length} veículos.` 
-          });
-        } catch (error) {
-          resolve({ success: false, message: "Erro ao processar arquivo: JSON inválido ou corrompido" });
-        }
-      };
+  // ============================================
+  // VALOR DO CONTEXTO
+  // ============================================
 
-      reader.onerror = () => {
-        resolve({ success: false, message: "Erro ao ler arquivo" });
-      };
-
-      reader.readAsText(file);
-    });
+  const value: FinanceContextType = {
+    transacoes,
+    addTransacao,
+    updateTransacao,
+    deleteTransacao,
+    categorias,
+    addCategoria,
+    removeCategoria,
+    emprestimos,
+    addEmprestimo,
+    updateEmprestimo,
+    deleteEmprestimo,
+    getPendingLoans,
+    veiculos,
+    addVeiculo,
+    updateVeiculo,
+    deleteVeiculo,
+    getPendingVehicles,
+    segurosVeiculo,
+    addSeguroVeiculo,
+    updateSeguroVeiculo,
+    deleteSeguroVeiculo,
+    investimentosRF,
+    addInvestimentoRF,
+    updateInvestimentoRF,
+    deleteInvestimentoRF,
+    criptomoedas,
+    addCriptomoeda,
+    updateCriptomoeda,
+    deleteCriptomoeda,
+    stablecoins,
+    addStablecoin,
+    updateStablecoin,
+    deleteStablecoin,
+    objetivos,
+    addObjetivo,
+    updateObjetivo,
+    deleteObjetivo,
+    movimentacoesInvestimento,
+    addMovimentacaoInvestimento,
+    updateMovimentacaoInvestimento,
+    deleteMovimentacaoInvestimento,
+    contasMovimento,
+    setContasMovimento,
+    getContasCorrentesTipo,
+    categoriasV2,
+    setCategoriasV2,
+    transacoesV2,
+    setTransacoesV2,
+    addTransacaoV2,
+    getTotalReceitas,
+    getTotalDespesas,
+    getTotalDividas,
+    getCustoVeiculos,
+    getSaldoAtual,
+    getValorFipeTotal,
+    getSaldoDevedor,
+    getJurosTotais,
+    getDespesasFixas,
+    getPatrimonioLiquido,
+    getAtivosTotal,
+    getPassivosTotal,
+    exportData,
+    importData,
   };
 
   return (
-    <FinanceContext.Provider value={{
-      transacoes, addTransacao, updateTransacao, deleteTransacao,
-      categorias, addCategoria, removeCategoria,
-      emprestimos, addEmprestimo, updateEmprestimo, deleteEmprestimo,
-      veiculos, addVeiculo, updateVeiculo, deleteVeiculo,
-      investimentosRF, addInvestimentoRF, updateInvestimentoRF, deleteInvestimentoRF,
-      criptomoedas, addCriptomoeda, updateCriptomoeda, deleteCriptomoeda,
-      stablecoins, addStablecoin, updateStablecoin, deleteStablecoin,
-      objetivos, addObjetivo, updateObjetivo, deleteObjetivo,
-      movimentacoesInvestimento, addMovimentacaoInvestimento, updateMovimentacaoInvestimento, deleteMovimentacaoInvestimento,
-      getTotalReceitas, getTotalDespesas, getTotalDividas, getCustoVeiculos, 
-      getSaldoAtual, getValorFipeTotal, getSaldoDevedor, getJurosTotais,
-      getDespesasFixas, getPatrimonioLiquido, getAtivosTotal, getPassivosTotal,
-      exportData, importData,
-    }}>
+    <FinanceContext.Provider value={value}>
       {children}
     </FinanceContext.Provider>
   );
@@ -737,8 +787,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
 export function useFinance() {
   const context = useContext(FinanceContext);
-  if (!context) {
-    throw new Error("useFinance must be used within a FinanceProvider");
+  if (context === undefined) {
+    throw new Error("useFinance deve ser usado dentro de um FinanceProvider");
   }
   return context;
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Download, RefreshCw, Tags, Plus } from "lucide-react";
@@ -14,7 +14,6 @@ import {
 // Components
 import { AccountsCarousel } from "@/components/transactions/AccountsCarousel";
 import { MovimentarContaModal } from "@/components/transactions/MovimentarContaModal";
-import { TransactionFilters } from "@/components/transactions/TransactionFilters";
 import { KPISidebar } from "@/components/transactions/KPISidebar";
 import { ReconciliationPanel } from "@/components/transactions/ReconciliationPanel";
 import { AccountFormModal } from "@/components/transactions/AccountFormModal";
@@ -23,42 +22,28 @@ import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
 import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
 
-// Hooks
-import { useFinanceEvents } from "@/hooks/useFinanceEvents";
-
-// Storage keys
-const STORAGE_KEYS = {
-  ACCOUNTS: "fin_accounts_v1",
-  TRANSACTIONS: "fin_transactions_v1", 
-  CATEGORIES: "fin_categories_v1",
-  TRANSFER_GROUPS: "fin_transfer_groups_v1",
-};
-
-function loadFromStorage<T>(key: string, defaultValue: T): T {
-  try {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : defaultValue;
-  } catch { return defaultValue; }
-}
-
-function saveToStorage<T>(key: string, data: T): void {
-  localStorage.setItem(key, JSON.stringify(data));
-}
+// Context
+import { useFinance } from "@/contexts/FinanceContext";
 
 const ReceitasDespesas = () => {
-  // Data state
-  const [accounts, setAccounts] = useState<ContaCorrente[]>(() => 
-    loadFromStorage(STORAGE_KEYS.ACCOUNTS, DEFAULT_ACCOUNTS)
-  );
-  const [transactions, setTransactions] = useState<TransacaoCompleta[]>(() => 
-    loadFromStorage(STORAGE_KEYS.TRANSACTIONS, [])
-  );
-  const [categories, setCategories] = useState<Categoria[]>(() => 
-    loadFromStorage(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES)
-  );
-  const [transferGroups, setTransferGroups] = useState<TransferGroup[]>(() => 
-    loadFromStorage(STORAGE_KEYS.TRANSFER_GROUPS, [])
-  );
+  const { 
+    contasMovimento, 
+    setContasMovimento,
+    categoriasV2, 
+    setCategoriasV2,
+    transacoesV2, 
+    setTransacoesV2,
+    addTransacaoV2,
+    emprestimos,
+    addEmprestimo,
+    veiculos,
+    addVeiculo,
+    investimentosRF,
+    addMovimentacaoInvestimento,
+  } = useFinance();
+
+  // Local state for transfer groups
+  const [transferGroups, setTransferGroups] = useState<TransferGroup[]>([]);
 
   // UI state
   const [showMovimentarModal, setShowMovimentarModal] = useState(false);
@@ -86,15 +71,10 @@ const ReceitasDespesas = () => {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const { emitEvent } = useFinanceEvents();
-
-  // Persist data
-  const saveAll = useCallback(() => {
-    saveToStorage(STORAGE_KEYS.ACCOUNTS, accounts);
-    saveToStorage(STORAGE_KEYS.TRANSACTIONS, transactions);
-    saveToStorage(STORAGE_KEYS.CATEGORIES, categories);
-    saveToStorage(STORAGE_KEYS.TRANSFER_GROUPS, transferGroups);
-  }, [accounts, transactions, categories, transferGroups]);
+  // Alias for context data
+  const accounts = contasMovimento;
+  const transactions = transacoesV2;
+  const categories = categoriasV2;
 
   // Filter transactions
   const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
@@ -152,8 +132,7 @@ const ReceitasDespesas = () => {
 
   const handleTransactionSubmit = (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => {
     if (editingTransaction) {
-      setTransactions(prev => prev.map(t => t.id === transaction.id ? transaction : t));
-      emitEvent('transaction.updated', { transactionId: transaction.id });
+      setTransacoesV2(transacoesV2.map(t => t.id === transaction.id ? transaction : t));
     } else {
       const newTransactions = [transaction];
       
@@ -167,24 +146,54 @@ const ReceitasDespesas = () => {
           links: { ...transaction.links, transferGroupId: transferGroup.id }
         };
         newTransactions.push(incomingTx);
-        emitEvent('transfer.created', { transferGroupId: transferGroup.id });
       }
 
-      setTransactions(prev => [...prev, ...newTransactions]);
-      emitEvent('transaction.created', { transactionId: transaction.id, links: transaction.links });
-      
-      if (transaction.links.investmentId) {
-        emitEvent('investment.linked', { transactionId: transaction.id, investmentId: transaction.links.investmentId });
+      // Handle special operation types
+      if (transaction.operationType === 'liberacao_emprestimo' && transaction.meta?.numeroContrato) {
+        // Create pending loan
+        addEmprestimo({
+          contrato: transaction.meta.numeroContrato,
+          valorTotal: transaction.amount,
+          parcela: 0,
+          meses: 0,
+          taxaMensal: 0,
+          status: 'pendente_config',
+          liberacaoTransactionId: transaction.id,
+          contaCorrenteId: transaction.accountId,
+        });
       }
-      if (transaction.links.loanId) {
-        emitEvent('loan.payment', { transactionId: transaction.id, loanId: transaction.links.loanId, parcelaId: transaction.links.parcelaId || undefined });
+
+      if (transaction.operationType === 'veiculo' && transaction.meta?.tipoVeiculo === 'compra') {
+        // Create pending vehicle
+        addVeiculo({
+          modelo: '',
+          ano: new Date().getFullYear(),
+          dataCompra: transaction.date,
+          valorVeiculo: transaction.amount,
+          valorSeguro: 0,
+          vencimentoSeguro: '',
+          parcelaSeguro: 0,
+          valorFipe: transaction.amount,
+          status: 'pendente_cadastro',
+          compraTransactionId: transaction.id,
+        });
       }
-      if (transaction.links.vehicleTransactionId) {
-        emitEvent('vehicle.transaction', { transactionId: transaction.id, vehicleTransactionId: transaction.links.vehicleTransactionId });
+
+      if (transaction.operationType === 'rendimento' && transaction.links?.investmentId) {
+        // Add investment movement
+        addMovimentacaoInvestimento({
+          data: transaction.date,
+          tipo: 'Rendimento',
+          categoria: 'Renda Fixa',
+          ativo: transaction.links.investmentId,
+          descricao: transaction.description,
+          valor: transaction.amount,
+          transactionId: transaction.id,
+        });
       }
+
+      newTransactions.forEach(t => addTransacaoV2(t));
     }
-
-    saveAll();
   };
 
   const handleEditTransaction = (transaction: TransacaoCompleta) => {
@@ -195,24 +204,12 @@ const ReceitasDespesas = () => {
 
   const handleDeleteTransaction = (id: string) => {
     if (!confirm("Excluir esta transação?")) return;
-    setTransactions(prev => prev.filter(t => t.id !== id));
-    emitEvent('transaction.deleted', { transactionId: id });
-    saveAll();
+    setTransacoesV2(transacoesV2.filter(t => t.id !== id));
     toast.success("Transação excluída");
   };
 
   const handleToggleConciliated = (id: string, value: boolean) => {
-    setTransactions(prev => prev.map(t => t.id === id ? { ...t, conciliated: value } : t));
-    saveAll();
-  };
-
-  const handleClearFilters = () => {
-    setSearchTerm("");
-    setSelectedAccountId("all");
-    setSelectedCategoryId("all");
-    setSelectedTypes(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'rendimento']);
-    setDateFrom("");
-    setDateTo("");
+    setTransacoesV2(transacoesV2.map(t => t.id === id ? { ...t, conciliated: value } : t));
   };
 
   // Transaction count by category
@@ -243,22 +240,20 @@ const ReceitasDespesas = () => {
   };
 
   const handleReconcile = (accountId: string) => {
-    setTransactions(prev => prev.map(t => 
+    setTransacoesV2(transacoesV2.map(t => 
       t.accountId === accountId ? { ...t, conciliated: true } : t
     ));
-    saveAll();
     toast.success("Conta conciliada!");
   };
 
   // Account CRUD
   const handleAccountSubmit = (account: ContaCorrente) => {
     if (editingAccount) {
-      setAccounts(prev => prev.map(a => a.id === account.id ? account : a));
+      setContasMovimento(accounts.map(a => a.id === account.id ? account : a));
     } else {
-      setAccounts(prev => [...prev, account]);
+      setContasMovimento([...accounts, account]);
     }
     setEditingAccount(undefined);
-    saveAll();
   };
 
   const handleAccountDelete = (accountId: string) => {
@@ -267,8 +262,7 @@ const ReceitasDespesas = () => {
       toast.error("Não é possível excluir conta com transações");
       return;
     }
-    setAccounts(prev => prev.filter(a => a.id !== accountId));
-    saveAll();
+    setContasMovimento(accounts.filter(a => a.id !== accountId));
   };
 
   const handleEditAccount = (accountId: string) => {
@@ -282,12 +276,11 @@ const ReceitasDespesas = () => {
   // Category CRUD
   const handleCategorySubmit = (category: Categoria) => {
     if (editingCategory) {
-      setCategories(prev => prev.map(c => c.id === category.id ? category : c));
+      setCategoriasV2(categories.map(c => c.id === category.id ? category : c));
     } else {
-      setCategories(prev => [...prev, category]);
+      setCategoriasV2([...categories, category]);
     }
     setEditingCategory(undefined);
-    saveAll();
   };
 
   const handleCategoryDelete = (categoryId: string) => {
@@ -296,13 +289,17 @@ const ReceitasDespesas = () => {
       toast.error("Não é possível excluir categoria em uso");
       return;
     }
-    setCategories(prev => prev.filter(c => c.id !== categoryId));
-    saveAll();
+    setCategoriasV2(categories.filter(c => c.id !== categoryId));
   };
 
-  // Mock data for investments/loans
-  const investments = [{ id: 'inv_1', name: 'CDB Banco X' }, { id: 'inv_2', name: 'Tesouro Selic' }];
-  const loans = [{ id: 'loan_1', institution: 'Banco Y' }];
+  // Get investments and loans from context for linking
+  const investments = useMemo(() => {
+    return investimentosRF.map(i => ({ id: `inv_${i.id}`, name: i.aplicacao }));
+  }, [investimentosRF]);
+
+  const loans = useMemo(() => {
+    return emprestimos.map(e => ({ id: `loan_${e.id}`, institution: e.contrato }));
+  }, [emprestimos]);
 
   // Get viewing account data
   const viewingAccount = viewingAccountId ? accounts.find(a => a.id === viewingAccountId) : null;

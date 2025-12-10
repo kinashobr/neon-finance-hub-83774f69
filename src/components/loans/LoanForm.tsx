@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Upload, FileText, Building2 } from "lucide-react";
+import { Plus, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,10 +20,11 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { ContaCorrente } from "@/types/finance";
 
 interface LoanFormData {
   contrato: string;
-  banco: string;
+  contaCorrenteId: string;
   valorTotal: string;
   parcela: string;
   taxaMensal: string;
@@ -40,16 +41,18 @@ interface LoanFormProps {
     meses: number;
     taxaMensal: number;
     valorTotal: number;
+    contaCorrenteId?: string;
   }) => void;
+  contasCorrentes?: ContaCorrente[];
   className?: string;
 }
 
-export function LoanForm({ onSubmit, className }: LoanFormProps) {
+export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanFormProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState<LoanFormData>({
     contrato: "",
-    banco: "",
+    contaCorrenteId: "",
     valorTotal: "",
     parcela: "",
     taxaMensal: "",
@@ -58,19 +61,6 @@ export function LoanForm({ onSubmit, className }: LoanFormProps) {
     metodoAmortizacao: "price",
     observacoes: "",
   });
-
-  const bancos = [
-    "Banco do Brasil",
-    "Bradesco",
-    "Caixa Econômica",
-    "Itaú",
-    "Nubank",
-    "Santander",
-    "Inter",
-    "C6 Bank",
-    "PicPay",
-    "Outro",
-  ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,8 +74,18 @@ export function LoanForm({ onSubmit, className }: LoanFormProps) {
       return;
     }
 
-    const contratoCompleto = formData.banco 
-      ? `${formData.banco} - ${formData.contrato}`
+    if (!formData.contaCorrenteId) {
+      toast({
+        title: "Conta obrigatória",
+        description: "Selecione a conta corrente vinculada ao empréstimo",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const contaSelecionada = contasCorrentes.find(c => c.id === formData.contaCorrenteId);
+    const contratoCompleto = contaSelecionada 
+      ? `${contaSelecionada.institution || contaSelecionada.name} - ${formData.contrato}`
       : formData.contrato;
 
     onSubmit({
@@ -94,11 +94,12 @@ export function LoanForm({ onSubmit, className }: LoanFormProps) {
       meses: Number(formData.meses),
       taxaMensal: Number(formData.taxaMensal),
       valorTotal: Number(formData.valorTotal),
+      contaCorrenteId: formData.contaCorrenteId,
     });
 
     setFormData({
       contrato: "",
-      banco: "",
+      contaCorrenteId: "",
       valorTotal: "",
       parcela: "",
       taxaMensal: "",
@@ -116,7 +117,6 @@ export function LoanForm({ onSubmit, className }: LoanFormProps) {
     });
   };
 
-  // Cálculo automático da parcela (Price)
   const calcularParcela = () => {
     const valor = Number(formData.valorTotal);
     const taxa = Number(formData.taxaMensal) / 100;
@@ -145,23 +145,28 @@ export function LoanForm({ onSubmit, className }: LoanFormProps) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          {/* Banco e Contrato */}
+          {/* Conta Corrente e Contrato */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Banco / Instituição *</Label>
               <Select
-                value={formData.banco}
-                onValueChange={(v) => setFormData(prev => ({ ...prev, banco: v }))}
+                value={formData.contaCorrenteId}
+                onValueChange={(v) => setFormData(prev => ({ ...prev, contaCorrenteId: v }))}
               >
                 <SelectTrigger className="mt-1.5 bg-muted border-border">
-                  <SelectValue placeholder="Selecione" />
+                  <SelectValue placeholder="Selecione a conta" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover border-border">
-                  {bancos.map((banco) => (
-                    <SelectItem key={banco} value={banco}>{banco}</SelectItem>
+                  {contasCorrentes.map((conta) => (
+                    <SelectItem key={conta.id} value={conta.id}>
+                      {conta.institution || conta.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Conta onde as parcelas serão debitadas
+              </p>
             </div>
             <div>
               <Label>Nome do Contrato *</Label>
@@ -265,26 +270,15 @@ export function LoanForm({ onSubmit, className }: LoanFormProps) {
             </Select>
           </div>
 
-          {/* Upload e Observações */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Upload do Contrato</Label>
-              <div className="mt-1.5 border-2 border-dashed border-border rounded-lg p-4 text-center hover:border-primary/50 transition-colors cursor-pointer">
-                <Upload className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
-                <p className="text-xs text-muted-foreground">
-                  Arraste ou clique para upload
-                </p>
-              </div>
-            </div>
-            <div>
-              <Label>Observações</Label>
-              <Textarea
-                value={formData.observacoes}
-                onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
-                placeholder="Notas adicionais..."
-                className="mt-1.5 bg-muted border-border h-[88px] resize-none"
-              />
-            </div>
+          {/* Observações */}
+          <div>
+            <Label>Observações</Label>
+            <Textarea
+              value={formData.observacoes}
+              onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
+              placeholder="Notas adicionais..."
+              className="mt-1.5 bg-muted border-border h-[88px] resize-none"
+            />
           </div>
 
           {/* Cálculos automáticos preview */}

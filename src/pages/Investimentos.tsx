@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Plus, Trash2, Search, TrendingUp, Wallet, Target, Shield, Bitcoin, DollarSign, ArrowUpRight, ArrowDownRight, Settings, Coins, LineChartIcon, BarChart3, CircleDollarSign, Landmark, RefreshCw, History, Calendar, DollarSign as DollarSignIcon } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Plus, Trash2, TrendingUp, Wallet, Target, Shield, Bitcoin, DollarSign, ArrowUpRight, ArrowDownRight, Coins, CircleDollarSign, Landmark, History, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { EditableCell } from "@/components/EditableCell";
@@ -27,6 +28,13 @@ const pieColors = [
 ];
 
 const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+
+// List of stablecoin identifiers
+const STABLECOIN_NAMES = ['usdt', 'usdc', 'dai', 'busd', 'tusd', 'usdp', 'gusd', 'frax', 'lusd', 'susd'];
+
+const isStablecoin = (name: string): boolean => {
+  return STABLECOIN_NAMES.some(s => name.toLowerCase().includes(s));
+};
 
 const Investimentos = () => {
   const { toast } = useToast();
@@ -48,19 +56,15 @@ const Investimentos = () => {
     updateObjetivo, 
     deleteObjetivo, 
     movimentacoesInvestimento, 
-    addMovimentacaoInvestimento, 
-    updateMovimentacaoInvestimento, 
+    addMovimentacaoInvestimento,
     deleteMovimentacaoInvestimento,
     getValorFipeTotal,
     getTotalReceitas,
-    getTotalDespesas
+    getTotalDespesas,
+    contasMovimento,
   } = useFinance();
   
-  const [filterInstituicao, setFilterInstituicao] = useState("all");
-  const [filterTipoRF, setFilterTipoRF] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterTipoMov, setFilterTipoMov] = useState("all");
-  const [filterCategoriaMov, setFilterCategoriaMov] = useState("all");
+  const [activeTab, setActiveTab] = useState("carteira");
   const [periodRange, setPeriodRange] = useState<PeriodRange>({
     startMonth: null,
     startYear: null,
@@ -69,54 +73,9 @@ const Investimentos = () => {
   });
 
   // Dialogs
-  const [showAddRF, setShowAddRF] = useState(false);
-  const [showAddCripto, setShowAddCripto] = useState(false);
-  const [showAddStable, setShowAddStable] = useState(false);
-  const [showAddObjetivo, setShowAddObjetivo] = useState(false);
-  const [showAddMov, setShowAddMov] = useState(false);
-  const [showMovimentacoes, setShowMovimentacoes] = useState<number | null>(null);
-  const [showRendimento, setShowRendimento] = useState<number | null>(null);
+  const [showAddRendimento, setShowAddRendimento] = useState<number | null>(null);
 
   // Forms
-  const [formRF, setFormRF] = useState({
-    aplicacao: "",
-    instituicao: "",
-    tipo: "CDB",
-    valor: "",
-    dataAplicacao: "",
-  });
-
-  const [formCripto, setFormCripto] = useState({
-    nome: "",
-    simbolo: "",
-    quantidade: "",
-    valorBRL: ""
-  });
-
-  const [formStable, setFormStable] = useState({
-    nome: "",
-    quantidade: "",
-    valorBRL: "",
-    cotacao: "5.0"
-  });
-
-  const [formObjetivo, setFormObjetivo] = useState({
-    nome: "",
-    atual: "",
-    meta: "",
-    rentabilidade: "",
-    cor: "hsl(142, 76%, 36%)"
-  });
-
-  const [formMov, setFormMov] = useState({
-    data: "",
-    tipo: "Aporte",
-    categoria: "Renda Fixa",
-    ativo: "",
-    descricao: "",
-    valor: ""
-  });
-
   const [formRendimento, setFormRendimento] = useState({
     data: "",
     valor: "",
@@ -127,85 +86,75 @@ const Investimentos = () => {
     setPeriodRange(period);
   }, []);
 
-  // Converte PeriodRange para DateRange
   const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
 
-  // Filter investments by date range
-  const filteredInvestimentosRF = useMemo(() => {
-    if (!dateRange.from || !dateRange.to) return investimentosRF;
-    
-    return investimentosRF;
-  }, [investimentosRF, dateRange]);
+  // Get investment accounts from ReceitasDespesas
+  const investmentAccounts = useMemo(() => {
+    return contasMovimento.filter(c => 
+      c.accountType === 'aplicacao_renda_fixa' || 
+      c.accountType === 'poupanca' ||
+      c.accountType === 'criptoativos' ||
+      c.accountType === 'reserva_emergencia' ||
+      c.accountType === 'objetivos_financeiros'
+    );
+  }, [contasMovimento]);
 
-  const filteredCriptomoedas = useMemo(() => {
-    if (!dateRange.from || !dateRange.to) return criptomoedas;
-    
-    return criptomoedas;
-  }, [criptomoedas, dateRange]);
+  // Separate crypto accounts into regular crypto and stablecoins
+  const cryptoAccounts = useMemo(() => {
+    return contasMovimento.filter(c => 
+      c.accountType === 'criptoativos' && !isStablecoin(c.name)
+    );
+  }, [contasMovimento]);
 
-  const filteredStablecoins = useMemo(() => {
-    if (!dateRange.from || !dateRange.to) return stablecoins;
-    
-    return stablecoins;
-  }, [stablecoins, dateRange]);
+  const stablecoinAccounts = useMemo(() => {
+    return contasMovimento.filter(c => 
+      c.accountType === 'criptoativos' && isStablecoin(c.name)
+    );
+  }, [contasMovimento]);
 
-  const filteredObjetivos = useMemo(() => {
-    if (!dateRange.from || !dateRange.to) return objetivos;
-    
-    return objetivos;
-  }, [objetivos, dateRange]);
+  // RF accounts (aplicacao_renda_fixa + poupanca)
+  const rfAccounts = useMemo(() => {
+    return contasMovimento.filter(c => 
+      c.accountType === 'aplicacao_renda_fixa' || c.accountType === 'poupanca'
+    );
+  }, [contasMovimento]);
 
-  const filteredMovimentacoes = useMemo(() => {
-    if (!dateRange.from || !dateRange.to) return movimentacoesInvestimento;
-    
-    return movimentacoesInvestimento.filter(mov => {
-      const movDate = new Date(mov.data);
-      return movDate >= dateRange.from! && movDate <= dateRange.to!;
-    });
-  }, [movimentacoesInvestimento, dateRange]);
+  // Objetivos accounts (objetivos_financeiros + reserva_emergencia)
+  const objetivosAccounts = useMemo(() => {
+    return contasMovimento.filter(c => 
+      c.accountType === 'objetivos_financeiros' || c.accountType === 'reserva_emergencia'
+    );
+  }, [contasMovimento]);
 
-  // Cálculos padronizados e reais
+  // Cálculos padronizados
   const calculosPatrimonio = useMemo(() => {
-    // Valores reais dos investimentos
-    const totalRF = filteredInvestimentosRF.reduce((acc, i) => acc + i.valor, 0);
-    const totalCripto = filteredCriptomoedas.reduce((acc, c) => acc + c.valorBRL, 0);
-    const totalStables = filteredStablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
-    const totalObjetivos = filteredObjetivos.reduce((acc, o) => acc + o.atual, 0);
+    const totalRF = investimentosRF.reduce((acc, i) => acc + i.valor, 0);
+    const totalCripto = criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0);
+    const totalStables = stablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
+    const totalObjetivos = objetivos.reduce((acc, o) => acc + o.atual, 0);
     const valorVeiculos = getValorFipeTotal();
     
-    // Patrimônio Total: RF + Cripto + Stables + Objetivos + Veículos (FIPE)
     const patrimonioTotal = totalRF + totalCripto + totalStables + totalObjetivos + valorVeiculos;
     
-    // Reserva de Emergência - busca objetivo específico
-    const reservaEmergencia = filteredObjetivos.find(o => 
+    const reservaEmergencia = objetivos.find(o => 
       o.nome.toLowerCase().includes("reserva") || 
-      o.nome.toLowerCase().includes("emergência") ||
-      o.nome.toLowerCase().includes("reserva de emergencia")
+      o.nome.toLowerCase().includes("emergência")
     );
     
-    // Exposição em Cripto
     const patrimonioInvestimentos = totalRF + totalCripto + totalStables + totalObjetivos;
     const exposicaoCripto = patrimonioInvestimentos > 0 ? (totalCripto / patrimonioInvestimentos) * 100 : 0;
     
-    // Rentabilidade média ponderada
-    const rentabilidadeRF = filteredInvestimentosRF.length > 0 
-      ? filteredInvestimentosRF.reduce((acc, i) => acc + (i.rentabilidade * i.valor), 0) / totalRF 
-      : 0;
-    const rentabilidadeCripto = filteredCriptomoedas.length > 0 
-      ? filteredCriptomoedas.reduce((acc, c) => acc + (c.percentual * c.valorBRL), 0) / totalCripto 
-      : 0;
-    const rentabilidadeObjetivos = filteredObjetivos.length > 0 
-      ? filteredObjetivos.reduce((acc, o) => acc + (o.rentabilidade * o.atual), 0) / totalObjetivos 
+    const rentabilidadeRF = investimentosRF.length > 0 && totalRF > 0
+      ? investimentosRF.reduce((acc, i) => acc + (i.rentabilidade * i.valor), 0) / totalRF 
       : 0;
     
     const rentabilidadeMedia = patrimonioInvestimentos > 0 
-      ? ((rentabilidadeRF * totalRF) + (rentabilidadeCripto * totalCripto) + (rentabilidadeObjetivos * totalObjetivos)) / patrimonioInvestimentos 
+      ? ((rentabilidadeRF * totalRF) + (totalObjetivos * 10)) / patrimonioInvestimentos 
       : 0;
     
-    // Variação mensal (simulação baseada em fluxo de caixa)
     const receitasMes = getTotalReceitas();
     const despesasMes = getTotalDespesas();
-    const variacaoMensal = ((receitasMes - despesasMes) / Math.max(receitasMes, 1)) * 100;
+    const variacaoMensal = receitasMes > 0 ? ((receitasMes - despesasMes) / receitasMes) * 100 : 0;
     
     return {
       patrimonioTotal,
@@ -220,219 +169,39 @@ const Investimentos = () => {
       variacaoMensal,
       patrimonioInvestimentos
     };
-  }, [filteredInvestimentosRF, filteredCriptomoedas, filteredStablecoins, filteredObjetivos, getValorFipeTotal, getTotalReceitas, getTotalDespesas]);
+  }, [investimentosRF, criptomoedas, stablecoins, objetivos, getValorFipeTotal, getTotalReceitas, getTotalDespesas]);
 
   const distribuicaoCarteira = useMemo(() => [
     { name: "Renda Fixa", value: calculosPatrimonio.totalRF },
     { name: "Criptomoedas", value: calculosPatrimonio.totalCripto },
     { name: "Stablecoins", value: calculosPatrimonio.totalStables },
+    { name: "Objetivos", value: calculosPatrimonio.totalObjetivos },
   ], [calculosPatrimonio]);
-
-  const carteiraConsolidada = useMemo(() => [
-    {
-      categoria: "Renda Fixa",
-      valor: calculosPatrimonio.totalRF,
-      percentual: calculosPatrimonio.patrimonioTotal > 0 ? (calculosPatrimonio.totalRF / calculosPatrimonio.patrimonioTotal) * 100 : 0,
-      rentabilidade: filteredInvestimentosRF.length > 0 
-        ? filteredInvestimentosRF.reduce((acc, i) => acc + (i.rentabilidade * i.valor), 0) / calculosPatrimonio.totalRF 
-        : 0,
-      volatilidade: "Baixa",
-      risco: "A"
-    },
-    {
-      categoria: "Criptomoedas",
-      valor: calculosPatrimonio.totalCripto,
-      percentual: calculosPatrimonio.patrimonioTotal > 0 ? (calculosPatrimonio.totalCripto / calculosPatrimonio.patrimonioTotal) * 100 : 0,
-      rentabilidade: filteredCriptomoedas.length > 0 
-        ? filteredCriptomoedas.reduce((acc, c) => acc + (c.percentual * c.valorBRL), 0) / calculosPatrimonio.totalCripto 
-        : 0,
-      volatilidade: "Alta",
-      risco: "C"
-    },
-    {
-      categoria: "Stablecoins",
-      valor: calculosPatrimonio.totalStables,
-      percentual: calculosPatrimonio.patrimonioTotal > 0 ? (calculosPatrimonio.totalStables / calculosPatrimonio.patrimonioTotal) * 100 : 0,
-      rentabilidade: 0,
-      volatilidade: "Baixa",
-      risco: "A"
-    },
-    {
-      categoria: "Objetivos",
-      valor: calculosPatrimonio.totalObjetivos,
-      percentual: calculosPatrimonio.patrimonioTotal > 0 ? (calculosPatrimonio.totalObjetivos / calculosPatrimonio.patrimonioTotal) * 100 : 0,
-      rentabilidade: filteredObjetivos.length > 0 
-        ? filteredObjetivos.reduce((acc, o) => acc + (o.rentabilidade * o.atual), 0) / calculosPatrimonio.totalObjetivos 
-        : 0,
-      volatilidade: "Baixa",
-      risco: "B"
-    },
-  ], [calculosPatrimonio, filteredInvestimentosRF, filteredCriptomoedas, filteredObjetivos]);
-
-  // Funções auxiliares para cálculo de valores
-  const calcularValorAplicado = useCallback((invId: number) => {
-    const movimentacoes = movimentacoesInvestimento.filter(m => 
-      m.categoria === "Renda Fixa" && m.ativo === invId.toString()
-    );
-    
-    const aportes = movimentacoes
-      .filter(m => m.tipo === "Aporte" || m.tipo === "Compra")
-      .reduce((acc, m) => acc + m.valor, 0);
-    
-    const resgates = movimentacoes
-      .filter(m => m.tipo === "Resgate" || m.tipo === "Venda")
-      .reduce((acc, m) => acc + m.valor, 0);
-    
-    return aportes - resgates;
-  }, [movimentacoesInvestimento]);
-
-  const calcularRendimentoLiquido = useCallback((invId: number) => {
-    const movimentacoes = movimentacoesInvestimento.filter(m => 
-      m.categoria === "Renda Fixa" && m.ativo === invId.toString()
-    );
-    
-    const rendimentos = movimentacoes
-      .filter(m => m.tipo === "Rendimento")
-      .reduce((acc, m) => acc + m.valor, 0);
-    
-    return rendimentos;
-  }, [movimentacoesInvestimento]);
-
-  const calcularValorTotal = useCallback((invId: number) => {
-    const valorAplicado = calcularValorAplicado(invId);
-    const rendimentoLiquido = calcularRendimentoLiquido(invId);
-    return valorAplicado + rendimentoLiquido;
-  }, [calcularValorAplicado, calcularRendimentoLiquido]);
-
-  // Handlers
-  const handleAddRF = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formRF.aplicacao || !formRF.valor || !formRF.dataAplicacao) return;
-    addInvestimentoRF({
-      aplicacao: formRF.aplicacao,
-      instituicao: formRF.instituicao,
-      tipo: formRF.tipo,
-      valor: Number(formRF.valor),
-      cdi: 100, // Valor padrão
-      rentabilidade: 0, // Valor padrão
-      vencimento: formRF.dataAplicacao, // Usando data de aplicação como vencimento padrão
-      risco: "Baixo" // Valor padrão
-    });
-    setFormRF({
-      aplicacao: "",
-      instituicao: "",
-      tipo: "CDB",
-      valor: "",
-      dataAplicacao: "",
-    });
-    setShowAddRF(false);
-    toast({ title: "Investimento adicionado!" });
-  };
-
-  const handleAddMov = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formMov.data || !formMov.valor || !formMov.ativo) return;
-    addMovimentacaoInvestimento({
-      data: formMov.data,
-      tipo: formMov.tipo,
-      categoria: formMov.categoria,
-      ativo: formMov.ativo,
-      descricao: formMov.descricao,
-      valor: Number(formMov.valor),
-    });
-    setFormMov({
-      data: "",
-      tipo: "Aporte",
-      categoria: "Renda Fixa",
-      ativo: "",
-      descricao: "",
-      valor: ""
-    });
-    setShowAddMov(false);
-    toast({ title: "Movimentação registrada!" });
-  };
 
   const handleAddRendimento = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formRendimento.data || !formRendimento.valor || !showRendimento) return;
+    if (!formRendimento.data || !formRendimento.valor || !showAddRendimento) return;
     
     addMovimentacaoInvestimento({
       data: formRendimento.data,
       tipo: "Rendimento",
       categoria: "Renda Fixa",
-      ativo: showRendimento.toString(),
+      ativo: showAddRendimento.toString(),
       descricao: formRendimento.descricao || "Rendimento mensal",
       valor: Number(formRendimento.valor),
     });
     
-    setFormRendimento({
-      data: "",
-      valor: "",
-      descricao: ""
-    });
-    setShowRendimento(null);
+    // Update investment value
+    const inv = investimentosRF.find(i => i.id === showAddRendimento);
+    if (inv) {
+      updateInvestimentoRF(showAddRendimento, { 
+        valor: inv.valor + Number(formRendimento.valor) 
+      });
+    }
+    
+    setFormRendimento({ data: "", valor: "", descricao: "" });
+    setShowAddRendimento(null);
     toast({ title: "Rendimento registrado!" });
-  };
-
-  const handleAddCripto = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formCripto.nome || !formCripto.valorBRL) return;
-    addCriptomoeda({
-      nome: formCripto.nome,
-      simbolo: formCripto.simbolo.toUpperCase(),
-      quantidade: Number(formCripto.quantidade) || 0,
-      valorBRL: Number(formCripto.valorBRL),
-      percentual: 0,
-      sparkline: [100, 105, 98, 110, 108, 115, 112],
-    });
-    setFormCripto({
-      nome: "",
-      simbolo: "",
-      quantidade: "",
-      valorBRL: ""
-    });
-    setShowAddCripto(false);
-    toast({ title: "Criptomoeda adicionada!" });
-  };
-
-  const handleAddStable = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formStable.nome || !formStable.valorBRL) return;
-    addStablecoin({
-      nome: formStable.nome,
-      quantidade: Number(formStable.quantidade) || 0,
-      valorBRL: Number(formStable.valorBRL),
-      cotacao: Number(formStable.cotacao) || 5.0,
-    });
-    setFormStable({
-      nome: "",
-      quantidade: "",
-      valorBRL: "",
-      cotacao: "5.0"
-    });
-    setShowAddStable(false);
-    toast({ title: "Stablecoin adicionada!" });
-  };
-
-  const handleAddObjetivo = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formObjetivo.nome || !formObjetivo.meta) return;
-    addObjetivo({
-      nome: formObjetivo.nome,
-      atual: Number(formObjetivo.atual) || 0,
-      meta: Number(formObjetivo.meta),
-      rentabilidade: Number(formObjetivo.rentabilidade) || 0,
-      cor: formObjetivo.cor,
-    });
-    setFormObjetivo({
-      nome: "",
-      atual: "",
-      meta: "",
-      rentabilidade: "",
-      cor: "hsl(142, 76%, 36%)"
-    });
-    setShowAddObjetivo(false);
-    toast({ title: "Objetivo adicionado!" });
   };
 
   return (
@@ -451,642 +220,265 @@ const Investimentos = () => {
               onPeriodChange={handlePeriodChange} 
               tabId="investimentos" 
             />
-            <Dialog open={showAddRF} onOpenChange={setShowAddRF}>
-              <DialogTrigger asChild>
-                <Button className="gap-2 bg-primary">
-                  <Plus className="w-4 h-4" /> Novo Investimento RF
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-card border-border">
-                <DialogHeader>
-                  <DialogTitle>Novo Investimento em Renda Fixa</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleAddRF} className="space-y-4">
-                  <div>
-                    <Label>Nome da Aplicação</Label>
-                    <Input
-                      value={formRF.aplicacao}
-                      onChange={(e) => setFormRF({ ...formRF, aplicacao: e.target.value })}
-                      className="mt-1 bg-muted border-border"
-                      placeholder="Ex: CDB Banco Inter"
-                    />
-                  </div>
-                  <div>
-                    <Label>Instituição</Label>
-                    <Input
-                      value={formRF.instituicao}
-                      onChange={(e) => setFormRF({ ...formRF, instituicao: e.target.value })}
-                      className="mt-1 bg-muted border-border"
-                      placeholder="Ex: Banco Inter"
-                    />
-                  </div>
-                  <div>
-                    <Label>Tipo</Label>
-                    <Select value={formRF.tipo} onValueChange={(v) => setFormRF({ ...formRF, tipo: v })}>
-                      <SelectTrigger className="mt-1 bg-muted border-border">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CDB">CDB</SelectItem>
-                        <SelectItem value="RDB">RDB</SelectItem>
-                        <SelectItem value="Renda Fixa">Renda Fixa</SelectItem>
-                        <SelectItem value="Poupança">Poupança</SelectItem>
-                        <SelectItem value="LCI">LCI</SelectItem>
-                        <SelectItem value="LCA">LCA</SelectItem>
-                        <SelectItem value="Tesouro">Tesouro</SelectItem>
-                        <SelectItem value="Debênture">Debênture</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Valor (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={formRF.valor}
-                        onChange={(e) => setFormRF({ ...formRF, valor: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                        placeholder="0,00"
-                      />
-                    </div>
-                    <div>
-                      <Label>Data de Aplicação</Label>
-                      <Input
-                        type="date"
-                        value={formRF.dataAplicacao}
-                        onChange={(e) => setFormRF({ ...formRF, dataAplicacao: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                      />
-                    </div>
-                  </div>
-                  <Button type="submit" className="w-full bg-primary">Adicionar</Button>
-                </form>
-              </DialogContent>
-            </Dialog>
           </div>
         </div>
 
-        {/* Cards Resumo Padronizados */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Card className="glass-card border-l-4 border-l-primary animate-fade-in-up">
-            <CardContent className="pt-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">Patrimônio Total</p>
-                  <p className="text-2xl font-bold text-foreground mt-1">
-                    {formatCurrency(calculosPatrimonio.patrimonioTotal)}
-                  </p>
-                  <div className="flex items-center gap-1 mt-1">
-                    <span className={cn(
-                      "text-xs font-medium",
-                      calculosPatrimonio.variacaoMensal >= 0 ? "text-success" : "text-destructive"
-                    )}>
-                      {calculosPatrimonio.variacaoMensal >= 0 ? "▲" : "▼"} {Math.abs(calculosPatrimonio.variacaoMensal).toFixed(1)}% vs mês anterior
-                    </span>
-                  </div>
-                </div>
-                <div className="p-2.5 rounded-xl bg-primary/10">
-                  <Wallet className="w-5 h-5 text-primary" />
-                </div>
+        {/* Patrimônio Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <Card className="glass-card">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Wallet className="w-4 h-4 text-primary" />
+                <span className="text-xs text-muted-foreground">Patrimônio Total</span>
               </div>
+              <p className="text-xl font-bold">{formatCurrency(calculosPatrimonio.patrimonioTotal)}</p>
             </CardContent>
           </Card>
-          <Card className="glass-card border-l-4 border-l-accent animate-fade-in-up" style={{ animationDelay: "100ms" }}>
-            <CardContent className="pt-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">Reserva Emergência</p>
-                  <p className="text-2xl font-bold text-foreground mt-1">
-                    {calculosPatrimonio.reservaEmergencia 
-                      ? `${((calculosPatrimonio.reservaEmergencia.atual / calculosPatrimonio.reservaEmergencia.meta) * 100).toFixed(0)}%`
-                      : "N/A"
-                    }
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {calculosPatrimonio.reservaEmergencia 
-                      ? `${formatCurrency(calculosPatrimonio.reservaEmergencia.atual)} / ${formatCurrency(calculosPatrimonio.reservaEmergencia.meta)}`
-                      : "Sem objetivo definido"
-                    }
-                  </p>
-                </div>
-                <div className="p-2.5 rounded-xl bg-accent/10">
-                  <Shield className="w-5 h-5 text-accent" />
-                </div>
+          <Card className="glass-card">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Landmark className="w-4 h-4 text-success" />
+                <span className="text-xs text-muted-foreground">Renda Fixa</span>
               </div>
+              <p className="text-xl font-bold text-success">{formatCurrency(calculosPatrimonio.totalRF)}</p>
             </CardContent>
           </Card>
-          <Card className="glass-card border-l-4 border-l-warning animate-fade-in-up" style={{ animationDelay: "150ms" }}>
-            <CardContent className="pt-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">Exposição Cripto</p>
-                  <p className="text-2xl font-bold text-warning mt-1">
-                    {calculosPatrimonio.exposicaoCripto.toFixed(1)}%
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {formatCurrency(calculosPatrimonio.totalCripto)}
-                  </p>
-                </div>
-                <div className="p-2.5 rounded-xl bg-warning/10">
-                  <Bitcoin className="w-5 h-5 text-warning" />
-                </div>
+          <Card className="glass-card">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Bitcoin className="w-4 h-4 text-warning" />
+                <span className="text-xs text-muted-foreground">Criptomoedas</span>
               </div>
+              <p className="text-xl font-bold text-warning">{formatCurrency(calculosPatrimonio.totalCripto)}</p>
+            </CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="w-4 h-4 text-info" />
+                <span className="text-xs text-muted-foreground">Stablecoins</span>
+              </div>
+              <p className="text-xl font-bold text-info">{formatCurrency(calculosPatrimonio.totalStables)}</p>
+            </CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="w-4 h-4 text-primary" />
+                <span className="text-xs text-muted-foreground">Objetivos</span>
+              </div>
+              <p className="text-xl font-bold">{formatCurrency(calculosPatrimonio.totalObjetivos)}</p>
+            </CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-4 h-4 text-success" />
+                <span className="text-xs text-muted-foreground">Rentabilidade</span>
+              </div>
+              <p className="text-xl font-bold text-success">{calculosPatrimonio.rentabilidadeMedia.toFixed(1)}%</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Distribuição da Carteira */}
-        <Card className="glass-card animate-fade-in-up" style={{ animationDelay: "200ms" }}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <BarChart3 className="w-5 h-5 text-primary" />
-              Distribuição da Carteira
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={distribuicaoCarteira}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {distribuicaoCarteira.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="bg-muted/50">
+            <TabsTrigger value="carteira">Carteira Geral</TabsTrigger>
+            <TabsTrigger value="renda-fixa">Renda Fixa</TabsTrigger>
+            <TabsTrigger value="cripto">Criptomoedas</TabsTrigger>
+            <TabsTrigger value="stablecoins">Stablecoins</TabsTrigger>
+            <TabsTrigger value="objetivos">Objetivos</TabsTrigger>
+          </TabsList>
+
+          {/* Carteira Geral */}
+          <TabsContent value="carteira" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Distribuição */}
+              <Card className="glass-card lg:col-span-1">
+                <CardHeader>
+                  <CardTitle className="text-lg">Distribuição da Carteira</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={distribuicaoCarteira.filter(d => d.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={90}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {distribuicaoCarteira.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: number) => formatCurrency(value)}
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-2 mt-4">
+                    {distribuicaoCarteira.map((item, index) => (
+                      <div key={item.name} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pieColors[index] }} />
+                          <span>{item.name}</span>
+                        </div>
+                        <span className="font-medium">{formatCurrency(item.value)}</span>
+                      </div>
                     ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      borderColor: "hsl(var(--border))",
-                      borderRadius: "8px",
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex flex-wrap justify-center gap-4 mt-4">
-              {distribuicaoCarteira.map((item, index) => (
-                <div key={item.name} className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: pieColors[index % pieColors.length] }}
-                  />
-                  <span className="text-sm text-muted-foreground">
-                    {item.name}: {formatCurrency(item.value)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                  </div>
+                </CardContent>
+              </Card>
 
-        {/* Carteira Consolidada */}
-        <Card className="glass-card animate-fade-in-up" style={{ animationDelay: "300ms" }}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <Wallet className="w-5 h-5 text-primary" />
-              Carteira Consolidada
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border">
-                  <TableHead className="text-muted-foreground">Categoria</TableHead>
-                  <TableHead className="text-muted-foreground text-right">Valor</TableHead>
-                  <TableHead className="text-muted-foreground text-right">%</TableHead>
-                  <TableHead className="text-muted-foreground text-right">Rent. YTD</TableHead>
-                  <TableHead className="text-muted-foreground text-center">Volatilidade</TableHead>
-                  <TableHead className="text-muted-foreground text-center">Risco</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {carteiraConsolidada.map((item) => (
-                  <TableRow key={item.categoria} className="border-border hover:bg-muted/30">
-                    <TableCell className="font-medium">{item.categoria}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(item.valor)}</TableCell>
-                    <TableCell className="text-right">{item.percentual.toFixed(1)}%</TableCell>
-                    <TableCell className="text-right">
-                      <span className={cn(
-                        "font-medium",
-                        item.rentabilidade > 0 ? "text-success" : item.rentabilidade < 0 ? "text-destructive" : "text-muted-foreground"
-                      )}>
-                        {item.rentabilidade > 0 ? "+" : ""}{item.rentabilidade.toFixed(1)}%
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={item.volatilidade === "Baixa" ? "default" : item.volatilidade === "Média" ? "secondary" : "destructive"}>
-                        {item.volatilidade}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="outline" className={cn(
-                        item.risco === "A" && "border-success text-success",
-                        item.risco === "B" && "border-warning text-warning",
-                        item.risco === "C" && "border-destructive text-destructive"
-                      )}>
-                        {item.risco}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        {/* Renda Fixa Section */}
-        <Card className="glass-card animate-fade-in-up" style={{ animationDelay: "350ms" }}>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <Landmark className="w-5 h-5 text-primary" />
-              Renda Fixa
-            </CardTitle>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 w-48 bg-muted border-border"
-                />
-              </div>
-              <Select value={filterInstituicao} onValueChange={setFilterInstituicao}>
-                <SelectTrigger className="w-32 bg-muted border-border">
-                  <SelectValue placeholder="Instituição" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {Array.from(new Set(filteredInvestimentosRF.map(i => i.instituicao))).map(inst => (
-                    <SelectItem key={inst} value={inst}>{inst}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={filterTipoRF} onValueChange={setFilterTipoRF}>
-                <SelectTrigger className="w-32 bg-muted border-border">
-                  <SelectValue placeholder="Tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="CDB">CDB</SelectItem>
-                  <SelectItem value="RDB">RDB</SelectItem>
-                  <SelectItem value="Renda Fixa">Renda Fixa</SelectItem>
-                  <SelectItem value="Poupança">Poupança</SelectItem>
-                  <SelectItem value="LCI">LCI</SelectItem>
-                  <SelectItem value="LCA">LCA</SelectItem>
-                  <SelectItem value="Tesouro">Tesouro</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Consolidado */}
+              <Card className="glass-card lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="text-lg">Carteira Consolidada</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Categoria</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead className="text-right">%</TableHead>
+                        <TableHead className="text-right">Rentab.</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell className="flex items-center gap-2">
+                          <Landmark className="w-4 h-4 text-success" />
+                          Renda Fixa
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(calculosPatrimonio.totalRF)}</TableCell>
+                        <TableCell className="text-right">
+                          {calculosPatrimonio.patrimonioInvestimentos > 0 
+                            ? ((calculosPatrimonio.totalRF / calculosPatrimonio.patrimonioInvestimentos) * 100).toFixed(1) 
+                            : 0}%
+                        </TableCell>
+                        <TableCell className="text-right text-success">
+                          {investimentosRF.length > 0 
+                            ? (investimentosRF.reduce((acc, i) => acc + i.rentabilidade, 0) / investimentosRF.length).toFixed(1)
+                            : 0}%
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="flex items-center gap-2">
+                          <Bitcoin className="w-4 h-4 text-warning" />
+                          Criptomoedas
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(calculosPatrimonio.totalCripto)}</TableCell>
+                        <TableCell className="text-right">
+                          {calculosPatrimonio.patrimonioInvestimentos > 0 
+                            ? ((calculosPatrimonio.totalCripto / calculosPatrimonio.patrimonioInvestimentos) * 100).toFixed(1) 
+                            : 0}%
+                        </TableCell>
+                        <TableCell className="text-right text-warning">-</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-info" />
+                          Stablecoins
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(calculosPatrimonio.totalStables)}</TableCell>
+                        <TableCell className="text-right">
+                          {calculosPatrimonio.patrimonioInvestimentos > 0 
+                            ? ((calculosPatrimonio.totalStables / calculosPatrimonio.patrimonioInvestimentos) * 100).toFixed(1) 
+                            : 0}%
+                        </TableCell>
+                        <TableCell className="text-right">0%</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="flex items-center gap-2">
+                          <Target className="w-4 h-4 text-primary" />
+                          Objetivos
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(calculosPatrimonio.totalObjetivos)}</TableCell>
+                        <TableCell className="text-right">
+                          {calculosPatrimonio.patrimonioInvestimentos > 0 
+                            ? ((calculosPatrimonio.totalObjetivos / calculosPatrimonio.patrimonioInvestimentos) * 100).toFixed(1) 
+                            : 0}%
+                        </TableCell>
+                        <TableCell className="text-right text-success">
+                          {objetivos.length > 0 
+                            ? (objetivos.reduce((acc, o) => acc + o.rentabilidade, 0) / objetivos.length).toFixed(1)
+                            : 0}%
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
             </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border">
-                  <TableHead className="text-muted-foreground">Aplicação</TableHead>
-                  <TableHead className="text-muted-foreground">Instituição</TableHead>
-                  <TableHead className="text-muted-foreground">Tipo</TableHead>
-                  <TableHead className="text-muted-foreground text-right">Valor Aplicado</TableHead>
-                  <TableHead className="text-muted-foreground text-right">Rendimento Líquido</TableHead>
-                  <TableHead className="text-muted-foreground text-right">Valor Total</TableHead>
-                  <TableHead className="text-muted-foreground text-center">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredInvestimentosRF
-                  .filter(i => 
-                    (filterInstituicao === "all" || i.instituicao === filterInstituicao) &&
-                    (filterTipoRF === "all" || i.tipo === filterTipoRF) &&
-                    (i.aplicacao.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                     i.instituicao.toLowerCase().includes(searchTerm.toLowerCase()))
-                  )
-                  .map((item) => {
-                    const valorAplicado = calcularValorAplicado(item.id);
-                    const rendimentoLiquido = calcularRendimentoLiquido(item.id);
-                    const valorTotal = calcularValorTotal(item.id);
-                    
-                    return (
-                      <TableRow key={item.id} className="border-border hover:bg-muted/30">
+          </TabsContent>
+
+          {/* Renda Fixa */}
+          <TabsContent value="renda-fixa" className="space-y-6">
+            <Card className="glass-card">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg">Aplicações em Renda Fixa</CardTitle>
+                <Badge variant="outline">{investimentosRF.length} aplicações</Badge>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Aplicação</TableHead>
+                      <TableHead>Instituição</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead className="text-right">Rentab.</TableHead>
+                      <TableHead className="text-right">Vencimento</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {investimentosRF.map((inv) => (
+                      <TableRow key={inv.id}>
                         <TableCell>
                           <EditableCell
-                            value={item.aplicacao}
-                            onSave={(v) => updateInvestimentoRF(item.id, { aplicacao: String(v) })}
+                            value={inv.aplicacao}
+                            onSave={(v) => updateInvestimentoRF(inv.id, { aplicacao: String(v) })}
                           />
                         </TableCell>
+                        <TableCell>{inv.instituicao}</TableCell>
                         <TableCell>
-                          <EditableCell
-                            value={item.instituicao}
-                            onSave={(v) => updateInvestimentoRF(item.id, { instituicao: String(v) })}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{item.tipo}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(valorAplicado)}
+                          <Badge variant="outline">{inv.tipo}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <span className={cn(
-                            "font-medium",
-                            rendimentoLiquido >= 0 ? "text-success" : "text-destructive"
-                          )}>
-                            {rendimentoLiquido >= 0 ? "+" : ""}{formatCurrency(rendimentoLiquido)}
-                          </span>
+                          <EditableCell
+                            value={inv.valor}
+                            type="currency"
+                            onSave={(v) => updateInvestimentoRF(inv.id, { valor: Number(v) })}
+                          />
                         </TableCell>
-                        <TableCell className="text-right font-bold">
-                          {formatCurrency(valorTotal)}
+                        <TableCell className="text-right text-success">
+                          {inv.rentabilidade.toFixed(1)}%
                         </TableCell>
+                        <TableCell className="text-right">{inv.vencimento}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Dialog open={showMovimentacoes === item.id} onOpenChange={(open) => setShowMovimentacoes(open ? item.id : null)}>
-                              <DialogTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setShowMovimentacoes(item.id)}
-                                  className="gap-2 border-border text-xs"
-                                >
-                                  <History className="w-3 h-3" />
-                                  Movimentações
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-card border-border">
-                                <DialogHeader>
-                                  <DialogTitle className="flex items-center gap-2">
-                                    <History className="w-5 h-5 text-primary" />
-                                    <span>Movimentações - {item.aplicacao}</span>
-                                  </DialogTitle>
-                                </DialogHeader>
-                                <div className="space-y-4">
-                                  {/* Formulário de Movimentação */}
-                                  <Card className="border-border">
-                                    <CardContent className="p-4">
-                                      <form onSubmit={handleAddMov} className="space-y-3">
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                          <div>
-                                            <Label>Data</Label>
-                                            <Input
-                                              type="date"
-                                              value={formMov.data}
-                                              onChange={(e) => setFormMov({ ...formMov, data: e.target.value })}
-                                              className="mt-1 bg-muted border-border"
-                                            />
-                                          </div>
-                                          <div>
-                                            <Label>Tipo</Label>
-                                            <Select value={formMov.tipo} onValueChange={(v) => setFormMov({ ...formMov, tipo: v })}>
-                                              <SelectTrigger className="mt-1 bg-muted border-border">
-                                                <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                <SelectItem value="Aporte">Aporte</SelectItem>
-                                                <SelectItem value="Resgate">Resgate</SelectItem>
-                                                <SelectItem value="Compra">Compra</SelectItem>
-                                                <SelectItem value="Venda">Venda</SelectItem>
-                                                <SelectItem value="Rendimento">Rendimento</SelectItem>
-                                              </SelectContent>
-                                            </Select>
-                                          </div>
-                                          <div>
-                                            <Label>Valor (R$)</Label>
-                                            <Input
-                                              type="number"
-                                              step="0.01"
-                                              value={formMov.valor}
-                                              onChange={(e) => setFormMov({ ...formMov, valor: e.target.value })}
-                                              className="mt-1 bg-muted border-border"
-                                              placeholder="0,00"
-                                            />
-                                          </div>
-                                          <div className="flex items-end">
-                                            <Button type="submit" className="w-full bg-primary">
-                                              <Plus className="w-4 h-4 mr-2" />
-                                              Adicionar
-                                            </Button>
-                                          </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                          <div>
-                                            <Label>Descrição</Label>
-                                            <Input
-                                              value={formMov.descricao}
-                                              onChange={(e) => setFormMov({ ...formMov, descricao: e.target.value })}
-                                              className="mt-1 bg-muted border-border"
-                                              placeholder="Descrição da movimentação"
-                                            />
-                                          </div>
-                                          <div>
-                                            <Label>Ativo</Label>
-                                            <Input
-                                              value={formMov.ativo}
-                                              onChange={(e) => setFormMov({ ...formMov, ativo: e.target.value })}
-                                              className="mt-1 bg-muted border-border"
-                                              placeholder={item.id.toString()}
-                                              disabled
-                                            />
-                                          </div>
-                                          <div>
-                                            <Label>Categoria</Label>
-                                            <Input
-                                              value={formMov.categoria}
-                                              onChange={(e) => setFormMov({ ...formMov, categoria: e.target.value })}
-                                              className="mt-1 bg-muted border-border"
-                                              placeholder="Renda Fixa"
-                                              disabled
-                                            />
-                                          </div>
-                                        </div>
-                                      </form>
-                                    </CardContent>
-                                  </Card>
-
-                                  {/* Rendimento Mensal */}
-                                  <Card className="border-border">
-                                    <CardContent className="p-4">
-                                      <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-2">
-                                          <DollarSignIcon className="w-5 h-5 text-success" />
-                                          <span className="font-semibold">Registrar Rendimento Mensal</span>
-                                        </div>
-                                        <Dialog open={!!showRendimento} onOpenChange={(open) => !open && setShowRendimento(null)}>
-                                          <DialogTrigger asChild>
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => setShowRendimento(item.id)}
-                                              className="gap-2 border-border"
-                                            >
-                                              <Plus className="w-4 h-4" />
-                                              Rendimento
-                                            </Button>
-                                          </DialogTrigger>
-                                          <DialogContent className="bg-card border-border">
-                                            <DialogHeader>
-                                              <DialogTitle>Registrar Rendimento - {item.aplicacao}</DialogTitle>
-                                            </DialogHeader>
-                                            <form onSubmit={handleAddRendimento} className="space-y-4">
-                                              <div>
-                                                <Label>Data (último dia do mês)</Label>
-                                                <Input
-                                                  type="date"
-                                                  value={formRendimento.data}
-                                                  onChange={(e) => setFormRendimento({ ...formRendimento, data: e.target.value })}
-                                                  className="mt-1 bg-muted border-border"
-                                                />
-                                              </div>
-                                              <div>
-                                                <Label>Valor do Rendimento (R$)</Label>
-                                                <Input
-                                                  type="number"
-                                                  step="0.01"
-                                                  value={formRendimento.valor}
-                                                  onChange={(e) => setFormRendimento({ ...formRendimento, valor: e.target.value })}
-                                                  className="mt-1 bg-muted border-border"
-                                                  placeholder="0,00"
-                                                />
-                                              </div>
-                                              <div>
-                                                <Label>Descrição</Label>
-                                                <Input
-                                                  value={formRendimento.descricao}
-                                                  onChange={(e) => setFormRendimento({ ...formRendimento, descricao: e.target.value })}
-                                                  className="mt-1 bg-muted border-border"
-                                                  placeholder="Rendimento mensal"
-                                                />
-                                              </div>
-                                              <div className="flex items-center justify-between">
-                                                <Button
-                                                  variant="outline"
-                                                  onClick={() => setShowRendimento(null)}
-                                                  className="border-border"
-                                                >
-                                                  Cancelar
-                                                </Button>
-                                                <Button type="submit" className="bg-primary">
-                                                  Registrar Rendimento
-                                                </Button>
-                                              </div>
-                                            </form>
-                                          </DialogContent>
-                                        </Dialog>
-                                      </div>
-                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="glass-card p-4 rounded-xl">
-                                          <div className="flex items-center justify-between">
-                                            <div>
-                                              <p className="text-sm text-muted-foreground">Valor Aplicado</p>
-                                              <p className="text-lg font-bold">{formatCurrency(valorAplicado)}</p>
-                                            </div>
-                                            <div className="p-2 rounded-lg bg-primary/10">
-                                              <Plus className="w-4 h-4 text-primary" />
-                                            </div>
-                                          </div>
-                                        </div>
-                                        <div className="glass-card p-4 rounded-xl">
-                                          <div className="flex items-center justify-between">
-                                            <div>
-                                              <p className="text-sm text-muted-foreground">Rendimento Líquido</p>
-                                              <p className={cn(
-                                                "text-lg font-bold",
-                                                rendimentoLiquido >= 0 ? "text-success" : "text-destructive"
-                                              )}>
-                                                {rendimentoLiquido >= 0 ? "+" : ""}{formatCurrency(rendimentoLiquido)}
-                                              </p>
-                                            </div>
-                                            <div className="p-2 rounded-lg bg-success/10">
-                                              <DollarSignIcon className="w-4 h-4 text-success" />
-                                            </div>
-                                          </div>
-                                        </div>
-                                        <div className="glass-card p-4 rounded-xl">
-                                          <div className="flex items-center justify-between">
-                                            <div>
-                                              <p className="text-sm text-muted-foreground">Valor Total</p>
-                                              <p className="text-lg font-bold">{formatCurrency(valorTotal)}</p>
-                                            </div>
-                                            <div className="p-2 rounded-lg bg-warning/10">
-                                              <Wallet className="w-4 h-4 text-warning" />
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-
-                                  {/* Histórico de Movimentações */}
-                                  <Card className="border-border">
-                                    <CardContent className="p-4">
-                                      <h4 className="font-semibold mb-3">Histórico de Movimentações</h4>
-                                      <div className="rounded-lg border border-border overflow-hidden">
-                                        <Table>
-                                          <TableHeader>
-                                            <TableRow className="border-border">
-                                              <TableHead className="text-muted-foreground">Data</TableHead>
-                                              <TableHead className="text-muted-foreground">Tipo</TableHead>
-                                              <TableHead className="text-muted-foreground">Descrição</TableHead>
-                                              <TableHead className="text-muted-foreground text-right">Valor</TableHead>
-                                              <TableHead className="text-muted-foreground w-16">Ações</TableHead>
-                                            </TableRow>
-                                          </TableHeader>
-                                          <TableBody>
-                                            {movimentacoesInvestimento
-                                              .filter(m => m.categoria === "Renda Fixa" && m.ativo === item.id.toString())
-                                              .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
-                                              .map((mov) => (
-                                                <TableRow key={mov.id} className="border-border hover:bg-muted/30">
-                                                  <TableCell>{mov.data}</TableCell>
-                                                  <TableCell>
-                                                    <Badge variant={
-                                                      mov.tipo === "Aporte" || mov.tipo === "Compra" || mov.tipo === "Rendimento" 
-                                                        ? "default" 
-                                                        : "secondary"
-                                                    }>
-                                                      {mov.tipo}
-                                                    </Badge>
-                                                  </TableCell>
-                                                  <TableCell>{mov.descricao}</TableCell>
-                                                  <TableCell className={cn(
-                                                    "text-right font-medium",
-                                                    mov.tipo === "Aporte" || mov.tipo === "Compra" || mov.tipo === "Rendimento" 
-                                                      ? "text-success" 
-                                                      : "text-destructive"
-                                                  )}>
-                                                    {(mov.tipo === "Aporte" || mov.tipo === "Compra" || mov.tipo === "Rendimento") ? "+" : "-"}{formatCurrency(mov.valor)}
-                                                  </TableCell>
-                                                  <TableCell>
-                                                    <Button
-                                                      variant="ghost"
-                                                      size="icon"
-                                                      onClick={() => deleteMovimentacaoInvestimento(mov.id)}
-                                                      className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                                                    >
-                                                      <Trash2 className="w-4 h-4" />
-                                                    </Button>
-                                                  </TableCell>
-                                                </TableRow>
-                                              ))}
-                                          </TableBody>
-                                        </Table>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowAddRendimento(inv.id)}
+                              className="h-8 px-2 hover:bg-success/10 hover:text-success"
+                            >
+                              <Plus className="w-4 h-4 mr-1" />
+                              Rendimento
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => deleteInvestimentoRF(item.id)}
+                              onClick={() => deleteInvestimentoRF(inv.id)}
                               className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1094,517 +486,288 @@ const Investimentos = () => {
                           </div>
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                    ))}
+                    {investimentosRF.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          Nenhuma aplicação em renda fixa. Adicione via "Movimentar Conta" em Receitas & Despesas.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* Criptomoedas Section */}
-        <Card className="glass-card animate-fade-in-up" style={{ animationDelay: "400ms" }}>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <Bitcoin className="w-5 h-5 text-warning" />
-              Criptomoedas
-            </CardTitle>
-            <Dialog open={showAddCripto} onOpenChange={setShowAddCripto}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 border-border">
-                  <Plus className="w-4 h-4" /> Adicionar
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-card border-border">
-                <DialogHeader>
-                  <DialogTitle>Nova Criptomoeda</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleAddCripto} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Nome</Label>
-                      <Input
-                        value={formCripto.nome}
-                        onChange={(e) => setFormCripto({ ...formCripto, nome: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                        placeholder="Bitcoin"
-                      />
-                    </div>
-                    <div>
-                      <Label>Símbolo</Label>
-                      <Input
-                        value={formCripto.simbolo}
-                        onChange={(e) => setFormCripto({ ...formCripto, simbolo: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                        placeholder="BTC"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Quantidade</Label>
-                      <Input
-                        type="number"
-                        step="any"
-                        value={formCripto.quantidade}
-                        onChange={(e) => setFormCripto({ ...formCripto, quantidade: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                      />
-                    </div>
-                    <div>
-                      <Label>Valor (R$)</Label>
-                      <Input
-                        type="number"
-                        value={formCripto.valorBRL}
-                        onChange={(e) => setFormCripto({ ...formCripto, valorBRL: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                      />
-                    </div>
-                  </div>
-                  <Button type="submit" className="w-full bg-primary">Adicionar</Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </CardHeader>
-          <CardContent>
+          {/* Criptomoedas */}
+          <TabsContent value="cripto" className="space-y-6">
+            <Card className="glass-card">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg">Carteira de Criptomoedas</CardTitle>
+                <Badge variant="outline">{criptomoedas.length} ativos</Badge>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ativo</TableHead>
+                      <TableHead>Símbolo</TableHead>
+                      <TableHead className="text-right">Quantidade</TableHead>
+                      <TableHead className="text-right">Valor BRL</TableHead>
+                      <TableHead className="text-right">Variação</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {criptomoedas.map((cripto) => (
+                      <TableRow key={cripto.id}>
+                        <TableCell className="flex items-center gap-2">
+                          <Bitcoin className="w-4 h-4 text-warning" />
+                          <EditableCell
+                            value={cripto.nome}
+                            onSave={(v) => updateCriptomoeda(cripto.id, { nome: String(v) })}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{cripto.simbolo}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <EditableCell
+                            value={cripto.quantidade}
+                            type="number"
+                            onSave={(v) => updateCriptomoeda(cripto.id, { quantidade: Number(v) })}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <EditableCell
+                            value={cripto.valorBRL}
+                            type="currency"
+                            onSave={(v) => updateCriptomoeda(cripto.id, { valorBRL: Number(v) })}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={cn(
+                            "font-medium",
+                            cripto.percentual >= 0 ? "text-success" : "text-destructive"
+                          )}>
+                            {cripto.percentual >= 0 ? "+" : ""}{cripto.percentual.toFixed(1)}%
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteCriptomoeda(cripto.id)}
+                            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {criptomoedas.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          Nenhuma criptomoeda. Adicione via "Movimentar Conta" em Receitas & Despesas.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Stablecoins */}
+          <TabsContent value="stablecoins" className="space-y-6">
+            <Card className="glass-card">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg">Carteira de Stablecoins</CardTitle>
+                <Badge variant="outline">{stablecoins.length} ativos</Badge>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ativo</TableHead>
+                      <TableHead className="text-right">Quantidade</TableHead>
+                      <TableHead className="text-right">Valor BRL</TableHead>
+                      <TableHead className="text-right">Cotação</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {stablecoins.map((stable) => (
+                      <TableRow key={stable.id}>
+                        <TableCell className="flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-info" />
+                          <EditableCell
+                            value={stable.nome}
+                            onSave={(v) => updateStablecoin(stable.id, { nome: String(v) })}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <EditableCell
+                            value={stable.quantidade}
+                            type="number"
+                            onSave={(v) => updateStablecoin(stable.id, { quantidade: Number(v) })}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <EditableCell
+                            value={stable.valorBRL}
+                            type="currency"
+                            onSave={(v) => updateStablecoin(stable.id, { valorBRL: Number(v) })}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          R$ {stable.cotacao.toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteStablecoin(stable.id)}
+                            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {stablecoins.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                          Nenhuma stablecoin. Adicione via "Movimentar Conta" em Receitas & Despesas.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Objetivos */}
+          <TabsContent value="objetivos" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredCriptomoedas.map((cripto) => (
-                <div key={cripto.id} className="glass-card p-4 rounded-xl">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-warning/10">
-                        <Bitcoin className="w-5 h-5 text-warning" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-foreground">{cripto.nome}</h4>
-                        <p className="text-sm text-muted-foreground">{cripto.simbolo}</p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteCriptomoeda(cripto.id)}
-                      className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Quantidade</span>
-                      <EditableCell
-                        value={cripto.quantidade}
-                        type="number"
-                        onSave={(v) => updateCriptomoeda(cripto.id, { quantidade: Number(v) })}
-                      />
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Valor</span>
-                      <EditableCell
-                        value={cripto.valorBRL}
-                        type="currency"
-                        onSave={(v) => updateCriptomoeda(cripto.id, { valorBRL: Number(v) })}
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-3 h-12">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={cripto.sparkline.map((v, i) => ({ value: v }))}>
-                        <Area
-                          type="monotone"
-                          dataKey="value"
-                          stroke="hsl(38, 92%, 50%)"
-                          fill="hsl(38, 92%, 50%)"
-                          fillOpacity={0.2}
-                          strokeWidth={2}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stablecoins Section */}
-        <Card className="glass-card animate-fade-in-up" style={{ animationDelay: "450ms" }}>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <Coins className="w-5 h-5 text-success" />
-              Stablecoins
-            </CardTitle>
-            <Dialog open={showAddStable} onOpenChange={setShowAddStable}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 border-border">
-                  <Plus className="w-4 h-4" /> Adicionar
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-card border-border">
-                <DialogHeader>
-                  <DialogTitle>Nova Stablecoin</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleAddStable} className="space-y-4">
-                  <div>
-                    <Label>Nome</Label>
-                    <Input
-                      value={formStable.nome}
-                      onChange={(e) => setFormStable({ ...formStable, nome: e.target.value })}
-                      className="mt-1 bg-muted border-border"
-                      placeholder="USDC"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Quantidade</Label>
-                      <Input
-                        type="number"
-                        value={formStable.quantidade}
-                        onChange={(e) => setFormStable({ ...formStable, quantidade: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                      />
-                    </div>
-                    <div>
-                      <Label>Valor (R$)</Label>
-                      <Input
-                        type="number"
-                        value={formStable.valorBRL}
-                        onChange={(e) => setFormStable({ ...formStable, valorBRL: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Cotação USD</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={formStable.cotacao}
-                      onChange={(e) => setFormStable({ ...formStable, cotacao: e.target.value })}
-                      className="mt-1 bg-muted border-border"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full bg-primary">Adicionar</Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border">
-                  <TableHead className="text-muted-foreground">Nome</TableHead>
-                  <TableHead className="text-muted-foreground text-right">Quantidade</TableHead>
-                  <TableHead className="text-muted-foreground text-right">Valor BRL</TableHead>
-                  <TableHead className="text-muted-foreground text-right">Cotação USD</TableHead>
-                  <TableHead className="text-muted-foreground w-16">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStablecoins.map((item) => (
-                  <TableRow key={item.id} className="border-border hover:bg-muted/30">
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <DollarSignIcon className="w-4 h-4 text-success" />
-                        <EditableCell
-                          value={item.nome}
-                          onSave={(v) => updateStablecoin(item.id, { nome: String(v) })}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <EditableCell
-                        value={item.quantidade}
-                        type="number"
-                        onSave={(v) => updateStablecoin(item.id, { quantidade: Number(v) })}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <EditableCell
-                        value={item.valorBRL}
-                        type="currency"
-                        onSave={(v) => updateStablecoin(item.id, { valorBRL: Number(v) })}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">R$ {item.cotacao.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteStablecoin(item.id)}
-                        className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        {/* Objetivos Financeiros Section */}
-        <Card className="glass-card animate-fade-in-up" style={{ animationDelay: "500ms" }}>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <Target className="w-5 h-5 text-accent" />
-              Objetivos Financeiros
-            </CardTitle>
-            <Dialog open={showAddObjetivo} onOpenChange={setShowAddObjetivo}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 border-border">
-                  <Plus className="w-4 h-4" /> Adicionar
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-card border-border">
-                <DialogHeader>
-                  <DialogTitle>Novo Objetivo Financeiro</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleAddObjetivo} className="space-y-4">
-                  <div>
-                    <Label>Nome do Objetivo</Label>
-                    <Input
-                      value={formObjetivo.nome}
-                      onChange={(e) => setFormObjetivo({ ...formObjetivo, nome: e.target.value })}
-                      className="mt-1 bg-muted border-border"
-                      placeholder="Reserva de Emergência"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Valor Atual (R$)</Label>
-                      <Input
-                        type="number"
-                        value={formObjetivo.atual}
-                        onChange={(e) => setFormObjetivo({ ...formObjetivo, atual: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                      />
-                    </div>
-                    <div>
-                      <Label>Meta (R$)</Label>
-                      <Input
-                        type="number"
-                        value={formObjetivo.meta}
-                        onChange={(e) => setFormObjetivo({ ...formObjetivo, meta: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                      />
-                    </div>
-                  </div>
-                  <Button type="submit" className="w-full bg-primary">Adicionar</Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredObjetivos.map((obj) => {
-                const progresso = (obj.atual / obj.meta) * 100;
+              {objetivos.map((obj) => {
+                const progresso = obj.meta > 0 ? (obj.atual / obj.meta) * 100 : 0;
                 return (
-                  <div key={obj.id} className="glass-card p-4 rounded-xl">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h4 className="font-semibold text-foreground">{obj.nome}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {formatCurrency(obj.atual)} / {formatCurrency(obj.meta)}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteObjetivo(obj.id)}
-                        className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Progresso</span>
-                        <span className="font-medium" style={{ color: obj.cor }}>{progresso.toFixed(0)}%</span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{ width: `${Math.min(progresso, 100)}%`, backgroundColor: obj.cor }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Movimentações Section */}
-        <Card className="glass-card animate-fade-in-up" style={{ animationDelay: "550ms" }}>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <RefreshCw className="w-5 h-5 text-primary" />
-              Histórico de Movimentações
-            </CardTitle>
-            <div className="flex items-center gap-3">
-              <Select value={filterTipoMov} onValueChange={setFilterTipoMov}>
-                <SelectTrigger className="w-32 bg-muted border-border">
-                  <SelectValue placeholder="Tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="Aporte">Aporte</SelectItem>
-                  <SelectItem value="Resgate">Resgate</SelectItem>
-                  <SelectItem value="Compra">Compra</SelectItem>
-                  <SelectItem value="Venda">Venda</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={filterCategoriaMov} onValueChange={setFilterCategoriaMov}>
-                <SelectTrigger className="w-32 bg-muted border-border">
-                  <SelectValue placeholder="Categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="Renda Fixa">Renda Fixa</SelectItem>
-                  <SelectItem value="Cripto">Cripto</SelectItem>
-                  <SelectItem value="Stablecoin">Stablecoin</SelectItem>
-                  <SelectItem value="Objetivo">Objetivo</SelectItem>
-                </SelectContent>
-              </Select>
-              <Dialog open={showAddMov} onOpenChange={setShowAddMov}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="gap-2 border-border">
-                    <Plus className="w-4 h-4" /> Nova Movimentação
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-card border-border">
-                  <DialogHeader>
-                    <DialogTitle>Nova Movimentação</DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleAddMov} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>Data</Label>
-                        <Input
-                          type="date"
-                          value={formMov.data}
-                          onChange={(e) => setFormMov({ ...formMov, data: e.target.value })}
-                          className="mt-1 bg-muted border-border"
-                        />
-                      </div>
-                      <div>
-                        <Label>Tipo</Label>
-                        <Select value={formMov.tipo} onValueChange={(v) => setFormMov({ ...formMov, tipo: v })}>
-                          <SelectTrigger className="mt-1 bg-muted border-border">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Aporte">Aporte</SelectItem>
-                            <SelectItem value="Resgate">Resgate</SelectItem>
-                            <SelectItem value="Compra">Compra</SelectItem>
-                            <SelectItem value="Venda">Venda</SelectItem>
-                            <SelectItem value="Rendimento">Rendimento</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>Categoria</Label>
-                        <Select value={formMov.categoria} onValueChange={(v) => setFormMov({ ...formMov, categoria: v })}>
-                          <SelectTrigger className="mt-1 bg-muted border-border">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Renda Fixa">Renda Fixa</SelectItem>
-                            <SelectItem value="Cripto">Cripto</SelectItem>
-                            <SelectItem value="Stablecoin">Stablecoin</SelectItem>
-                            <SelectItem value="Objetivo">Objetivo</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Ativo</Label>
-                        <Input
-                          value={formMov.ativo}
-                          onChange={(e) => setFormMov({ ...formMov, ativo: e.target.value })}
-                          className="mt-1 bg-muted border-border"
-                          placeholder="BTC, CDB..."
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Descrição</Label>
-                      <Input
-                        value={formMov.descricao}
-                        onChange={(e) => setFormMov({ ...formMov, descricao: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                      />
-                    </div>
-                    <div>
-                      <Label>Valor (R$)</Label>
-                      <Input
-                        type="number"
-                        value={formMov.valor}
-                        onChange={(e) => setFormMov({ ...formMov, valor: e.target.value })}
-                        className="mt-1 bg-muted border-border"
-                      />
-                    </div>
-                    <Button type="submit" className="w-full bg-primary">Registrar</Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border">
-                  <TableHead className="text-muted-foreground">Data</TableHead>
-                  <TableHead className="text-muted-foreground">Tipo</TableHead>
-                  <TableHead className="text-muted-foreground">Categoria</TableHead>
-                  <TableHead className="text-muted-foreground">Ativo</TableHead>
-                  <TableHead className="text-muted-foreground">Descrição</TableHead>
-                  <TableHead className="text-muted-foreground text-right">Valor</TableHead>
-                  <TableHead className="text-muted-foreground w-16">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredMovimentacoes
-                  .filter(m => 
-                    (filterTipoMov === "all" || m.tipo === filterTipoMov) &&
-                    (filterCategoriaMov === "all" || m.categoria === filterCategoriaMov)
-                  )
-                  .map((mov) => (
-                    <TableRow key={mov.id} className="border-border hover:bg-muted/30">
-                      <TableCell>{mov.data}</TableCell>
-                      <TableCell>
-                        <Badge variant={mov.tipo === "Aporte" || mov.tipo === "Compra" || mov.tipo === "Rendimento" ? "default" : "secondary"}>
-                          {mov.tipo}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{mov.categoria}</TableCell>
-                      <TableCell>{mov.ativo}</TableCell>
-                      <TableCell>{mov.descricao}</TableCell>
-                      <TableCell className={cn(
-                        "text-right font-medium",
-                        mov.tipo === "Aporte" || mov.tipo === "Compra" || mov.tipo === "Rendimento" ? "text-success" : "text-destructive"
-                      )}>
-                        {mov.tipo === "Aporte" || mov.tipo === "Compra" || mov.tipo === "Rendimento" ? "+" : "-"}{formatCurrency(mov.valor)}
-                      </TableCell>
-                      <TableCell>
+                  <Card key={obj.id} className="glass-card">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: obj.cor }}
+                          />
+                          <EditableCell
+                            value={obj.nome}
+                            onSave={(v) => updateObjetivo(obj.id, { nome: String(v) })}
+                            className="font-medium"
+                          />
+                        </div>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => deleteMovimentacaoInvestimento(mov.id)}
+                          onClick={() => deleteObjetivo(obj.id)}
                           className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Atual</span>
+                          <EditableCell
+                            value={obj.atual}
+                            type="currency"
+                            onSave={(v) => updateObjetivo(obj.id, { atual: Number(v) })}
+                            className="font-medium"
+                          />
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Meta</span>
+                          <EditableCell
+                            value={obj.meta}
+                            type="currency"
+                            onSave={(v) => updateObjetivo(obj.id, { meta: Number(v) })}
+                          />
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className="h-full transition-all"
+                            style={{ 
+                              width: `${Math.min(progresso, 100)}%`,
+                              backgroundColor: obj.cor
+                            }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">{progresso.toFixed(0)}% concluído</span>
+                          <span className="text-success">{obj.rentabilidade.toFixed(1)}% a.a.</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+              {objetivos.length === 0 && (
+                <Card className="glass-card col-span-full">
+                  <CardContent className="p-8 text-center text-muted-foreground">
+                    Nenhum objetivo financeiro. Adicione via "Movimentar Conta" em Receitas & Despesas.
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        {/* Dialog Adicionar Rendimento */}
+        <Dialog open={!!showAddRendimento} onOpenChange={() => setShowAddRendimento(null)}>
+          <DialogContent className="bg-card border-border">
+            <DialogHeader>
+              <DialogTitle>Adicionar Rendimento</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleAddRendimento} className="space-y-4">
+              <div>
+                <Label>Data</Label>
+                <Input
+                  type="date"
+                  value={formRendimento.data}
+                  onChange={(e) => setFormRendimento(prev => ({ ...prev, data: e.target.value }))}
+                  className="mt-1 bg-muted border-border"
+                />
+              </div>
+              <div>
+                <Label>Valor (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formRendimento.valor}
+                  onChange={(e) => setFormRendimento(prev => ({ ...prev, valor: e.target.value }))}
+                  placeholder="0,00"
+                  className="mt-1 bg-muted border-border"
+                />
+              </div>
+              <div>
+                <Label>Descrição</Label>
+                <Input
+                  value={formRendimento.descricao}
+                  onChange={(e) => setFormRendimento(prev => ({ ...prev, descricao: e.target.value }))}
+                  placeholder="Rendimento mensal"
+                  className="mt-1 bg-muted border-border"
+                />
+              </div>
+              <Button type="submit" className="w-full">
+                <Plus className="w-4 h-4 mr-2" />
+                Registrar Rendimento
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
