@@ -25,26 +25,28 @@ const reorder = (list: ContaCorrente[], startIndex: number, endIndex: number): C
 
 // Helper function to get the style for the draggable item
 const getItemStyle = (isDragging: boolean, draggableStyle: any) => {
-  // Aplica os estilos de posicionamento do react-beautiful-dnd
-  const baseStyle = {
-    ...draggableStyle,
-  };
+  if (!draggableStyle) return {};
+
+  const transform = draggableStyle.transform;
+  let newTransform = transform;
 
   if (isDragging) {
-    // Adiciona estilos visuais personalizados APENAS quando arrastando
-    return {
-      ...baseStyle,
-      boxShadow: "0 10px 20px rgba(0,0,0,0.3)",
-      transform: `${baseStyle.transform} scale(1.05)`, // Adiciona escala à transformação existente
-      transition: "none", // Desativa transição para evitar lag
-      zIndex: 9999,
-    };
+    // Adiciona escala à transformação existente (se houver)
+    if (transform) {
+      // Remove qualquer escala existente e aplica a nova
+      newTransform = transform.replace(/scale\([0-9.]+\)/g, '').trim();
+      newTransform += ' scale(1.05)';
+    } else {
+      newTransform = 'scale(1.05)';
+    }
   }
 
-  // Estilos quando não está arrastando
   return {
-    ...baseStyle,
-    transition: "all 0.2s ease",
+    ...draggableStyle,
+    boxShadow: isDragging ? "0 10px 20px rgba(0,0,0,0.3)" : "none",
+    transform: newTransform,
+    transition: isDragging ? "none" : "all 0.2s ease", 
+    zIndex: isDragging ? 9999 : 'auto',
   };
 };
 
