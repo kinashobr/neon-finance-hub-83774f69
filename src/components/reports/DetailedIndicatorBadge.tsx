@@ -49,7 +49,8 @@ export function DetailedIndicatorBadge({
           </div>
         </TooltipTrigger>
         <TooltipContent 
-          side="bottom" 
+          side="top" // Alterado para 'top'
+          sideOffset={10} // Adicionado um pequeno offset
           className="max-w-xs sm:max-w-md p-4 space-y-3 bg-popover border-border"
         >
           <div>
