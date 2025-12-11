@@ -842,7 +842,7 @@ export function IndicadoresTab({ dateRange }: IndicadoresTabProps) {
         <DetailedIndicatorBadge
           title="Diversificação Patrimonial"
           value={formatPercent(indicadores.outros.diversificacao.valor)}
-          status={indicadores.outros.outros.diversificacao.status}
+          status={indicadores.outros.diversificacao.status}
           trend={indicadores.outros.diversificacao.valor >= 40 ? "up" : "down"}
           descricao="Nível de distribuição dos ativos entre diferentes classes. Maior valor indica menor concentração. Ideal: acima de 40%"
           formula="100 - Max(% Caixa, % Investimentos, % Imobilizado)"

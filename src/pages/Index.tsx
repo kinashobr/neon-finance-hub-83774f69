@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useMemo, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useFinance } from "@/contexts/FinanceContext";
@@ -11,7 +13,7 @@ import {
   Activity,
   LayoutDashboard
 } from "lucide-react";
-import { startOfMonth, endOfMonth, isWithinInterval, format } from "date-fns";
+import { startOfMonth, endOfMonth, isWithinInterval, format, subMonths } from "date-fns";
 
 const Index = () => {
   const { 
