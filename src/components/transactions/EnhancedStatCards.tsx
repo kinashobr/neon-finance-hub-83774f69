@@ -5,22 +5,27 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { Transacao } from "@/contexts/FinanceContext";
+import { TransacaoCompleta } from "@/types/finance";
+import { useFinance } from "@/contexts/FinanceContext";
+import { useMemo } from "react";
 
 interface EnhancedStatCardsProps {
-  transacoes: Transacao[];
+  transacoes: TransacaoCompleta[];
   totalReceitas: number;
   totalDespesas: number;
 }
 
 export const EnhancedStatCards = ({ transacoes, totalReceitas, totalDespesas }: EnhancedStatCardsProps) => {
+  const { categoriasV2 } = useFinance();
+  const categoriesMap = useMemo(() => new Map(categoriasV2.map(c => [c.id, c])), [categoriasV2]);
+  
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
   
   // Transações do mês atual
   const transacoesMes = transacoes.filter(t => {
-    const date = new Date(t.data);
+    const date = new Date(t.date);
     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
   });
   
@@ -28,47 +33,53 @@ export const EnhancedStatCards = ({ transacoes, totalReceitas, totalDespesas }: 
   const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
   const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
   const transacoesMesAnterior = transacoes.filter(t => {
-    const date = new Date(t.data);
+    const date = new Date(t.date);
     return date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
   });
 
-  // Cálculos do mês atual (CORRIGIDOS)
-  const receitasMes = transacoesMes.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
-  const despesasMes = transacoesMes.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0);
+  // Cálculos do mês atual
+  const receitasMes = transacoesMes.filter(t => t.operationType === "receita" || t.operationType === "rendimento").reduce((acc, t) => acc + t.amount, 0);
+  const despesasMes = transacoesMes.filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo").reduce((acc, t) => acc + t.amount, 0);
   
-  // Cálculos do mês anterior (CORRIGIDOS)
-  const receitasMesAnterior = transacoesMesAnterior.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
-  const despesasMesAnterior = transacoesMesAnterior.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0);
+  // Cálculos do mês anterior
+  const receitasMesAnterior = transacoesMesAnterior.filter(t => t.operationType === "receita" || t.operationType === "rendimento").reduce((acc, t) => acc + t.amount, 0);
+  const despesasMesAnterior = transacoesMesAnterior.filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo").reduce((acc, t) => acc + t.amount, 0);
 
-  // Ticket médio (CORRIGIDO)
-  const receitasCount = transacoesMes.filter(t => t.tipo === "receita").length;
-  const despesasCount = transacoesMes.filter(t => t.tipo === "despesa").length;
+  // Ticket médio
+  const receitasCount = transacoesMes.filter(t => t.operationType === "receita" || t.operationType === "rendimento").length;
+  const despesasCount = transacoesMes.filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo").length;
   const ticketMedioReceitas = receitasCount > 0 ? receitasMes / receitasCount : 0;
   const ticketMedioDespesas = despesasCount > 0 ? despesasMes / despesasCount : 0;
 
-  // Categoria com maior gasto (CORRIGIDO)
+  // Categoria com maior gasto
   const despesasPorCategoria = transacoesMes
-    .filter(t => t.tipo === "despesa")
+    .filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo")
     .reduce((acc, t) => {
-      acc[t.categoria] = (acc[t.categoria] || 0) + t.valor;
+      if (t.categoryId) {
+        const label = categoriesMap.get(t.categoryId)?.label || 'Outros';
+        acc[label] = (acc[label] || 0) + t.amount;
+      }
       return acc;
     }, {} as Record<string, number>);
   
   const categoriaMaiorGasto = Object.entries(despesasPorCategoria)
     .sort(([,a], [,b]) => b - a)[0];
 
-  // Principal origem de receita (CORRIGIDO)
+  // Principal origem de receita
   const receitasPorCategoria = transacoesMes
-    .filter(t => t.tipo === "receita")
+    .filter(t => t.operationType === "receita" || t.operationType === "rendimento")
     .reduce((acc, t) => {
-      acc[t.categoria] = (acc[t.categoria] || 0) + t.valor;
+      if (t.categoryId) {
+        const label = categoriesMap.get(t.categoryId)?.label || 'Outros';
+        acc[label] = (acc[label] || 0) + t.amount;
+      }
       return acc;
     }, {} as Record<string, number>);
   
   const principalReceita = Object.entries(receitasPorCategoria)
     .sort(([,a], [,b]) => b - a)[0];
 
-  // Variações percentuais (CORRIGIDAS)
+  // Variações percentuais
   const variacaoReceitas = receitasMesAnterior > 0 
     ? ((receitasMes - receitasMesAnterior) / receitasMesAnterior) * 100 
     : 0;
@@ -76,20 +87,22 @@ export const EnhancedStatCards = ({ transacoes, totalReceitas, totalDespesas }: 
     ? ((despesasMes - despesasMesAnterior) / despesasMesAnterior) * 100 
     : 0;
 
-  // Cálculos avançados (NOVOS)
+  // Cálculos avançados
   const saldoMes = receitasMes - despesasMes;
   const margemPoupanca = receitasMes > 0 ? (saldoMes / receitasMes) * 100 : 0;
   const indiceEndividamento = receitasMes > 0 ? (despesasMes / receitasMes) * 100 : 0;
   
-  // Despesas fixas (CORRIGIDO)
-  const CATEGORIAS_FIXAS = ["Moradia", "Saúde", "Transporte", "Salário"];
+  // Despesas fixas (usando nature da categoria)
   const despesasFixas = transacoesMes
-    .filter(t => t.tipo === "despesa" && CATEGORIAS_FIXAS.includes(t.categoria))
-    .reduce((acc, t) => acc + t.valor, 0);
+    .filter(t => {
+      const cat = t.categoryId ? categoriesMap.get(t.categoryId) : null;
+      return cat?.nature === 'despesa_fixa';
+    })
+    .reduce((acc, t) => acc + t.amount, 0);
   
   const despesasVariaveis = despesasMes - despesasFixas;
 
-  // Projeção de saldo (NOVO)
+  // Projeção de saldo
   const diasNoMes = new Date(currentYear, currentMonth + 1, 0).getDate();
   const diaAtual = currentDate.getDate();
   const mediaDiaria = diaAtual > 0 ? saldoMes / diaAtual : 0;

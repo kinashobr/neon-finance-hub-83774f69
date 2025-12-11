@@ -12,9 +12,11 @@ interface KPISidebarProps {
 }
 
 export function KPISidebar({ transactions, categories }: KPISidebarProps) {
+  const categoriesMap = new Map(categories.map(c => [c.id, c]));
+
   // Cálculos
   const totalReceitas = transactions
-    .filter(t => t.operationType === 'receita')
+    .filter(t => t.operationType === 'receita' || t.operationType === 'rendimento')
     .reduce((acc, t) => acc + t.amount, 0);
 
   const totalDespesas = transactions
@@ -29,7 +31,7 @@ export function KPISidebar({ transactions, categories }: KPISidebarProps) {
   const despesasPorCategoria = categories
     .map(cat => {
       const total = transactions
-        .filter(t => t.categoryId === cat.id && (t.operationType === 'despesa'))
+        .filter(t => t.categoryId === cat.id && (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo'))
         .reduce((acc, t) => acc + t.amount, 0);
       return { ...cat, total };
     })
@@ -41,7 +43,7 @@ export function KPISidebar({ transactions, categories }: KPISidebarProps) {
   const receitasPorCategoria = categories
     .map(cat => {
       const total = transactions
-        .filter(t => t.categoryId === cat.id && t.operationType === 'receita')
+        .filter(t => t.categoryId === cat.id && (t.operationType === 'receita' || t.operationType === 'rendimento'))
         .reduce((acc, t) => acc + t.amount, 0);
       return { ...cat, total };
     })

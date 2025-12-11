@@ -13,7 +13,7 @@ import {
   Activity,
   LayoutDashboard
 } from "lucide-react";
-import { startOfMonth, endOfMonth, isWithinInterval, format, subMonths } from "date-fns";
+import { startOfMonth, endOfMonth, isWithinInterval, format, subMonths, parseISO } from "date-fns";
 
 const Index = () => {
   const { 
@@ -25,6 +25,9 @@ const Index = () => {
     stablecoins, 
     objetivos,
     categoriasV2,
+    getValorFipeTotal,
+    getAtivosTotal,
+    getPassivosTotal,
   } = useFinance();
 
   // Inicializa o range para o mês atual
@@ -41,51 +44,39 @@ const Index = () => {
     if (!dateRange.from || !dateRange.to) return transacoesV2;
     
     return transacoesV2.filter(t => {
-      const transactionDate = new Date(t.date);
+      const transactionDate = parseISO(t.date);
       return isWithinInterval(transactionDate, { start: dateRange.from!, end: dateRange.to! });
     });
   }, [transacoesV2, dateRange]);
 
-  // 2. Mapeia transações V2 para o formato legado (para MovimentacoesRelevantes)
-  const legacyTransacoesPeriodo = useMemo(() => {
-    return transacoesPeriodo.map(t => {
-      const category = categoriasV2.find(c => c.id === t.categoryId);
-      
-      let tipo: "receita" | "despesa";
-      if (t.operationType === 'receita' || t.operationType === 'rendimento' || t.operationType === 'liberacao_emprestimo') {
-        tipo = 'receita';
-      } else if (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'aplicacao' || t.operationType === 'veiculo') {
-        tipo = 'despesa';
-      } else {
-        // Transfers are usually ignored in simple dashboard summaries
-        return null;
-      }
-
-      return {
-        id: parseInt(t.id.replace('tx_', '')) || 0,
-        data: t.date,
-        descricao: t.description,
-        valor: t.amount,
-        categoria: category?.label || 'Outros',
-        tipo: tipo,
-      };
-    }).filter((t): t is { id: number; data: string; descricao: string; valor: number; categoria: string; tipo: "receita" | "despesa"; } => t !== null);
-  }, [transacoesPeriodo, categoriasV2]);
-
-
-  const currentMonth = dateRange.from ? dateRange.from.getMonth() : now.getMonth();
-  const currentYear = dateRange.from ? dateRange.from.getFullYear() : now.getFullYear();
-
-  // Calcular saldo por conta (usando todas as transações para o saldo atual, mas filtrando para o período)
-  // NOTE: saldosPorConta should reflect the current balance regardless of the date range selected in the PeriodSelector, as it represents the current state of accounts.
+  // Saldo por conta (usando todas as transações para o saldo atual)
   const saldosPorConta = useMemo(() => {
     return contasMovimento.map(conta => {
       const contaTx = transacoesV2.filter(t => t.accountId === conta.id);
-      const totalIn = contaTx.filter(t => t.flow === 'in' || t.flow === 'transfer_in').reduce((s, t) => s + t.amount, 0);
-      const totalOut = contaTx.filter(t => t.flow === 'out' || t.flow === 'transfer_out').reduce((s, t) => s + t.amount, 0);
+      
+      let balance = conta.startDate ? 0 : conta.initialBalance;
+      
+      contaTx.forEach(t => {
+        const isCreditCard = conta.accountType === 'cartao_credito';
+        
+        if (isCreditCard) {
+          if (t.operationType === 'despesa') {
+            balance -= t.amount;
+          } else if (t.operationType === 'transferencia') {
+            balance += t.amount;
+          }
+        } else {
+          if (t.flow === 'in' || t.flow === 'transfer_in' || t.operationType === 'initial_balance') {
+            balance += t.amount;
+          } else {
+            balance -= t.amount;
+          }
+        }
+      });
+      
       return {
         ...conta,
-        saldo: conta.initialBalance + totalIn - totalOut,
+        saldo: balance,
       };
     });
   }, [contasMovimento, transacoesV2]);
@@ -97,26 +88,11 @@ const Index = () => {
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 
-  // Total de todos os ativos
-  const totalAtivos = useMemo(() => {
-    const saldoContas = saldosPorConta.reduce((acc, c) => acc + c.saldo, 0);
-    const rf = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0);
-    const cripto = criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0);
-    const stable = stablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
-    const objs = objetivos.reduce((acc, o) => acc + o.atual, 0);
-    return saldoContas + rf + cripto + stable + objs;
-  }, [saldosPorConta, investimentosRF, criptomoedas, stablecoins, objetivos]);
+  // Total de todos os ativos (usando função do contexto)
+  const totalAtivos = getAtivosTotal();
 
   // Total dívidas (empréstimos ativos)
-  const totalDividas = useMemo(() => {
-    return emprestimos
-      .filter(e => e.status !== 'pendente_config' && e.status !== 'quitado')
-      .reduce((acc, e) => {
-        const parcelasPagas = e.parcelasPagas || 0;
-        const saldoDevedor = Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
-        return acc + saldoDevedor;
-      }, 0);
-  }, [emprestimos]);
+  const totalDividas = getPassivosTotal();
 
   // Patrimônio total
   const patrimonioTotal = totalAtivos - totalDividas;
@@ -138,13 +114,13 @@ const Index = () => {
   const transacoesPeriodoAnterior = useMemo(() => {
     if (!dateRange.from || !dateRange.to) return []; // Não calcula variação se for "Todo o período"
 
-    const diffInMonths = dateRange.to.getMonth() - dateRange.from.getMonth() + 12 * (dateRange.to.getFullYear() - dateRange.from.getFullYear());
+    const diffInDays = (dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24);
     
-    const prevFrom = subMonths(dateRange.from, diffInMonths);
-    const prevTo = subMonths(dateRange.to, diffInMonths);
+    const prevFrom = subMonths(dateRange.from, 1);
+    const prevTo = subMonths(dateRange.to, 1);
 
     return transacoesV2.filter(t => {
-      const transactionDate = new Date(t.date);
+      const transactionDate = parseISO(t.date);
       return isWithinInterval(transactionDate, { start: prevFrom, end: prevTo });
     });
   }, [transacoesV2, dateRange]);
@@ -190,11 +166,10 @@ const Index = () => {
 
   // Dados para acompanhamento de ativos
   const investimentosRFTotal = useMemo(() => {
-    const rfLegado = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0);
     const rfContas = saldosPorConta
-      .filter(c => c.accountType === 'aplicacao_renda_fixa')
+      .filter(c => c.accountType === 'aplicacao_renda_fixa' || c.accountType === 'poupanca')
       .reduce((acc, c) => acc + c.saldo, 0);
-    return rfLegado + rfContas;
+    return investimentosRF.reduce((acc, inv) => acc + inv.valor, 0) + rfContas;
   }, [investimentosRF, saldosPorConta]);
 
   const poupancaTotal = useMemo(() => {
@@ -209,7 +184,7 @@ const Index = () => {
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 
-  const criptoTotal = criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0);
+  const criptoTotal = criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) + saldosPorConta.filter(c => c.accountType === 'criptoativos').reduce((acc, c) => acc + c.saldo, 0);
   const stablesTotal = stablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
 
   // Dados para saúde financeira
@@ -224,21 +199,26 @@ const Index = () => {
     reservaEmergencia > 0,
     poupancaTotal > 0,
     liquidezImediata > 0,
+    getValorFipeTotal() > 0,
   ].filter(Boolean).length;
-  const diversificacaoPercent = (tiposAtivos / 6) * 100;
+  const diversificacaoPercent = (tiposAtivos / 7) * 100;
 
   // Estabilidade do fluxo (meses com saldo positivo)
   const mesesPositivos = useMemo(() => {
     const ultimos6Meses = [];
     for (let i = 0; i < 6; i++) {
-      const m = now.getMonth() - i < 0 ? 12 + (now.getMonth() - i) : now.getMonth() - i;
-      const y = now.getMonth() - i < 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const data = subMonths(now, i);
+      const m = data.getMonth();
+      const y = data.getFullYear();
+      
       const txMes = transacoesV2.filter(t => {
-        const d = new Date(t.date);
+        const d = parseISO(t.date);
         return d.getMonth() === m && d.getFullYear() === y;
       });
-      const rec = txMes.filter(t => t.operationType === 'receita').reduce((a, t) => a + t.amount, 0);
-      const desp = txMes.filter(t => t.operationType === 'despesa').reduce((a, t) => a + t.amount, 0);
+      
+      const rec = txMes.filter(t => t.operationType === 'receita' || t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0);
+      const desp = txMes.filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo').reduce((a, t) => a + t.amount, 0);
+      
       if (rec > desp) ultimos6Meses.push(true);
       else ultimos6Meses.push(false);
     }

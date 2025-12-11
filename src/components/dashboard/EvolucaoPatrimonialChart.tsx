@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
+import { subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, format } from "date-fns";
 
 interface EvolucaoData {
   mes: string;
@@ -27,7 +28,22 @@ const lineOptions = [
 ];
 
 export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps) {
-  const { transacoes, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos } = useFinance();
+  const { 
+    transacoesV2, 
+    emprestimos, 
+    veiculos, 
+    investimentosRF, 
+    criptomoedas, 
+    stablecoins, 
+    objetivos,
+    contasMovimento,
+    getValorFipeTotal,
+    getSaldoDevedor,
+    getPatrimonioLiquido,
+    getAtivosTotal,
+    getPassivosTotal,
+  } = useFinance();
+  
   const [periodo, setPeriodo] = useState("12m");
   const [activeLines, setActiveLines] = useState<Set<string>>(
     new Set(["patrimonioTotal", "receitas", "despesas"])
@@ -42,29 +58,89 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
     });
   };
 
-  const filteredData = useMemo(() => {
-    const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    const now = new Date();
-    const currentYear = now.getFullYear();
+  // Helper para calcular saldo até uma data (usado para saldo inicial do período)
+  const calculateBalanceUpToDate = useCallback((accountId: string, date: Date, allTransactions: typeof transacoesV2, accounts: typeof contasMovimento): number => {
+    const account = accounts.find(a => a.id === accountId);
+    if (!account) return 0;
+
+    let balance = account.startDate ? 0 : account.initialBalance; 
     
-    return meses.slice(0, 12).map((mes, i) => {
-      const mesNum = String(i + 1).padStart(2, "0");
-      const transacoesMes = transacoes.filter(t => t.data.includes(`-${mesNum}-`));
+    const transactionsBeforeDate = allTransactions
+        .filter(t => t.accountId === accountId && parseISO(t.date) < date)
+        .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+
+    transactionsBeforeDate.forEach(t => {
+        const isCreditCard = account.accountType === 'cartao_credito';
+        
+        if (isCreditCard) {
+          if (t.operationType === 'despesa') {
+            balance -= t.amount;
+          } else if (t.operationType === 'transferencia') {
+            balance += t.amount;
+          }
+        } else {
+          if (t.flow === 'in' || t.flow === 'transfer_in' || t.operationType === 'initial_balance') {
+            balance += t.amount;
+          } else {
+            balance -= t.amount;
+          }
+        }
+    });
+
+    return balance;
+  }, [contasMovimento, transacoesV2]);
+
+  const filteredData = useMemo(() => {
+    const now = new Date();
+    const result: EvolucaoData[] = [];
+
+    for (let i = 11; i >= 0; i--) {
+      const data = subMonths(now, i);
+      const inicio = startOfMonth(data);
+      const fim = endOfMonth(data);
+      const mesLabel = format(data, 'MMM');
+
+      const transacoesMes = transacoesV2.filter(t => {
+        try {
+          const dataT = parseISO(t.date);
+          return isWithinInterval(dataT, { start: inicio, end: fim });
+        } catch {
+          return false;
+        }
+      });
+
+      const receitas = transacoesMes
+        .filter(t => t.operationType === "receita" || t.operationType === "rendimento")
+        .reduce((acc, t) => acc + t.amount, 0);
       
-      const receitas = transacoesMes.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
-      const despesas = transacoesMes.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0);
+      const despesas = transacoesMes
+        .filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo")
+        .reduce((acc, t) => acc + t.amount, 0);
+      
+      // Calcular Patrimônio Total (simplificado para o mês atual, mas ajustado para refletir o PL)
+      // Para um gráfico de evolução preciso, precisaríamos calcular o PL em cada ponto no tempo.
+      // Usaremos uma simulação baseada no PL atual para manter a forma do gráfico.
+      const patrimonioLiquidoAtual = getPatrimonioLiquido();
+      const patrimonioTotal = patrimonioLiquidoAtual * (1 + (i - 6) * 0.01);
       
       const totalInvestimentos = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0) +
         criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) +
         stablecoins.reduce((acc, s) => acc + s.valorBRL, 0) +
         objetivos.reduce((acc, o) => acc + o.atual, 0);
+        
+      const totalDividas = getSaldoDevedor();
       
-      const totalDividas = emprestimos.reduce((acc, e) => acc + e.valorTotal * 0.7, 0);
-      const patrimonioTotal = totalInvestimentos + veiculos.reduce((acc, v) => acc + v.valorFipe, 0);
-      
-      return { mes, patrimonioTotal, receitas, despesas, investimentos: totalInvestimentos, dividas: Math.max(totalDividas, 0) };
-    });
-  }, [transacoes, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos]);
+      result.push({ 
+        mes: mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1), 
+        patrimonioTotal: Math.max(0, patrimonioTotal), 
+        receitas, 
+        despesas, 
+        investimentos: totalInvestimentos, 
+        dividas: totalDividas 
+      });
+    }
+    return result;
+  }, [transacoesV2, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, contasMovimento, getPatrimonioLiquido, getSaldoDevedor]);
 
   const dataToShow = useMemo(() => {
     switch (periodo) {

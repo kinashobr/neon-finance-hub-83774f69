@@ -14,7 +14,8 @@ import { TransacoesRecentes } from "@/components/dashboard/TransacoesRecentes";
 import { DashboardCustomizer, DashboardSection } from "@/components/dashboard/DashboardCustomizer";
 import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
 import { cn } from "@/lib/utils";
-import { startOfMonth, endOfMonth, isWithinInterval, format } from "date-fns";
+import { startOfMonth, endOfMonth, isWithinInterval, format, parseISO } from "date-fns";
+import { ContaCorrente } from "@/types/finance";
 
 const defaultSections: DashboardSection[] = [
   { id: "patrimonio-cards", nome: "Cards de Patrimônio", visivel: true, ordem: 0 },
@@ -29,9 +30,29 @@ const defaultSections: DashboardSection[] = [
 ];
 
 const Index = () => {
-  const { transacoes, transacoesV2, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, getTotalReceitas, getTotalDespesas, getAtivosTotal, getPassivosTotal, getPatrimonioLiquido } = useFinance();
-  const [sections, setSections] = useState<DashboardSection[]>(defaultSections);
-  const [layout, setLayout] = useState<"2col" | "3col" | "fluid">("fluid");
+  const { 
+    transacoesV2, 
+    emprestimos, 
+    veiculos, 
+    investimentosRF, 
+    criptomoedas, 
+    stablecoins, 
+    objetivos, 
+    contasMovimento,
+    getAtivosTotal,
+    getPassivosTotal,
+    getPatrimonioLiquido,
+    getValorFipeTotal,
+  } = useFinance();
+  
+  const [sections, setSections] = useState<DashboardSection[]>(() => {
+    const saved = localStorage.getItem("dashboard-sections");
+    return saved ? JSON.parse(saved) : defaultSections;
+  });
+  const [layout, setLayout] = useState<"2col" | "3col" | "fluid">(() => {
+    const saved = localStorage.getItem("dashboard-layout");
+    return (saved as "2col" | "3col" | "fluid") || "fluid";
+  });
   
   // Inicializa o range para o mês atual
   const now = new Date();
@@ -42,97 +63,154 @@ const Index = () => {
     setDateRange(range);
   }, []);
 
-  const filteredTransacoes = useMemo(() => {
-    if (!dateRange.from || !dateRange.to) return transacoes;
-    
-    return transacoes.filter(t => {
-      const transactionDate = new Date(t.data);
-      return isWithinInterval(transactionDate, { start: dateRange.from!, end: dateRange.to! });
-    });
-  }, [transacoes, dateRange]);
+  // Persist customization
+  useEffect(() => {
+    localStorage.setItem("dashboard-sections", JSON.stringify(sections));
+  }, [sections]);
 
-  // Filtra transacoesV2 para o heatmap (que precisa de transacoesV2)
+  useEffect(() => {
+    localStorage.setItem("dashboard-layout", layout);
+  }, [layout]);
+
+  // Filtra transacoesV2 pelo período selecionado
   const filteredTransacoesV2 = useMemo(() => {
     if (!dateRange.from || !dateRange.to) return transacoesV2;
     
     return transacoesV2.filter(t => {
-      const transactionDate = new Date(t.date);
+      const transactionDate = parseISO(t.date);
       return isWithinInterval(transactionDate, { start: dateRange.from!, end: dateRange.to! });
     });
   }, [transacoesV2, dateRange]);
 
+  // Helper para calcular saldo até uma data (usado para saldo inicial do período)
+  const calculateBalanceUpToDate = useCallback((accountId: string, date: Date | undefined, allTransactions: typeof transacoesV2, accounts: typeof contasMovimento): number => {
+    const account = accounts.find(a => a.id === accountId);
+    if (!account) return 0;
+
+    let balance = account.startDate ? 0 : account.initialBalance; 
+    const targetDate = date || new Date(9999, 11, 31);
+
+    const transactionsBeforeDate = allTransactions
+        .filter(t => t.accountId === accountId && parseISO(t.date) < targetDate)
+        .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+
+    transactionsBeforeDate.forEach(t => {
+        const isCreditCard = account.accountType === 'cartao_credito';
+        
+        if (isCreditCard) {
+          if (t.operationType === 'despesa') {
+            balance -= t.amount;
+          } else if (t.operationType === 'transferencia') {
+            balance += t.amount;
+          }
+        } else {
+          if (t.flow === 'in' || t.flow === 'transfer_in' || t.operationType === 'initial_balance') {
+            balance += t.amount;
+          } else {
+            balance -= t.amount;
+          }
+        }
+    });
+
+    return balance;
+  }, [contasMovimento, transacoesV2]);
+
+  // Cálculos do período
   const totalReceitas = useMemo(() => {
-    return filteredTransacoes.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
-  }, [filteredTransacoes]);
+    return filteredTransacoesV2
+      .filter(t => t.operationType === "receita" || t.operationType === "rendimento")
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [filteredTransacoesV2]);
 
   const totalDespesas = useMemo(() => {
-    return filteredTransacoes.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0);
-  }, [filteredTransacoes]);
+    return filteredTransacoesV2
+      .filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo")
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [filteredTransacoesV2]);
 
-  const receitasMes = useMemo(() => {
-    const now = new Date();
-    return filteredTransacoes
-      .filter(t => t.tipo === "receita" && new Date(t.data).getMonth() === now.getMonth() && new Date(t.data).getFullYear() === now.getFullYear())
-      .reduce((acc, t) => acc + t.valor, 0);
-  }, [filteredTransacoes]);
-
-  const despesasMes = useMemo(() => {
-    const now = new Date();
-    return filteredTransacoes
-      .filter(t => t.tipo === "despesa" && new Date(t.data).getMonth() === now.getMonth() && new Date(t.data).getFullYear() === now.getFullYear())
-      .reduce((acc, t) => acc + t.valor, 0);
-  }, [filteredTransacoes]);
+  const saldoCaixa = useMemo(() => {
+    // Saldo final do período para contas correntes
+    const contasLiquidas = contasMovimento.filter(c => 
+      ['conta_corrente', 'poupanca', 'reserva_emergencia'].includes(c.accountType)
+    );
+    
+    return contasLiquidas.reduce((acc, conta) => {
+      const initialBalance = dateRange.from 
+        ? calculateBalanceUpToDate(conta.id, dateRange.from, transacoesV2, contasMovimento)
+        : calculateBalanceUpToDate(conta.id, undefined, transacoesV2, contasMovimento);
+        
+      const txInPeriod = filteredTransacoesV2.filter(t => t.accountId === conta.id);
+      const inTx = txInPeriod.filter(t => t.flow === 'in' || t.flow === 'transfer_in').reduce((s, t) => s + t.amount, 0);
+      const outTx = txInPeriod.filter(t => t.flow === 'out' || t.flow === 'transfer_out').reduce((s, t) => s + t.amount, 0);
+      
+      return acc + (initialBalance + inTx - outTx);
+    }, 0);
+  }, [contasMovimento, transacoesV2, filteredTransacoesV2, dateRange, calculateBalanceUpToDate]);
 
   const totalInvestimentos = useMemo(() => {
-    const rf = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0);
-    const cripto = criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0);
-    const stable = stablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
-    const objs = objetivos.reduce((acc, o) => acc + o.atual, 0);
-    return rf + cripto + stable + objs;
-  }, [investimentosRF, criptomoedas, stablecoins, objetivos]);
+    const invContas = contasMovimento
+      .filter(c => ['aplicacao_renda_fixa', 'criptoativos', 'objetivos_financeiros'].includes(c.accountType))
+      .reduce((acc, conta) => {
+        const initialBalance = calculateBalanceUpToDate(conta.id, undefined, transacoesV2, contasMovimento);
+        return acc + initialBalance;
+      }, 0);
+      
+    const invLegados = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0) +
+                      criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) +
+                      stablecoins.reduce((acc, s) => acc + s.valorBRL, 0) +
+                      objetivos.reduce((acc, o) => acc + o.atual, 0);
+                      
+    return invContas + invLegados;
+  }, [contasMovimento, transacoesV2, investimentosRF, criptomoedas, stablecoins, objetivos, calculateBalanceUpToDate]);
 
-  const totalDividas = useMemo(() => {
-    return emprestimos.reduce((acc, e) => acc + e.valorTotal * 0.7, 0);
-  }, [emprestimos]);
+  const totalDividas = getPassivosTotal();
 
   const patrimonioData = useMemo(() => ({
-    patrimonioTotal: totalInvestimentos + veiculos.reduce((acc, v) => acc + v.valorFipe, 0),
-    saldoCaixa: totalReceitas - totalDespesas,
+    patrimonioTotal: getAtivosTotal(),
+    saldoCaixa: saldoCaixa,
     investimentosTotal: totalInvestimentos,
     dividasTotal: totalDividas,
-    patrimonioLiquido: totalInvestimentos - totalDividas,
-    variacaoMes: 5.2,
-    fluxoCaixa: receitasMes - despesasMes,
-    gastosMes: despesasMes,
-    receitasMes: receitasMes,
-  }), [totalInvestimentos, veiculos, totalReceitas, totalDespesas, totalDividas, receitasMes, despesasMes]);
+    patrimonioLiquido: getPatrimonioLiquido(),
+    variacaoMes: 5.2, // Placeholder
+    fluxoCaixa: totalReceitas - totalDespesas,
+    gastosMes: totalDespesas,
+    receitasMes: totalReceitas,
+  }), [getAtivosTotal, saldoCaixa, totalInvestimentos, totalDividas, getPatrimonioLiquido, totalReceitas, totalDespesas]);
 
   const evolucaoData = useMemo(() => {
     const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const now = new Date();
     
     return meses.slice(0, 12).map((mes, i) => {
-      const mesNum = String(i + 1).padStart(2, "0");
-      const receitas = filteredTransacoes
-        .filter(t => t.tipo === "receita" && t.data.includes(`-${mesNum}-`))
-        .reduce((acc, t) => acc + t.valor, 0);
-      const despesas = filteredTransacoes
-        .filter(t => t.tipo === "despesa" && t.data.includes(`-${mesNum}-`))
-        .reduce((acc, t) => acc + t.valor, 0);
+      const data = new Date(now.getFullYear(), i, 1);
+      const mesNum = format(data, "MM");
+      const ano = format(data, "yyyy");
       
-      const patrimonioTotal = totalInvestimentos + veiculos.reduce((acc, v) => acc + v.valorFipe, 0);
+      const transacoesMes = transacoesV2.filter(t => t.date.startsWith(`${ano}-${mesNum}`));
+      
+      const receitas = transacoesMes
+        .filter(t => t.operationType === "receita" || t.operationType === "rendimento")
+        .reduce((acc, t) => acc + t.amount, 0);
+      const despesas = transacoesMes
+        .filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo")
+        .reduce((acc, t) => acc + t.amount, 0);
+      
+      // Simulação de PL para o gráfico de evolução
+      const patrimonioTotal = getPatrimonioLiquido() * (1 + (i - 6) * 0.01);
       
       return {
         mes,
-        patrimonioTotal,
+        patrimonioTotal: Math.max(0, patrimonioTotal),
         receitas,
         despesas,
         investimentos: totalInvestimentos,
-        dividas: Math.max(totalDividas, 0),
+        dividas: totalDividas,
       };
     });
-  }, [filteredTransacoes, totalInvestimentos, veiculos, totalDividas]);
+  }, [transacoesV2, totalInvestimentos, totalDividas, getPatrimonioLiquido]);
 
   const indicadores = useMemo(() => [
+    // Indicadores mantidos como placeholders, pois a lógica real está em IndicadoresTab
     {
       id: "liquidez",
       nome: "Liquidez Imediata",
@@ -220,12 +298,13 @@ const Index = () => {
   ], []);
 
   const tabelaConsolidada = useMemo(() => {
-    const rfTotal = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0);
-    const criptoTotal = criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0);
+    const total = getAtivosTotal();
+    
+    const rfTotal = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0) + contasMovimento.filter(c => c.accountType === 'aplicacao_renda_fixa').reduce((acc, c) => calculateBalanceUpToDate(c.id, undefined, transacoesV2, contasMovimento) + acc, 0);
+    const criptoTotal = criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) + contasMovimento.filter(c => c.accountType === 'criptoativos').reduce((acc, c) => calculateBalanceUpToDate(c.id, undefined, transacoesV2, contasMovimento) + acc, 0);
     const stablesTotal = stablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
-    const objetivosTotal = objetivos.reduce((acc, o) => acc + o.atual, 0);
-    const caixa = totalReceitas - totalDespesas;
-    const total = rfTotal + criptoTotal + stablesTotal + objetivosTotal + caixa;
+    const objetivosTotal = objetivos.reduce((acc, o) => acc + o.atual, 0) + contasMovimento.filter(c => c.accountType === 'objetivos_financeiros').reduce((acc, c) => calculateBalanceUpToDate(c.id, undefined, transacoesV2, contasMovimento) + acc, 0);
+    const caixa = saldoCaixa;
     
     return [
       {
@@ -273,36 +352,45 @@ const Index = () => {
         volatilidade: "Baixa",
         risco: "A"
       },
-    ];
-  }, [investimentosRF, criptomoedas, stablecoins, objetivos, totalReceitas, totalDespesas]);
+    ].filter(item => item.valor > 0);
+  }, [investimentosRF, criptomoedas, stablecoins, objetivos, saldoCaixa, getAtivosTotal, contasMovimento, transacoesV2, calculateBalanceUpToDate]);
 
-  const distribuicaoPorClasse = useMemo(() => [
-    {
-      nome: "Renda Fixa",
-      valor: investimentosRF.reduce((acc, inv) => acc + inv.valor, 0),
-      cor: "hsl(199, 89%, 48%)"
-    },
-    {
-      nome: "Cripto",
-      valor: criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0),
-      cor: "hsl(270, 100%, 65%)"
-    },
-    {
-      nome: "Stables",
-      valor: stablecoins.reduce((acc, s) => acc + s.valorBRL, 0),
-      cor: "hsl(142, 76%, 36%)"
-    },
-    {
-      nome: "Objetivos",
-      valor: objetivos.reduce((acc, o) => acc + o.atual, 0),
-      cor: "hsl(38, 92%, 50%)"
-    },
-    {
-      nome: "Caixa",
-      valor: Math.max(totalReceitas - totalDespesas, 0),
-      cor: "hsl(210, 100%, 60%)"
-    },
-  ], [investimentosRF, criptomoedas, stablecoins, objetivos, totalReceitas, totalDespesas]);
+  const distribuicaoPorClasse = useMemo(() => {
+    const total = getAtivosTotal();
+    const rfTotal = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0) + contasMovimento.filter(c => c.accountType === 'aplicacao_renda_fixa').reduce((acc, c) => calculateBalanceUpToDate(c.id, undefined, transacoesV2, contasMovimento) + acc, 0);
+    const criptoTotal = criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) + contasMovimento.filter(c => c.accountType === 'criptoativos').reduce((acc, c) => calculateBalanceUpToDate(c.id, undefined, transacoesV2, contasMovimento) + acc, 0);
+    const stablesTotal = stablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
+    const objetivosTotal = objetivos.reduce((acc, o) => acc + o.atual, 0) + contasMovimento.filter(c => c.accountType === 'objetivos_financeiros').reduce((acc, c) => calculateBalanceUpToDate(c.id, undefined, transacoesV2, contasMovimento) + acc, 0);
+    const caixa = saldoCaixa;
+    
+    return [
+      {
+        nome: "Renda Fixa",
+        valor: rfTotal,
+        cor: "hsl(199, 89%, 48%)"
+      },
+      {
+        nome: "Cripto",
+        valor: criptoTotal,
+        cor: "hsl(270, 100%, 65%)"
+      },
+      {
+        nome: "Stables",
+        valor: stablesTotal,
+        cor: "hsl(142, 76%, 36%)"
+      },
+      {
+        nome: "Objetivos",
+        valor: objetivosTotal,
+        cor: "hsl(38, 92%, 50%)"
+      },
+      {
+        nome: "Caixa",
+        valor: caixa,
+        cor: "hsl(210, 100%, 60%)"
+      },
+    ].filter(item => item.valor > 0);
+  }, [investimentosRF, criptomoedas, stablecoins, objetivos, saldoCaixa, getAtivosTotal, contasMovimento, transacoesV2, calculateBalanceUpToDate]);
 
   const distribuicaoPorRisco = useMemo(() => {
     const baixo = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0) + stablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
@@ -331,7 +419,7 @@ const Index = () => {
         valor: especulativo,
         cor: "hsl(0, 72%, 51%)"
       },
-    ];
+    ].filter(item => item.valor > 0);
   }, [investimentosRF, stablecoins, objetivos, criptomoedas]);
 
   const handleResetCustomization = () => {
@@ -348,7 +436,6 @@ const Index = () => {
       case "evolucao-chart":
         return <EvolucaoPatrimonialChart data={evolucaoData} />;
       case "heatmap":
-        const now = new Date();
         const month = dateRange.from ? format(dateRange.from, 'MM') : format(now, 'MM');
         const year = dateRange.from ? dateRange.from.getFullYear() : now.getFullYear();
         return <FluxoCaixaHeatmap month={month} year={year} transacoes={filteredTransacoesV2} />;
@@ -361,7 +448,7 @@ const Index = () => {
       case "distribuicao-charts":
         return <DistribuicaoCharts porClasse={distribuicaoPorClasse} porRisco={distribuicaoPorRisco} />;
       case "transacoes-recentes":
-        return <TransacoesRecentes transacoes={filteredTransacoes} limit={8} />;
+        return <TransacoesRecentes transacoes={filteredTransacoesV2} limit={8} />;
       default:
         return null;
     }

@@ -6,48 +6,59 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Transacao } from "@/contexts/FinanceContext";
+import { TransacaoCompleta } from "@/types/finance";
+import { useFinance } from "@/contexts/FinanceContext";
+import { useMemo } from "react";
 
 interface SmartSummaryPanelProps {
-  transacoes: Transacao[];
+  transacoes: TransacaoCompleta[];
 }
 
 export const SmartSummaryPanel = ({ transacoes }: SmartSummaryPanelProps) => {
+  const { categoriasV2 } = useFinance();
+  const categoriesMap = useMemo(() => new Map(categoriasV2.map(c => [c.id, c])), [categoriasV2]);
+  
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
   
-  // Transações do mês atual (CORRIGIDO)
+  // Transações do mês atual
   const transacoesMes = transacoes.filter(t => {
-    const date = new Date(t.data);
+    const date = new Date(t.date);
     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
   });
 
-  // Transações do mês anterior (CORRIGIDO)
+  // Transações do mês anterior
   const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
   const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
   const transacoesMesAnterior = transacoes.filter(t => {
-    const date = new Date(t.data);
+    const date = new Date(t.date);
     return date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
   });
 
-  // Maior despesa do mês (CORRIGIDO)
+  // Maior despesa do mês
   const maiorDespesa = transacoesMes
-    .filter(t => t.tipo === "despesa")
-    .sort((a, b) => b.valor - a.valor)[0];
+    .filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo")
+    .sort((a, b) => b.amount - a.amount)[0];
 
-  // Categoria que mais cresceu (CORRIGIDO)
+  // Categoria que mais cresceu
   const gastosPorCategoriaMes = transacoesMes
-    .filter(t => t.tipo === "despesa")
+    .filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo")
     .reduce((acc, t) => {
-      acc[t.categoria] = (acc[t.categoria] || 0) + t.valor;
+      if (t.categoryId) {
+        const label = categoriesMap.get(t.categoryId)?.label || 'Outros';
+        acc[label] = (acc[label] || 0) + t.amount;
+      }
       return acc;
     }, {} as Record<string, number>);
 
   const gastosPorCategoriaMesAnterior = transacoesMesAnterior
-    .filter(t => t.tipo === "despesa")
+    .filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo")
     .reduce((acc, t) => {
-      acc[t.categoria] = (acc[t.categoria] || 0) + t.valor;
+      if (t.categoryId) {
+        const label = categoriesMap.get(t.categoryId)?.label || 'Outros';
+        acc[label] = (acc[label] || 0) + t.amount;
+      }
       return acc;
     }, {} as Record<string, number>);
 
@@ -68,67 +79,65 @@ export const SmartSummaryPanel = ({ transacoes }: SmartSummaryPanelProps) => {
     .filter(v => v.anterior > 0)
     .sort((a, b) => a.variacao - b.variacao)[0];
 
-  // Dia com mais gastos e receitas (CORRIGIDO)
-  const gastosPorDia = transacoesMes
-    .filter(t => t.tipo === "despesa")
+  // Principal origem de receita
+  const receitasPorCategoria = transacoesMes
+    .filter(t => t.operationType === "receita" || t.operationType === "rendimento")
     .reduce((acc, t) => {
-      acc[t.data] = (acc[t.data] || 0) + t.valor;
+      if (t.categoryId) {
+        const label = categoriesMap.get(t.categoryId)?.label || 'Outros';
+        acc[label] = (acc[label] || 0) + t.amount;
+      }
       return acc;
     }, {} as Record<string, number>);
+  
+  const principalReceita = Object.entries(receitasPorCategoria)
+    .sort(([,a], [,b]) => b - a)[0];
 
-  const receitasPorDia = transacoesMes
-    .filter(t => t.tipo === "receita")
-    .reduce((acc, t) => {
-      acc[t.data] = (acc[t.data] || 0) + t.valor;
-      return acc;
-    }, {} as Record<string, number>);
-
-  const diaMaisGastos = Object.entries(gastosPorDia).sort(([,a], [,b]) => b - a)[0];
-  const diaMaisReceitas = Object.entries(receitasPorDia).sort(([,a], [,b]) => b - a)[0];
-
-  // Transações incomuns (CORRIGIDO)
-  const despesas = transacoesMes.filter(t => t.tipo === "despesa");
+  // Transações incomuns
+  const despesas = transacoesMes.filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo");
   const mediaDespesas = despesas.length > 0 
-    ? despesas.reduce((acc, t) => acc + t.valor, 0) / despesas.length 
+    ? despesas.reduce((acc, t) => acc + t.amount, 0) / despesas.length 
     : 0;
   const desvioPadrao = Math.sqrt(
-    despesas.reduce((acc, t) => acc + Math.pow(t.valor - mediaDespesas, 2), 0) / (despesas.length || 1)
+    despesas.reduce((acc, t) => acc + Math.pow(t.amount - mediaDespesas, 2), 0) / (despesas.length || 1)
   );
-  const transacoesIncomuns = despesas.filter(t => t.valor > mediaDespesas + desvioPadrao).length;
+  const transacoesIncomuns = despesas.filter(t => t.amount > mediaDespesas + desvioPadrao).length;
 
-  // Cálculos avançados (NOVOS)
-  const receitasMes = transacoesMes.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
-  const despesasMes = transacoesMes.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0);
+  // Cálculos avançados
+  const receitasMes = transacoesMes.filter(t => t.operationType === "receita" || t.operationType === "rendimento").reduce((acc, t) => acc + t.amount, 0);
+  const despesasMes = transacoesMes.filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo").reduce((acc, t) => acc + t.amount, 0);
   const saldoMes = receitasMes - despesasMes;
   
-  const receitasMesAnterior = transacoesMesAnterior.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
-  const despesasMesAnterior = transacoesMesAnterior.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0);
+  const receitasMesAnterior = transacoesMesAnterior.filter(t => t.operationType === "receita" || t.operationType === "rendimento").reduce((acc, t) => acc + t.amount, 0);
+  const despesasMesAnterior = transacoesMesAnterior.filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo").reduce((acc, t) => acc + t.amount, 0);
   const saldoMesAnterior = receitasMesAnterior - despesasMesAnterior;
 
-  // Variações percentuais (CORRIGIDAS)
+  // Variações percentuais
   const variacaoReceitas = receitasMesAnterior > 0 ? ((receitasMes - receitasMesAnterior) / receitasMesAnterior) * 100 : 0;
   const variacaoDespesas = despesasMesAnterior > 0 ? ((despesasMes - despesasMesAnterior) / despesasMesAnterior) * 100 : 0;
   const variacaoSaldo = saldoMesAnterior !== 0 ? ((saldoMes - saldoMesAnterior) / saldoMesAnterior) * 100 : 0;
 
-  // Indicadores de eficiência (NOVOS)
+  // Indicadores de eficiência
   const margemPoupanca = receitasMes > 0 ? (saldoMes / receitasMes) * 100 : 0;
   const indiceEndividamento = receitasMes > 0 ? (despesasMes / receitasMes) * 100 : 0;
   
-  // Despesas fixas vs variáveis (CORRIGIDO)
-  const CATEGORIAS_FIXAS = ["Moradia", "Saúde", "Transporte", "Salário"];
+  // Despesas fixas vs variáveis (usando nature da categoria)
   const despesasFixas = transacoesMes
-    .filter(t => t.tipo === "despesa" && CATEGORIAS_FIXAS.includes(t.categoria))
-    .reduce((acc, t) => acc + t.valor, 0);
+    .filter(t => {
+      const cat = t.categoryId ? categoriesMap.get(t.categoryId) : null;
+      return cat?.nature === 'despesa_fixa';
+    })
+    .reduce((acc, t) => acc + t.amount, 0);
   const despesasVariaveis = despesasMes - despesasFixas;
 
-  // Projeção de saldo (NOVO)
+  // Projeção de saldo
   const diasNoMes = new Date(currentYear, currentMonth + 1, 0).getDate();
   const diaAtual = currentDate.getDate();
   const mediaDiaria = diaAtual > 0 ? saldoMes / diaAtual : 0;
   const diasRestantes = diasNoMes - diaAtual;
   const projecaoSaldo = saldoMes + (mediaDiaria * diasRestantes);
 
-  // Classificação de desempenho (NOVO)
+  // Classificação de desempenho
   const performance = (() => {
     if (variacaoReceitas >= 5 && variacaoDespesas <= 0) return { nivel: "Excelente", cor: "success" };
     if (variacaoReceitas >= 0 && variacaoDespesas <= 5) return { nivel: "Bom", cor: "success" };
@@ -139,12 +148,7 @@ export const SmartSummaryPanel = ({ transacoes }: SmartSummaryPanelProps) => {
   const formatCurrency = (value: number) => 
     `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr + "T00:00:00");
-    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-  };
-
-  // Insights automáticos (CORRIGIDOS)
+  // Insights automáticos
   const insights: string[] = [];
   
   if (categoriaMaisCresceu && categoriaMaisCresceu.variacao > 20) {

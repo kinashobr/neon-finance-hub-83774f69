@@ -118,7 +118,7 @@ const ReceitasDespesas = () => {
           }
         } else {
           // Contas normais: in soma, out subtrai
-          if (t.flow === 'in' || t.flow === 'transfer_in') {
+          if (t.flow === 'in' || t.flow === 'transfer_in' || t.operationType === 'initial_balance') {
             balance += t.amount;
           } else {
             balance -= t.amount;

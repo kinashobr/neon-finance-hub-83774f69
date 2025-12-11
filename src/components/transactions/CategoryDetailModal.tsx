@@ -1,57 +1,70 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { ExternalLink, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Transacao } from "@/contexts/FinanceContext";
+import { TransacaoCompleta } from "@/types/finance";
+import { useFinance } from "@/contexts/FinanceContext";
+import { parseISO } from "date-fns";
 
 interface CategoryDetailModalProps {
-  categoria: string;
-  transacoes: Transacao[];
+  categoryId: string;
+  transacoes: TransacaoCompleta[];
   totalCategoria: number;
   percentual: number;
   children: React.ReactNode;
 }
 
 export const CategoryDetailModal = ({ 
-  categoria, 
+  categoryId, 
   transacoes, 
   totalCategoria, 
   percentual,
   children 
 }: CategoryDetailModalProps) => {
   const [open, setOpen] = useState(false);
+  const { categoriasV2 } = useFinance();
+  
+  const categoriaLabel = useMemo(() => 
+    categoriasV2.find(c => c.id === categoryId)?.label || 'Categoria Desconhecida',
+    [categoryId, categoriasV2]
+  );
 
-  const transacoesCategoria = transacoes
-    .filter(t => t.categoria === categoria && t.tipo === "despesa")
-    .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+  const transacoesCategoria = useMemo(() => 
+    transacoes
+      .filter(t => t.categoryId === categoryId && (t.operationType === "despesa" || t.operationType === "pagamento_emprestimo"))
+      .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime()),
+    [transacoes, categoryId]
+  );
 
   // Agrupar por mês
-  const gastosPorMes: Record<string, number> = {};
-  transacoesCategoria.forEach(t => {
-    const mes = t.data.substring(0, 7); // YYYY-MM
-    gastosPorMes[mes] = (gastosPorMes[mes] || 0) + t.valor;
-  });
-
-  const chartData = Object.entries(gastosPorMes)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-6)
-    .map(([mes, valor]) => {
-      const [year, month] = mes.split("-");
-      const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-      return {
-        mes: meses[parseInt(month) - 1],
-        valor,
-      };
+  const { chartData, variacao } = useMemo(() => {
+    const gastosPorMes: Record<string, number> = {};
+    transacoesCategoria.forEach(t => {
+      const mes = t.date.substring(0, 7); // YYYY-MM
+      gastosPorMes[mes] = (gastosPorMes[mes] || 0) + t.amount;
     });
 
-  // Calcular variação
-  const valores = Object.entries(gastosPorMes).sort(([a], [b]) => a.localeCompare(b));
-  const ultimoMes = valores[valores.length - 1]?.[1] || 0;
-  const penultimoMes = valores[valores.length - 2]?.[1] || 0;
-  const variacao = penultimoMes > 0 ? ((ultimoMes - penultimoMes) / penultimoMes) * 100 : 0;
+    const valores = Object.entries(gastosPorMes).sort(([a], [b]) => a.localeCompare(b));
+    const ultimoMes = valores[valores.length - 1]?.[1] || 0;
+    const penultimoMes = valores[valores.length - 2]?.[1] || 0;
+    const variacao = penultimoMes > 0 ? ((ultimoMes - penultimoMes) / penultimoMes) * 100 : 0;
+
+    const chartData = valores
+      .slice(-6)
+      .map(([mes, valor]) => {
+        const [year, month] = mes.split("-");
+        const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+        return {
+          mes: meses[parseInt(month) - 1],
+          valor,
+        };
+      });
+      
+    return { chartData, variacao };
+  }, [transacoesCategoria]);
 
   const formatCurrency = (value: number) => 
     `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
@@ -64,7 +77,7 @@ export const CategoryDetailModal = ({
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto bg-card border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
-            <span>{categoria}</span>
+            <span>{categoriaLabel}</span>
             <span className="text-sm font-normal text-muted-foreground">
               {percentual.toFixed(1)}% do total
             </span>
@@ -146,11 +159,11 @@ export const CategoryDetailModal = ({
                 {transacoesCategoria.slice(0, 10).map((t) => (
                   <TableRow key={t.id} className="border-border hover:bg-muted/50">
                     <TableCell className="text-sm">
-                      {new Date(t.data + "T00:00:00").toLocaleDateString("pt-BR")}
+                      {new Date(t.date + "T00:00:00").toLocaleDateString("pt-BR")}
                     </TableCell>
-                    <TableCell className="text-sm">{t.descricao}</TableCell>
+                    <TableCell className="text-sm">{t.description}</TableCell>
                     <TableCell className="text-sm text-right font-medium text-destructive">
-                      {formatCurrency(t.valor)}
+                      {formatCurrency(t.amount)}
                     </TableCell>
                   </TableRow>
                 ))}

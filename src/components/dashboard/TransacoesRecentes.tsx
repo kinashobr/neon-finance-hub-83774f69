@@ -5,11 +5,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { Transacao } from "@/contexts/FinanceContext";
+import { TransacaoCompleta } from "@/types/finance";
 import { useNavigate } from "react-router-dom";
+import { useFinance } from "@/contexts/FinanceContext";
 
 interface TransacoesRecentesProps {
-  transacoes: Transacao[];
+  transacoes: TransacaoCompleta[];
   limit?: number;
 }
 
@@ -26,18 +27,25 @@ const categoriaIcons: Record<string, React.ElementType> = {
 
 export function TransacoesRecentes({ transacoes, limit = 8 }: TransacoesRecentesProps) {
   const navigate = useNavigate();
+  const { categoriasV2 } = useFinance();
 
   const recentTransacoes = [...transacoes]
-    .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, limit);
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = new Date(dateStr + "T00:00:00");
     return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
   };
 
-  const getIcon = (categoria: string) => {
-    return categoriaIcons[categoria] || DollarSign;
+  const getCategoryLabel = (categoryId: string | null) => {
+    if (!categoryId) return 'Transferência/Outros';
+    return categoriasV2.find(c => c.id === categoryId)?.label || 'Outros';
+  };
+
+  const getIcon = (categoryId: string | null) => {
+    const label = getCategoryLabel(categoryId);
+    return categoriaIcons[label] || DollarSign;
   };
 
   return (
@@ -57,8 +65,9 @@ export function TransacoesRecentes({ transacoes, limit = 8 }: TransacoesRecentes
 
         <div className="space-y-2">
           {recentTransacoes.map((transacao) => {
-            const Icon = getIcon(transacao.categoria);
-            const isReceita = transacao.tipo === "receita";
+            const Icon = getIcon(transacao.categoryId);
+            const isReceita = transacao.flow === "in" || transacao.flow === "transfer_in";
+            const categoryLabel = getCategoryLabel(transacao.categoryId);
             
             return (
               <Tooltip key={transacao.id}>
@@ -73,10 +82,10 @@ export function TransacoesRecentes({ transacoes, limit = 8 }: TransacoesRecentes
                       </div>
                       <div>
                         <p className="text-sm font-medium text-foreground truncate max-w-[150px]">
-                          {transacao.descricao}
+                          {transacao.description}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {transacao.categoria} • {formatDate(transacao.data)}
+                          {categoryLabel} • {formatDate(transacao.date)}
                         </p>
                       </div>
                     </div>
@@ -84,16 +93,16 @@ export function TransacoesRecentes({ transacoes, limit = 8 }: TransacoesRecentes
                       "font-semibold text-sm",
                       isReceita ? "text-success" : "text-destructive"
                     )}>
-                      {isReceita ? "+" : "-"} R$ {transacao.valor.toLocaleString("pt-BR")}
+                      {isReceita ? "+" : "-"} R$ {transacao.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
                   <div className="text-xs">
-                    <p className="font-medium">{transacao.descricao}</p>
-                    <p>Categoria: {transacao.categoria}</p>
-                    <p>Data: {new Date(transacao.data).toLocaleDateString("pt-BR")}</p>
-                    <p>Valor: R$ {transacao.valor.toLocaleString("pt-BR")}</p>
+                    <p className="font-medium">{transacao.description}</p>
+                    <p>Categoria: {categoryLabel}</p>
+                    <p>Data: {new Date(transacao.date).toLocaleDateString("pt-BR")}</p>
+                    <p>Valor: R$ {transacao.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
                   </div>
                 </TooltipContent>
               </Tooltip>

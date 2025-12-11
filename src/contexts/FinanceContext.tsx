@@ -2,21 +2,16 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import {
   Categoria, TransacaoCompleta, TransferGroup,
   AccountType, CategoryNature, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
-  generateTransactionId, ContaCorrente // Moved ContaCorrente here to resolve conflict
+  generateTransactionId, ContaCorrente, // Moved ContaCorrente here to resolve conflict
+  getFlowTypeFromOperation, getDomainFromOperation,
+  TransactionLinks
 } from "@/types/finance";
+import { parseISO } from "date-fns";
 
 // ============================================
 // TIPOS DE DADOS LEGADOS (para compatibilidade)
+// Estes tipos são mantidos APENAS para o estado de migração, mas serão removidos do contexto.
 // ============================================
-
-export interface Transacao {
-  id: number;
-  data: string;
-  descricao: string;
-  valor: number;
-  categoria: string;
-  tipo: "receita" | "despesa";
-}
 
 export interface Emprestimo {
   id: number;
@@ -70,10 +65,7 @@ export interface SeguroVeiculo {
   }[];
 }
 
-// ============================================
-// TIPOS DE INVESTIMENTOS
-// ============================================
-
+// Interfaces de Investimento (Mantidas temporariamente para migração)
 export interface InvestimentoRF {
   id: number;
   aplicacao: string;
@@ -84,7 +76,7 @@ export interface InvestimentoRF {
   rentabilidade: number;
   vencimento: string;
   risco: string;
-  contaMovimentoId?: string; // Link to account in ReceitasDespesas
+  contaMovimentoId?: string;
 }
 
 export interface Criptomoeda {
@@ -95,7 +87,7 @@ export interface Criptomoeda {
   valorBRL: number;
   percentual: number;
   sparkline: number[];
-  contaMovimentoId?: string; // Link to crypto account
+  contaMovimentoId?: string;
 }
 
 export interface Stablecoin {
@@ -104,7 +96,7 @@ export interface Stablecoin {
   quantidade: number;
   valorBRL: number;
   cotacao: number;
-  contaMovimentoId?: string; // Link to crypto account
+  contaMovimentoId?: string;
 }
 
 export interface ObjetivoFinanceiro {
@@ -114,7 +106,7 @@ export interface ObjetivoFinanceiro {
   meta: number;
   rentabilidade: number;
   cor: string;
-  contaMovimentoId?: string; // Link to objetivos account
+  contaMovimentoId?: string;
 }
 
 export interface MovimentacaoInvestimento {
@@ -125,22 +117,17 @@ export interface MovimentacaoInvestimento {
   ativo: string;
   descricao: string;
   valor: number;
-  transactionId?: string; // Link to transaction in ReceitasDespesas
+  transactionId?: string;
 }
 
 // ============================================
 // INTERFACE DO CONTEXTO
 // ============================================
 
-// Conta Movimento (antes ContaCorrente) - ATUALIZADO
-// NOTE: The definition of ContaCorrente is now imported from types/finance.ts
-// The local definition was removed to resolve TS2440.
-
 export interface FinanceDataExport {
   version: string;
   exportDate: string;
-  transacoes: Transacao[];
-  categorias: string[];
+  // Removidos: transacoes, categorias
   emprestimos: Emprestimo[];
   veiculos: Veiculo[];
   investimentosRF: InvestimentoRF[];
@@ -149,23 +136,15 @@ export interface FinanceDataExport {
   objetivos: ObjetivoFinanceiro[];
   movimentacoesInvestimento: MovimentacaoInvestimento[];
   // New integrated data
-  contasMovimento?: ContaCorrente[];
-  categoriasV2?: Categoria[];
-  transacoesV2?: TransacaoCompleta[];
-  segurosVeiculo?: SeguroVeiculo[];
+  contasMovimento: ContaCorrente[];
+  categoriasV2: Categoria[];
+  transacoesV2: TransacaoCompleta[];
+  segurosVeiculo: SeguroVeiculo[];
 }
 
 interface FinanceContextType {
-  // Transações
-  transacoes: Transacao[];
-  addTransacao: (transacao: Omit<Transacao, "id">) => void;
-  updateTransacao: (id: number, transacao: Partial<Transacao>) => void;
-  deleteTransacao: (id: number) => void;
-  
-  // Categorias
-  categorias: string[];
-  addCategoria: (categoria: string) => void;
-  removeCategoria: (categoria: string) => void;
+  // Removidos: transacoes, addTransacao, updateTransacao, deleteTransacao
+  // Removidos: categorias, addCategoria, removeCategoria
   
   // Empréstimos
   emprestimos: Emprestimo[];
@@ -174,7 +153,7 @@ interface FinanceContextType {
   deleteEmprestimo: (id: number) => void;
   getPendingLoans: () => Emprestimo[];
   markLoanParcelPaid: (loanId: number, valorPago: number, dataPagamento: string, parcelaNumero?: number) => void;
-  unmarkLoanParcelPaid: (loanId: number) => void; // Nova função
+  unmarkLoanParcelPaid: (loanId: number) => void;
   
   // Veículos
   veiculos: Veiculo[];
@@ -262,8 +241,7 @@ const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 // ============================================
 
 const STORAGE_KEYS = {
-  TRANSACOES: "neon_finance_transacoes",
-  CATEGORIAS: "neon_finance_categorias",
+  // Removidos: TRANSACOES, CATEGORIAS
   EMPRESTIMOS: "neon_finance_emprestimos",
   VEICULOS: "neon_finance_veiculos",
   SEGUROS_VEICULO: "neon_finance_seguros_veiculo",
@@ -281,9 +259,6 @@ const STORAGE_KEYS = {
 // ============================================
 // DADOS INICIAIS (usados se localStorage vazio)
 // ============================================
-
-const initialTransacoes: Transacao[] = [];
-const initialCategorias: string[] = [];
 
 const initialEmprestimos: Emprestimo[] = [];
 const initialVeiculos: Veiculo[] = [];
@@ -323,13 +298,8 @@ function saveToStorage<T>(key: string, data: T): void {
 // ============================================
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
-  // Estados legados
-  const [transacoes, setTransacoes] = useState<Transacao[]>(() => 
-    loadFromStorage(STORAGE_KEYS.TRANSACOES, initialTransacoes)
-  );
-  const [categorias, setCategorias] = useState<string[]>(() => 
-    loadFromStorage(STORAGE_KEYS.CATEGORIAS, initialCategorias)
-  );
+  // Estados legados (mantidos APENAS para dados que ainda não foram migrados para V2)
+  // Transacoes e Categorias V1 removidos
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>(() => 
     loadFromStorage(STORAGE_KEYS.EMPRESTIMOS, initialEmprestimos)
   );
@@ -355,7 +325,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     loadFromStorage(STORAGE_KEYS.MOVIMENTACOES_INV, initialMovimentacoesInv)
   );
 
-  // Estados novos integrados
+  // Estados novos integrados (V2)
   const [contasMovimento, setContasMovimento] = useState<ContaCorrente[]>(() => 
     loadFromStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, DEFAULT_ACCOUNTS)
   );
@@ -370,8 +340,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // EFEITOS PARA PERSISTÊNCIA AUTOMÁTICA
   // ============================================
 
-  useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES, transacoes); }, [transacoes]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS, categorias); }, [categorias]);
+  // Removidos: TRANSACOES, CATEGORIAS
   useEffect(() => { saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos); }, [emprestimos]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.VEICULOS, veiculos); }, [veiculos]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); }, [segurosVeiculo]);
@@ -385,35 +354,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); }, [transacoesV2]);
 
   // ============================================
-  // OPERAÇÕES DE TRANSAÇÕES LEGADAS
+  // OPERAÇÕES DE TRANSAÇÕES LEGADAS (REMOVIDAS)
   // ============================================
 
-  const addTransacao = (transacao: Omit<Transacao, "id">) => {
-    const newId = Math.max(0, ...transacoes.map(t => t.id)) + 1;
-    setTransacoes([...transacoes, { ...transacao, id: newId }]);
-  };
-
-  const updateTransacao = (id: number, updates: Partial<Transacao>) => {
-    setTransacoes(transacoes.map(t => t.id === id ? { ...t, ...updates } : t));
-  };
-
-  const deleteTransacao = (id: number) => {
-    setTransacoes(transacoes.filter(t => t.id !== id));
-  };
-
   // ============================================
-  // OPERAÇÕES DE CATEGORIAS
+  // OPERAÇÕES DE CATEGORIAS LEGADAS (REMOVIDAS)
   // ============================================
-
-  const addCategoria = (categoria: string) => {
-    if (!categorias.includes(categoria)) {
-      setCategorias([...categorias, categoria]);
-    }
-  };
-
-  const removeCategoria = (categoria: string) => {
-    setCategorias(categorias.filter(c => c !== categoria));
-  };
 
   // ============================================
   // OPERAÇÕES DE EMPRÉSTIMOS
@@ -444,7 +390,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const parcelasPagas = (e.parcelasPagas || 0) + 1;
       
       // Calculate if there were interest charges (value paid > expected parcel value)
-      const jurosAdicional = valorPago > e.parcela ? valorPago - e.parcela : 0;
+      // const jurosAdicional = valorPago > e.parcela ? valorPago - e.parcela : 0; // Lógica removida para simplificar
       
       return {
         ...e,
@@ -653,47 +599,52 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return veiculos.filter(v => v.status !== 'vendido').reduce((acc, v) => acc + v.valorSeguro, 0);
   };
 
-  const getSaldoAtual = () => {
-    let totalBalance = 0;
+  // Helper para calcular saldo até uma data (usado para getSaldoAtual)
+  const calculateBalanceUpToDate = useCallback((accountId: string, date: Date | undefined, allTransactions: TransacaoCompleta[], accounts: ContaCorrente[]): number => {
+    const account = accounts.find(a => a.id === accountId);
+    if (!account) return 0;
 
-    contasMovimento.forEach(conta => {
-      // Se a conta tem startDate, o saldo inicial é 0 e dependemos da transação sintética.
-      // Caso contrário, usamos o initialBalance legado.
-      let balance = conta.startDate ? 0 : conta.initialBalance; 
-      
-      const accountTransactions = transacoesV2.filter(t => t.accountId === conta.id);
+    let balance = account.startDate ? 0 : account.initialBalance; 
+    const targetDate = date || new Date(9999, 11, 31);
 
-      accountTransactions.forEach(t => {
-        const isCreditCard = conta.accountType === 'cartao_credito';
+    const transactionsBeforeDate = allTransactions
+        .filter(t => t.accountId === accountId && parseISO(t.date) < targetDate)
+        .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+
+    transactionsBeforeDate.forEach(t => {
+        const isCreditCard = account.accountType === 'cartao_credito';
         
         if (isCreditCard) {
-          // Cartão de Crédito: Despesa (out) aumenta o passivo (subtrai do saldo)
-          // Transferência (in) diminui o passivo (soma ao saldo)
           if (t.operationType === 'despesa') {
             balance -= t.amount;
           } else if (t.operationType === 'transferencia') {
             balance += t.amount;
           }
         } else {
-          // Contas normais: in soma, out subtrai
           if (t.flow === 'in' || t.flow === 'transfer_in' || t.operationType === 'initial_balance') {
             balance += t.amount;
           } else {
             balance -= t.amount;
           }
         }
-      });
+    });
 
-      // Se for Cartão de Crédito, o saldo é um passivo (dívida), então o valor é negativo
-      if (conta.accountType === 'cartao_credito') {
-        totalBalance += balance; // O saldo já é negativo se houver dívida
-      } else {
-        totalBalance += balance;
-      }
+    return balance;
+  }, [contasMovimento, transacoesV2]); // Dependências ajustadas
+
+  const getSaldoAtual = useCallback(() => {
+    let totalBalance = 0;
+
+    contasMovimento.forEach(conta => {
+      // Calcula o saldo final global (sem filtro de data)
+      const balance = calculateBalanceUpToDate(conta.id, undefined, transacoesV2, contasMovimento);
+      
+      // Se for Cartão de Crédito, o saldo é um passivo (dívida), mas já está representado no cálculo
+      totalBalance += balance;
     });
 
     return totalBalance;
-  };
+  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
 
   const getValorFipeTotal = () => {
     return veiculos.filter(v => v.status !== 'vendido').reduce((acc, v) => acc + v.valorFipe, 0);
@@ -702,27 +653,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // Cálculos avançados
   const getSaldoDevedor = () => {
     const saldoEmprestimos = emprestimos.reduce((acc, e) => {
-      const parcelasPagas = e.parcelasPagas || 0;
-      const saldoDevedor = Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
+      const parcelasRestantes = e.meses - (e.parcelasPagas || 0);
+      const saldoDevedor = Math.max(0, parcelasRestantes * e.parcela); // Simplificado: saldo devedor é o valor das parcelas restantes
       return acc + saldoDevedor;
     }, 0);
     
     const saldoCartoes = contasMovimento
       .filter(c => c.accountType === 'cartao_credito')
       .reduce((acc, c) => {
-        // O saldo do cartão de crédito é o passivo (dívida)
-        let balance = c.startDate ? 0 : c.initialBalance; // Ajuste para saldo inicial
-        const accountTransactions = transacoesV2.filter(t => t.accountId === c.id);
-        
-        accountTransactions.forEach(t => {
-          if (t.operationType === 'despesa') {
-            balance -= t.amount;
-          } else if (t.operationType === 'transferencia') {
-            balance += t.amount;
-          }
-        });
-        
-        // Se o saldo for negativo, é uma dívida (passivo)
+        const balance = calculateBalanceUpToDate(c.id, undefined, transacoesV2, contasMovimento);
+        // O saldo do cartão de crédito é o passivo (dívida) se for negativo
         return acc + Math.abs(Math.min(0, balance));
       }, 0);
       
@@ -745,39 +685,33 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return despesasFixas.reduce((acc, t) => acc + t.amount, 0);
   };
 
-  const getAtivosTotal = () => {
+  const getAtivosTotal = useCallback(() => {
     // Ativos = Saldo de contas (exceto CC) + Investimentos + Veículos
     const saldoContasAtivas = contasMovimento
       .filter(c => c.accountType !== 'cartao_credito')
       .reduce((acc, c) => {
-        let balance = c.startDate ? 0 : c.initialBalance; // Ajuste para saldo inicial
-        const accountTransactions = transacoesV2.filter(t => t.accountId === c.id);
-        accountTransactions.forEach(t => {
-          if (t.flow === 'in' || t.flow === 'transfer_in' || t.operationType === 'initial_balance') {
-            balance += t.amount;
-          } else {
-            balance -= t.amount;
-          }
-        });
-        return acc + balance;
+        const balance = calculateBalanceUpToDate(c.id, undefined, transacoesV2, contasMovimento);
+        return acc + Math.max(0, balance); // Apenas saldos positivos são ativos
       }, 0);
       
     const valorVeiculos = getValorFipeTotal();
-    const investimentos = investimentosRF.reduce((acc, i) => acc + i.valor, 0) +
+    
+    // Investimentos (agora apenas os legados, pois os V2 estão nas contasMovimento)
+    const investimentosLegados = investimentosRF.reduce((acc, i) => acc + i.valor, 0) +
                           criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) +
                           stablecoins.reduce((acc, s) => acc + s.valorBRL, 0) +
                           objetivos.reduce((acc, o) => acc + o.atual, 0);
                           
-    return saldoContasAtivas + valorVeiculos + investimentos;
-  };
+    return saldoContasAtivas + valorVeiculos + investimentosLegados;
+  }, [contasMovimento, transacoesV2, getValorFipeTotal, investimentosRF, criptomoedas, stablecoins, objetivos, calculateBalanceUpToDate]);
 
-  const getPassivosTotal = () => {
+  const getPassivosTotal = useCallback(() => {
     return getSaldoDevedor();
-  };
+  }, [getSaldoDevedor]);
 
-  const getPatrimonioLiquido = () => {
+  const getPatrimonioLiquido = useCallback(() => {
     return getAtivosTotal() - getPassivosTotal();
-  };
+  }, [getAtivosTotal, getPassivosTotal]);
 
   // ============================================
   // EXPORTAÇÃO E IMPORTAÇÃO
@@ -787,8 +721,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const data: FinanceDataExport = {
       version: "2.0",
       exportDate: new Date().toISOString(),
-      transacoes,
-      categorias,
+      // Removidos: transacoes, categorias
       emprestimos,
       veiculos,
       investimentosRF,
@@ -816,8 +749,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const text = await file.text();
       const data = JSON.parse(text) as FinanceDataExport;
 
-      if (data.transacoes) setTransacoes(data.transacoes);
-      if (data.categorias) setCategorias(data.categorias);
+      // Removidos: transacoes, categorias
       if (data.emprestimos) setEmprestimos(data.emprestimos);
       if (data.veiculos) setVeiculos(data.veiculos);
       if (data.investimentosRF) setInvestimentosRF(data.investimentosRF);
@@ -841,20 +773,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // ============================================
 
   const value: FinanceContextType = {
-    transacoes,
-    addTransacao,
-    updateTransacao,
-    deleteTransacao,
-    categorias,
-    addCategoria,
-    removeCategoria,
+    // Removidos: transacoes, addTransacao, updateTransacao, deleteTransacao
+    // Removidos: categorias, addCategoria, removeCategoria
     emprestimos,
     addEmprestimo,
     updateEmprestimo,
     deleteEmprestimo,
     getPendingLoans,
     markLoanParcelPaid,
-    unmarkLoanParcelPaid, // Adicionado
+    unmarkLoanParcelPaid,
     veiculos,
     addVeiculo,
     updateVeiculo,
