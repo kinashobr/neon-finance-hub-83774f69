@@ -35,13 +35,13 @@ const ReceitasDespesas = () => {
     setTransacoesV2,
     addTransacaoV2,
     emprestimos,
-    addEmprestimo, // <-- Added here
+    addEmprestimo,
     markLoanParcelPaid,
     veiculos,
     addVeiculo,
     investimentosRF,
     addMovimentacaoInvestimento,
-    markSeguroParcelPaid, // <-- Nova função
+    markSeguroParcelPaid,
   } = useFinance();
 
   // Local state for transfer groups
@@ -165,52 +165,51 @@ const ReceitasDespesas = () => {
       }
 
       // PARTIDA DOBRADA: Aplicação (Conta Corrente → Conta de Investimento)
-      // Cria DUAS transações: saída na conta corrente, entrada na conta destino
       if (transaction.operationType === 'aplicacao' && transaction.links?.investmentId) {
         const groupId = `app_${Date.now()}`;
-        transaction.links.transferGroupId = groupId;
-        transaction.flow = 'out'; // Saída da conta corrente
         
-        // Transação de entrada na conta de investimento
-        const investmentAccount = accounts.find(a => a.id === transaction.links.investmentId);
-        if (investmentAccount) {
-          const incomingTx: TransacaoCompleta = {
-            id: generateTransactionId(),
-            date: transaction.date,
-            accountId: transaction.links.investmentId, // Conta de investimento
-            flow: 'in',
-            operationType: 'aplicacao',
-            domain: 'investment',
-            amount: transaction.amount,
-            categoryId: null,
-            description: transaction.description || `Aplicação recebida de conta corrente`,
-            links: {
-              investmentId: transaction.accountId, // Referência à conta origem
-              loanId: null,
-              transferGroupId: groupId,
-              parcelaId: null,
-              vehicleTransactionId: null,
-            },
-            conciliated: false,
-            attachments: [],
-            meta: {
-              createdBy: 'user',
-              source: 'manual',
-              createdAt: new Date().toISOString(),
-            }
-          };
-          newTransactions.push(incomingTx);
-        }
+        // 1. Transação de SAÍDA (Conta Corrente - já é a transação original)
+        transaction.links.transferGroupId = groupId;
+        transaction.flow = 'out'; 
+        
+        // 2. Transação de ENTRADA (Conta de Investimento)
+        const incomingTx: TransacaoCompleta = {
+          id: generateTransactionId(),
+          date: transaction.date,
+          accountId: transaction.links.investmentId, // Conta de investimento
+          flow: 'in',
+          operationType: 'aplicacao',
+          domain: 'investment',
+          amount: transaction.amount,
+          categoryId: null,
+          description: transaction.description || `Aplicação recebida de ${accounts.find(a => a.id === transaction.accountId)?.name}`,
+          links: {
+            investmentId: transaction.accountId, // Referência à conta origem
+            loanId: null,
+            transferGroupId: groupId,
+            parcelaId: null,
+            vehicleTransactionId: null,
+          },
+          conciliated: false,
+          attachments: [],
+          meta: {
+            createdBy: 'system',
+            source: 'manual',
+            createdAt: new Date().toISOString(),
+          }
+        };
+        newTransactions.push(incomingTx);
       }
 
       // PARTIDA DOBRADA: Resgate (Conta de Investimento → Conta Corrente)
-      // Cria DUAS transações: saída na conta de investimento, entrada na conta corrente
       if (transaction.operationType === 'resgate' && transaction.links?.investmentId) {
         const groupId = `res_${Date.now()}`;
-        transaction.links.transferGroupId = groupId;
-        transaction.flow = 'in'; // Entrada na conta corrente
         
-        // Transação de saída na conta de investimento
+        // 1. Transação de ENTRADA (Conta Corrente - já é a transação original)
+        transaction.links.transferGroupId = groupId;
+        transaction.flow = 'in'; 
+        
+        // 2. Transação de SAÍDA (Conta de Investimento)
         const outgoingTx: TransacaoCompleta = {
           id: generateTransactionId(),
           date: transaction.date,
@@ -220,7 +219,7 @@ const ReceitasDespesas = () => {
           domain: 'investment',
           amount: transaction.amount,
           categoryId: null,
-          description: transaction.description || `Resgate para conta corrente`,
+          description: transaction.description || `Resgate enviado para ${accounts.find(a => a.id === transaction.accountId)?.name}`,
           links: {
             investmentId: transaction.accountId, // Referência à conta destino
             loanId: null,
@@ -231,7 +230,7 @@ const ReceitasDespesas = () => {
           conciliated: false,
           attachments: [],
             meta: {
-              createdBy: 'user',
+              createdBy: 'system',
               source: 'manual',
               createdAt: new Date().toISOString(),
             }
