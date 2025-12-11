@@ -133,7 +133,7 @@ function DetailedIndicatorBadge({
             />
           </div>
         </TooltipTrigger>
-        <TooltipContent side="bottom" className="max-w-xs p-4 space-y-3">
+        <TooltipContent side="bottom" className="max-w-md p-4 space-y-3">
           <div>
             <div className="font-semibold text-foreground flex items-center gap-2">
               {icon}
@@ -143,9 +143,9 @@ function DetailedIndicatorBadge({
           </div>
           <div className="pt-2 border-t border-border">
             <div className="text-xs font-medium text-muted-foreground mb-1">Fórmula:</div>
-            <code className="text-xs bg-muted px-2 py-1 rounded block">{formula}</code>
+            <code className="text-xs bg-muted px-2 py-1 rounded block whitespace-normal">{formula}</code>
           </div>
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-2 text-xs pt-2">
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-success" />
               <span>Saudável</span>
@@ -852,7 +852,7 @@ export function IndicadoresTab() {
           formula="100 - Max(% Caixa, % Investimentos, % Imobilizado)"
           sparklineData={generateSparkline(indicadores.outros.diversificacao.valor, indicadores.outros.diversificacao.valor >= 40 ? "up" : "down")}
           icon={<Activity className="w-4 h-4" />}
-        />
+        </DetailedIndicatorBadge>
       </IndicatorGroup>
 
       {/* INDICADORES PERSONALIZADOS */}
