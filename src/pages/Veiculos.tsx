@@ -27,7 +27,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { Plus, Trash2, Car, Shield, AlertTriangle, DollarSign, FileText, Search, ArrowRight } from "lucide-react";
+import { Plus, Trash2, Car, Shield, AlertTriangle, DollarSign, FileText, Search, ArrowRight, CheckCircle2, Clock } from "lucide-react";
 import { useFinance, Veiculo, SeguroVeiculo } from "@/contexts/FinanceContext";
 import { EditableCell } from "@/components/EditableCell";
 import { cn } from "@/lib/utils";
@@ -55,6 +55,7 @@ const Veiculos = () => {
     investimentosRF,
     emprestimos,
     addTransacaoV2,
+    transacoesV2,
   } = useFinance();
   
   const [activeTab, setActiveTab] = useState("veiculos");
@@ -234,21 +235,22 @@ const Veiculos = () => {
     return dias;
   };
 
-  // Get pending insurance payments
-  const parcelasPendentes = useMemo(() => {
-    const pendentes: { seguro: SeguroVeiculo; parcela: typeof segurosVeiculo[0]['parcelas'][0]; veiculo: Veiculo | undefined }[] = [];
+  // Get all insurance payments (paid and pending)
+  const allParcelas = useMemo(() => {
+    const all: { seguro: SeguroVeiculo; parcela: typeof segurosVeiculo[0]['parcelas'][0]; veiculo: Veiculo | undefined; transaction?: TransacaoCompleta }[] = [];
     
     segurosVeiculo.forEach(seguro => {
       const veiculo = veiculos.find(v => v.id === seguro.veiculoId);
       seguro.parcelas.forEach(parcela => {
-        if (!parcela.paga) {
-          pendentes.push({ seguro, parcela, veiculo });
-        }
+        const transaction = parcela.transactionId ? transacoesV2.find(t => t.id === parcela.transactionId) : undefined;
+        all.push({ seguro, parcela, veiculo, transaction });
       });
     });
     
-    return pendentes.sort((a, b) => new Date(a.parcela.vencimento).getTime() - new Date(b.parcela.vencimento).getTime());
-  }, [segurosVeiculo, veiculos]);
+    return all.sort((a, b) => new Date(a.parcela.vencimento).getTime() - new Date(b.parcela.vencimento).getTime());
+  }, [segurosVeiculo, veiculos, transacoesV2]);
+
+  const parcelasPendentes = allParcelas.filter(p => !p.parcela.paga);
 
   return (
     <MainLayout>
@@ -340,6 +342,7 @@ const Veiculos = () => {
                         step="0.01"
                         value={formSeguro.valorTotal}
                         onChange={(e) => setFormSeguro(prev => ({ ...prev, valorTotal: e.target.value }))}
+                        placeholder="0,00"
                         className="mt-1 bg-muted border-border"
                       />
                     </div>
@@ -495,7 +498,7 @@ const Veiculos = () => {
           <TabsList className="bg-muted/50">
             <TabsTrigger value="veiculos">Veículos</TabsTrigger>
             <TabsTrigger value="seguros">Controle de Seguros</TabsTrigger>
-            <TabsTrigger value="parcelas">Parcelas Pendentes</TabsTrigger>
+            <TabsTrigger value="parcelas">Parcelas</TabsTrigger>
           </TabsList>
 
           {/* Tab Veículos */}
@@ -657,7 +660,7 @@ const Veiculos = () => {
           <TabsContent value="seguros" className="space-y-6">
             <Card className="glass-card">
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Seguros Cadastrados</CardTitle>
+                <CardTitle className="text-lg">Seguros Cadastrados</CardTitle>
                 <Badge variant="outline">{segurosVeiculo.length} seguros</Badge>
               </CardHeader>
               <CardContent>
@@ -722,12 +725,12 @@ const Veiculos = () => {
             </Card>
           </TabsContent>
 
-          {/* Tab Parcelas */}
+          {/* Tab Parcelas (Todas) */}
           <TabsContent value="parcelas" className="space-y-6">
             <Card className="glass-card">
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Parcelas de Seguro Pendentes</CardTitle>
-                <Badge variant="outline" className="border-warning text-warning">{parcelasPendentes.length} parcelas</Badge>
+                <CardTitle className="text-lg">Controle de Parcelas de Seguro</CardTitle>
+                <Badge variant="outline" className="border-primary text-primary">{allParcelas.length} parcelas</Badge>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -737,19 +740,27 @@ const Veiculos = () => {
                       <TableHead>Seguradora</TableHead>
                       <TableHead>Parcela</TableHead>
                       <TableHead>Vencimento</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead className="text-right">Valor Devido</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Data Pagamento</TableHead>
+                      <TableHead className="text-right">Valor Pago</TableHead>
                       <TableHead>Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {parcelasPendentes.map((item, index) => {
+                    {allParcelas.map((item, index) => {
                       const diasVenc = getDiasVencimento(item.parcela.vencimento);
-                      const vencida = diasVenc !== null && diasVenc < 0;
-                      const proximaVencer = diasVenc !== null && diasVenc >= 0 && diasVenc <= 7;
+                      const vencida = diasVenc !== null && diasVenc < 0 && !item.parcela.paga;
+                      const proximaVencer = diasVenc !== null && diasVenc >= 0 && diasVenc <= 7 && !item.parcela.paga;
                       
                       return (
-                        <TableRow key={`${item.seguro.id}-${item.parcela.numero}`}>
+                        <TableRow 
+                          key={`${item.seguro.id}-${item.parcela.numero}`}
+                          className={cn(
+                            item.parcela.paga ? "bg-success/5 hover:bg-success/10" : "hover:bg-muted/30",
+                            vencida && "bg-destructive/5 hover:bg-destructive/10"
+                          )}
+                        >
                           <TableCell className="flex items-center gap-2">
                             <Car className="w-4 h-4 text-primary" />
                             {item.veiculo?.modelo || "N/A"}
@@ -775,26 +786,51 @@ const Veiculos = () => {
                             R$ {item.parcela.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="border-warning text-warning">Pendente</Badge>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                item.parcela.paga ? "border-success text-success" : "border-warning text-warning"
+                              )}
+                            >
+                              {item.parcela.paga ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                              {item.parcela.paga ? 'Paga' : 'Pendente'}
+                            </Badge>
                           </TableCell>
                           <TableCell>
-                            {/* Botão que navega para a tela de ReceitasDespesas */}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => navigate('/receitas-despesas')}
-                              className="h-8 px-2 hover:bg-primary/10 hover:text-primary gap-1"
-                            >
-                              Pagar <ArrowRight className="w-3 h-3" />
-                            </Button>
+                            {item.transaction?.date ? new Date(item.transaction.date).toLocaleDateString("pt-BR") : '—'}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-success">
+                            {item.transaction?.amount ? `R$ ${item.transaction.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {!item.parcela.paga ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigate('/receitas-despesas')}
+                                className="h-8 px-2 hover:bg-primary/10 hover:text-primary gap-1"
+                              >
+                                Pagar <ArrowRight className="w-3 h-3" />
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => { /* Opção de estornar */ }}
+                                className="h-8 w-8 text-muted-foreground"
+                                title="Estornar pagamento"
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
                     })}
-                    {parcelasPendentes.length === 0 && (
+                    {allParcelas.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                          Nenhuma parcela pendente. Todas as parcelas foram pagas!
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                          Nenhuma parcela de seguro cadastrada.
                         </TableCell>
                       </TableRow>
                     )}

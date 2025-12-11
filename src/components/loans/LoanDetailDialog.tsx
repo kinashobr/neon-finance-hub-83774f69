@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils";
 interface LoanDetailDialogProps {
   emprestimo: Emprestimo | null;
   open: boolean;
-  onOpenChange: (open: boolean) => void; // CORREÇÃO: Tipagem alterada para (open: boolean) => void
+  onOpenChange: (open: boolean) => void;
 }
 
 export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailDialogProps) {
@@ -166,7 +166,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
               onSave={handleSaveConfig}
               onCancel={() => {
                 if (isPending) {
-                  onOpenChange(false); // CORREÇÃO: Passando boolean diretamente
+                  onOpenChange(false);
                 } else {
                   setIsEditing(false);
                 }

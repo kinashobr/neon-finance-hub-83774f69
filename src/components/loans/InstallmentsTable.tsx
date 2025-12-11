@@ -42,7 +42,7 @@ const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
 };
 
 export function InstallmentsTable({ emprestimo, className }: InstallmentsTableProps) {
-  const { transacoesV2, updateEmprestimo } = useFinance();
+  const { transacoesV2 } = useFinance();
   
   // Buscar transações de pagamento vinculadas a este empréstimo
   const payments = useMemo(() => {
@@ -61,6 +61,18 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
     let saldoDevedor = emprestimo.valorTotal;
     const result: Parcela[] = [];
 
+    // Mapear pagamentos por número de parcela (se disponível) ou por data
+    const paymentsMap = new Map<number, TransacaoCompleta>();
+    payments.forEach(p => {
+      if (p.links?.parcelaId) {
+        paymentsMap.set(parseInt(p.links.parcelaId), p);
+      } else {
+        // Fallback: tentar mapear pelo índice de parcela paga no empréstimo legado
+        // Isso é complexo e impreciso, mas necessário para dados legados sem parcelaId
+        // Para simplificar, vamos confiar no `parcelasPagas` do objeto emprestimo para dados legados
+      }
+    });
+
     for (let i = 1; i <= emprestimo.meses; i++) {
       const dataVencimento = getDueDate(emprestimo.dataInicio, i);
       
@@ -69,45 +81,46 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
       const amortizacao = emprestimo.parcela - juros;
       
       // Encontrar pagamento real
-      const payment = payments.find(p => {
-        // Tentativa de encontrar pelo número da parcela (se registrado)
-        if (p.links?.parcelaId) {
-          return parseInt(p.links.parcelaId) === i;
-        }
-        // Fallback: se a transação ocorreu no mês de vencimento
-        const paymentDate = new Date(p.date + "T00:00:00");
-        return paymentDate.getMonth() === dataVencimento.getMonth() && 
-               paymentDate.getFullYear() === dataVencimento.getFullYear();
-      });
+      const payment = paymentsMap.get(i);
+      
+      // Se não encontrou pelo ID, e se for uma parcela paga no sistema legado
+      const isLegadoPaid = !payment && i <= (emprestimo.parcelasPagas || 0);
 
       let status: Parcela["status"] = "pendente";
       let dataPagamento: string | undefined;
       let valorPago: number | undefined;
       let diferencaJuros: number | undefined;
       let diasDiferenca: number | undefined;
+      let amortizacaoEfetiva = amortizacao;
 
-      if (payment) {
+      if (payment || isLegadoPaid) {
         status = "pago";
-        dataPagamento = payment.date;
-        valorPago = payment.amount;
         
-        const paymentDate = new Date(dataPagamento + "T00:00:00");
-        const diffTime = paymentDate.getTime() - dataVencimento.getTime();
-        diasDiferenca = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        if (payment) {
+          dataPagamento = payment.date;
+          valorPago = payment.amount;
+          
+          const paymentDate = new Date(dataPagamento + "T00:00:00");
+          const diffTime = paymentDate.getTime() - dataVencimento.getTime();
+          diasDiferenca = Math.round(diffTime / (1000 * 60 * 60 * 24));
+          
+          diferencaJuros = valorPago - emprestimo.parcela;
+          amortizacaoEfetiva = emprestimo.parcela - juros; // Mantemos a amortização esperada
+        } else if (isLegadoPaid) {
+          // Dados legados
+          dataPagamento = 'N/A';
+          valorPago = emprestimo.parcela;
+          diferencaJuros = 0;
+        }
         
-        // Diferença de juros: valor pago - valor esperado da parcela
-        // Se positivo: juros por atraso. Se negativo: desconto por adiantamento.
-        diferencaJuros = valorPago - emprestimo.parcela;
-
         // Atualiza saldo devedor com base na amortização esperada
-        saldoDevedor = Math.max(0, saldoDevedor - amortizacao);
+        saldoDevedor = Math.max(0, saldoDevedor - amortizacaoEfetiva);
       } else {
         // Se não foi pago e a data de vencimento já passou
         if (dataVencimento < hoje) {
           status = "atrasado";
         }
-        // Atualiza saldo devedor com base na amortização esperada
-        saldoDevedor = Math.max(0, saldoDevedor - amortizacao);
+        // O saldo devedor não é atualizado se a parcela não foi paga
       }
       
       result.push({
@@ -116,7 +129,7 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
         valorTotal: emprestimo.parcela,
         juros: Math.max(0, juros),
         amortizacao: Math.max(0, amortizacao),
-        saldoDevedor,
+        saldoDevedor: status === 'pago' ? saldoDevedor : saldoDevedor + amortizacao, // Se não pago, o saldo devedor é o anterior
         status,
         dataPagamento,
         valorPago,
@@ -124,6 +137,53 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
         diasDiferenca,
       });
     }
+
+    // Recalcular o saldo devedor para as parcelas não pagas
+    let saldoAtual = emprestimo.valorTotal;
+    for (let i = 0; i < result.length; i++) {
+      const parcela = result[i];
+      const juros = saldoAtual * taxa;
+      const amortizacao = emprestimo.parcela - juros;
+
+      if (parcela.status === 'pago') {
+        saldoAtual = Math.max(0, saldoAtual - amortizacao);
+      }
+      
+      parcela.saldoDevedor = saldoAtual;
+      if (parcela.status !== 'pago') {
+        parcela.saldoDevedor = saldoAtual - amortizacao; // Saldo devedor antes do pagamento
+      }
+    }
+    
+    // Correção final do saldo devedor
+    let saldoCorrigido = emprestimo.valorTotal;
+    for (let i = 0; i < result.length; i++) {
+      const parcela = result[i];
+      const juros = saldoCorrigido * taxa;
+      const amortizacao = emprestimo.parcela - juros;
+      
+      parcela.juros = Math.max(0, juros);
+      parcela.amortizacao = Math.max(0, amortizacao);
+      
+      if (parcela.status === 'pago') {
+        saldoCorrigido = Math.max(0, saldoCorrigido - amortizacao);
+      }
+      parcela.saldoDevedor = saldoCorrigido;
+    }
+    
+    // Ajustar o saldo devedor para mostrar o saldo ANTES do pagamento da parcela
+    for (let i = 0; i < result.length; i++) {
+      const parcela = result[i];
+      if (parcela.status === 'pago') {
+        parcela.saldoDevedor = parcela.saldoDevedor + parcela.amortizacao;
+      }
+    }
+    
+    // A última parcela paga deve ter saldo devedor 0
+    if (result.length > 0 && result[result.length - 1].status === 'pago') {
+      result[result.length - 1].saldoDevedor = 0;
+    }
+
 
     return result;
   }, [emprestimo, payments]);
@@ -158,7 +218,6 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
       </div>
 
       <div className="rounded-lg border border-border overflow-hidden">
-        {/* Aumentando a altura máxima para melhor visualização */}
         <div className="max-h-[50vh] overflow-y-auto scrollbar-thin">
           <Table>
             <TableHeader className="sticky top-0 bg-card z-10">
@@ -166,12 +225,12 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
                 <TableHead className="text-muted-foreground w-16">Nº</TableHead>
                 <TableHead className="text-muted-foreground">Vencimento</TableHead>
                 <TableHead className="text-muted-foreground">Pagamento</TableHead>
-                <TableHead className="text-muted-foreground text-right">Valor Devido</TableHead>
+                <TableHead className="text-muted-foreground text-right">Valor Parcela</TableHead>
                 <TableHead className="text-muted-foreground text-right">Juros</TableHead>
                 <TableHead className="text-muted-foreground text-right">Amortização</TableHead>
-                <TableHead className="text-muted-foreground text-right">Saldo</TableHead>
+                <TableHead className="text-muted-foreground text-right">Saldo Devedor</TableHead>
                 <TableHead className="text-muted-foreground text-center">Status</TableHead>
-                <TableHead className="text-muted-foreground text-center">Ajuste</TableHead>
+                <TableHead className="text-muted-foreground text-center">Valor Pago</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -184,8 +243,9 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
                   <TableRow
                     key={parcela.numero}
                     className={cn(
-                      "border-border hover:bg-muted/30 transition-colors",
-                      isPaid && "opacity-80 bg-success/5"
+                      "border-border transition-colors",
+                      isPaid ? "bg-success/5 hover:bg-success/10" : "hover:bg-muted/30",
+                      parcela.status === 'atrasado' && "bg-destructive/5 hover:bg-destructive/10"
                     )}
                   >
                     <TableCell className="font-medium">{parcela.numero}</TableCell>
@@ -194,7 +254,7 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
                       {parcela.dataPagamento ? new Date(parcela.dataPagamento + "T00:00:00").toLocaleDateString("pt-BR") : '-'}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {formatCurrency(parcela.valorTotal)}
+                      {formatCurrency(emprestimo.parcela)}
                     </TableCell>
                     <TableCell className="text-right text-warning">
                       {formatCurrency(parcela.juros)}
@@ -211,22 +271,8 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
                         {config.label}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-center">
-                      {parcela.diferencaJuros !== undefined && parcela.diferencaJuros !== 0 ? (
-                        <div className={cn(
-                          "flex items-center justify-end gap-1 text-xs font-medium",
-                          parcela.diferencaJuros > 0 ? "text-destructive" : "text-success"
-                        )}>
-                          {parcela.diferencaJuros > 0 ? (
-                            <TrendingUp className="w-3 h-3" />
-                          ) : (
-                            <TrendingDown className="w-3 h-3" />
-                          )}
-                          {formatCurrency(Math.abs(parcela.diferencaJuros))}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
+                    <TableCell className="text-center font-medium">
+                      {isPaid ? formatCurrency(parcela.valorPago || emprestimo.parcela) : '-'}
                     </TableCell>
                   </TableRow>
                 );
@@ -247,7 +293,7 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
         <div className="text-center">
           <p className="text-xs text-muted-foreground">Total Restante</p>
           <p className="text-lg font-bold text-destructive">
-            {formatCurrency(totalRestante)}
+            {formatCurrency(emprestimo.valorTotal - totalPago)}
           </p>
         </div>
         <div className="text-center">

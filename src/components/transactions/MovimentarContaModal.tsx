@@ -1,26 +1,27 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { 
   TrendingUp, TrendingDown, ArrowLeftRight, PiggyBank, Wallet, 
-  CreditCard, AlertTriangle, Check, Plus, Info, Car, Banknote, DollarSign, Shield, X
+  CreditCard, AlertTriangle, Check, Plus, Info, Car, Banknote, DollarSign, Shield, X, Search
 } from "lucide-react";
 import { 
   OperationType, ContaCorrente, Categoria, AccountType,
   TransacaoCompleta, formatCurrency, generateTransactionId,
-  generateTransferGroupId, getFlowTypeFromOperation, getDomainFromOperation,
+  generateTransferGroupId, getDomainFromOperation,
   TransferGroup
 } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { SeguroParcelaSelector } from "./SeguroParcelaSelector"; // Importando o novo componente
+import { SeguroParcelaSelector } from "./SeguroParcelaSelector";
 
 interface LoanParcela {
   numero: number;
@@ -55,16 +56,13 @@ interface MovimentarContaModalProps {
 const getOperationsForAccountType = (accountType: AccountType): OperationType[] => {
   switch (accountType) {
     case 'conta_corrente':
-      // Conta corrente: Receita, Despesa, Transferência, Aplicação, Resgate, Pagamento/Liberação Empréstimo, Veículos
       return ['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'rendimento'];
     case 'aplicacao_renda_fixa':
     case 'poupanca':
     case 'reserva_emergencia':
     case 'objetivos_financeiros':
-      // Investimentos com rendimentos: apenas rendimentos (aplicação/resgate via conta corrente)
       return ['rendimento'];
     case 'criptoativos':
-      // Criptoativos: sem operações diretas, tudo via conta corrente
       return [];
     default:
       return ['receita', 'despesa'];
@@ -111,6 +109,10 @@ export function MovimentarContaModal({
   const [showSeguroSelector, setShowSeguroSelector] = useState(false);
   const [seguroLink, setSeguroLink] = useState<{ seguroId: number; parcelaNumero: number; valor: number; vencimento: string } | null>(null);
 
+  // Estado para busca de categoria
+  const [categorySearchTerm, setCategorySearchTerm] = useState('');
+  const [isCategoryPopoverOpen, setIsCategoryPopoverOpen] = useState(false);
+
   const isEditing = !!editingTransaction;
 
   const selectedAccount = useMemo(() => 
@@ -123,6 +125,36 @@ export function MovimentarContaModal({
     if (!selectedAccount) return ['receita', 'despesa'] as OperationType[];
     return getOperationsForAccountType(selectedAccount.accountType);
   }, [selectedAccount]);
+
+  const resetForm = useCallback((keepOpen: boolean) => {
+    const defaultAccount = accounts.find(a => a.id === selectedAccountId) || accounts[0];
+    setAccountId(defaultAccount?.id || '');
+    
+    if (defaultAccount) {
+      const ops = getOperationsForAccountType(defaultAccount.accountType);
+      setOperationType(ops[0] || 'receita');
+    } else {
+      setOperationType('receita');
+    }
+    
+    setDate(new Date().toISOString().split('T')[0]);
+    setAmount('');
+    setDescription('');
+    setCategoryId('');
+    setAccountDestinoId('');
+    setInvestmentId('');
+    setLoanId('');
+    setParcelaId('');
+    setVehicleOperation('compra');
+    setNumeroContrato('');
+    setSeguroLink(null);
+    setCategorySearchTerm('');
+    setIsCategoryPopoverOpen(false);
+
+    if (!keepOpen) {
+      onOpenChange(false);
+    }
+  }, [accounts, selectedAccountId, onOpenChange]);
 
   // Reset ou preencher quando modal abre
   useEffect(() => {
@@ -140,12 +172,10 @@ export function MovimentarContaModal({
         setVehicleOperation(editingTransaction.meta.vehicleOperation || 'compra');
         setNumeroContrato(editingTransaction.meta.numeroContrato || '');
         
-        // Load seguro link if present
         if (editingTransaction.links.vehicleTransactionId) {
           const [seguroIdStr, parcelaNumeroStr] = editingTransaction.links.vehicleTransactionId.split('_');
           const seguroId = parseInt(seguroIdStr);
           const parcelaNumero = parseInt(parcelaNumeroStr);
-          // NOTE: Não temos o valor e vencimento aqui, mas podemos ignorar para edição
           if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
             setSeguroLink({ seguroId, parcelaNumero, valor: editingTransaction.amount, vencimento: editingTransaction.date });
           }
@@ -153,30 +183,10 @@ export function MovimentarContaModal({
           setSeguroLink(null);
         }
       } else {
-        const defaultAccount = accounts.find(a => a.id === selectedAccountId) || accounts[0];
-        setAccountId(defaultAccount?.id || '');
-        
-        if (defaultAccount) {
-          const ops = getOperationsForAccountType(defaultAccount.accountType);
-          setOperationType(ops[0] || 'receita');
-        } else {
-          setOperationType('receita');
-        }
-        
-        setDate(new Date().toISOString().split('T')[0]);
-        setAmount('');
-        setDescription('');
-        setCategoryId('');
-        setAccountDestinoId('');
-        setInvestmentId('');
-        setLoanId('');
-        setParcelaId('');
-        setVehicleOperation('compra');
-        setNumeroContrato('');
-        setSeguroLink(null);
+        resetForm(true);
       }
     }
-  }, [open, selectedAccountId, accounts, editingTransaction]);
+  }, [open, selectedAccountId, accounts, editingTransaction, resetForm]);
 
   // Update operation when account changes
   useEffect(() => {
@@ -193,11 +203,9 @@ export function MovimentarContaModal({
     const seguroCategory = categories.find(c => c.label.toLowerCase() === 'seguro');
     
     if (operationType === 'despesa' && categoryId === seguroCategory?.id && !seguroLink) {
-      // Se a categoria 'Seguro' foi selecionada, abre o seletor de parcelas
       setShowSeguroSelector(true);
     }
     
-    // Se o link de seguro foi preenchido, atualiza valor e descrição
     if (seguroLink) {
       setAmount(seguroLink.valor.toString());
       setDate(seguroLink.vencimento);
@@ -213,8 +221,6 @@ export function MovimentarContaModal({
   // Calculate current balance including all transactions
   const currentBalance = useMemo(() => {
     if (!selectedAccount) return 0;
-    // Note: This is a simplified calculation. In production, you'd get this from context
-    // For now, we use initialBalance as the modal doesn't have access to all transactions
     return selectedAccount.initialBalance;
   }, [selectedAccount]);
 
@@ -238,13 +244,19 @@ export function MovimentarContaModal({
   const isNegativeBalance = projectedBalance < 0;
 
   const filteredCategories = useMemo(() => {
+    let filtered = categories;
     if (operationType === 'receita') {
-      return categories.filter(c => c.nature === 'receita' || c.type === 'income' || c.type === 'both');
+      filtered = categories.filter(c => c.nature === 'receita' || c.type === 'income' || c.type === 'both');
     } else if (operationType === 'despesa') {
-      return categories.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel' || c.type === 'expense' || c.type === 'both');
+      filtered = categories.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel' || c.type === 'expense' || c.type === 'both');
     }
-    return categories;
-  }, [categories, operationType]);
+    
+    if (categorySearchTerm) {
+      filtered = filtered.filter(c => c.label.toLowerCase().includes(categorySearchTerm.toLowerCase()));
+    }
+    
+    return filtered;
+  }, [categories, operationType, categorySearchTerm]);
 
   // Contas de investimento disponíveis para aplicação/resgate
   const investmentAccounts = useMemo(() => 
@@ -260,7 +272,7 @@ export function MovimentarContaModal({
 
   const canSubmit = useMemo(() => {
     if (!accountId || !date) return false;
-    if (parsedAmount <= 0) return false; // Validation: no negative or zero values
+    if (parsedAmount <= 0) return false;
     
     if (operationType === 'transferencia' && !accountDestinoId) return false;
     if (operationType === 'transferencia' && accountId === accountDestinoId) return false;
@@ -269,7 +281,6 @@ export function MovimentarContaModal({
     if (operationType === 'pagamento_emprestimo' && (!loanId || !parcelaId)) return false;
     if (operationType === 'liberacao_emprestimo' && !numeroContrato.trim()) return false;
     
-    // Validação específica para Seguro
     const seguroCategory = categories.find(c => c.label.toLowerCase() === 'seguro');
     if (operationType === 'despesa' && categoryId === seguroCategory?.id && !seguroLink) return false;
 
@@ -292,7 +303,6 @@ export function MovimentarContaModal({
     const transactionId = editingTransaction?.id || generateTransactionId();
     const now = new Date().toISOString();
 
-    // Determine flow type
     const isIncoming = operationType === 'receita' || operationType === 'resgate' || 
                        operationType === 'liberacao_emprestimo' || operationType === 'rendimento' ||
                        (operationType === 'veiculo' && vehicleOperation === 'venda');
@@ -344,11 +354,16 @@ export function MovimentarContaModal({
     }
 
     onSubmit(transaction, transferGroup);
-    onOpenChange(false);
-    toast.success(isEditing ? "Transação atualizada!" : "Movimentação registrada!");
+    
+    // Manter modal aberto e resetar formulário se não estiver editando
+    if (!isEditing) {
+      toast.success("Movimentação registrada! Pronto para o próximo lançamento.");
+      resetForm(true);
+    } else {
+      onOpenChange(false);
+    }
   };
 
-  // Renderização condicional baseada no tipo de conta
   const renderOperationOptions = () => {
     if (availableOperations.length === 0) {
       return (
@@ -361,7 +376,6 @@ export function MovimentarContaModal({
       );
     }
 
-    // Para contas de renda fixa - mostrar apenas Rendimento com layout simplificado
     if (availableOperations.length === 1 && availableOperations[0] === 'rendimento') {
       return (
         <div className="p-3 rounded-lg bg-teal-500/10 border border-teal-500/20">
@@ -376,7 +390,6 @@ export function MovimentarContaModal({
       );
     }
 
-    // Para conta corrente - grid de operações
     return (
       <div className="space-y-2">
         <Label>Tipo de Operação</Label>
@@ -410,12 +423,13 @@ export function MovimentarContaModal({
 
   const handleSelectSeguroParcela = (seguroId: number, parcelaNumero: number, valor: number, vencimento: string) => {
     setSeguroLink({ seguroId, parcelaNumero, valor, vencimento });
-    // Garante que a categoria 'Seguro' esteja selecionada
     const seguroCategory = categories.find(c => c.label.toLowerCase() === 'seguro');
     if (seguroCategory) {
       setCategoryId(seguroCategory.id);
     }
   };
+
+  const selectedCategory = categories.find(c => c.id === categoryId);
 
   return (
     <>
@@ -511,6 +525,30 @@ export function MovimentarContaModal({
                 </p>
               </div>
             )}
+            
+            {/* Transferência - conta destino */}
+            {operationType === 'transferencia' && (
+              <div className="space-y-2">
+                <Label htmlFor="accountDestinoId">Conta Destino *</Label>
+                <Select value={accountDestinoId} onValueChange={setAccountDestinoId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a conta destino..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts
+                      .filter(a => a.id !== accountId)
+                      .map(account => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {accountId === accountDestinoId && (
+                  <p className="text-xs text-destructive">Conta de origem e destino não podem ser a mesma.</p>
+                )}
+              </div>
+            )}
 
             {/* Data e Valor */}
             <div className="grid grid-cols-2 gap-4">
@@ -521,7 +559,7 @@ export function MovimentarContaModal({
                   type="date"
                   value={date}
                   onChange={e => setDate(e.target.value)}
-                  disabled={!!seguroLink} // Desabilita se for pagamento de seguro
+                  disabled={!!seguroLink}
                 />
               </div>
               <div className="space-y-2">
@@ -533,7 +571,7 @@ export function MovimentarContaModal({
                   placeholder="0,00"
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
-                  disabled={!!seguroLink} // Desabilita se for pagamento de seguro
+                  disabled={!!seguroLink}
                 />
               </div>
             </div>
@@ -554,27 +592,67 @@ export function MovimentarContaModal({
             {(operationType === 'receita' || operationType === 'despesa') && (
               <div className="space-y-2">
                 <Label htmlFor="categoryId">Categoria *</Label>
-                <Select 
-                  value={categoryId} 
-                  onValueChange={(v) => {
-                    setCategoryId(v);
-                    setSeguroLink(null); // Limpa o link de seguro ao mudar a categoria
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a categoria..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredCategories.map(cat => (
-                      <SelectItem key={cat.id} value={cat.id}>
+                <Popover open={isCategoryPopoverOpen} onOpenChange={setIsCategoryPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className={cn(
+                        "w-full justify-between",
+                        !categoryId && "text-muted-foreground"
+                      )}
+                    >
+                      {selectedCategory ? (
                         <span className="flex items-center gap-2">
-                          <span>{cat.icon}</span>
-                          {cat.label}
+                          <span>{selectedCategory.icon}</span>
+                          {selectedCategory.label}
                         </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      ) : (
+                        "Selecione a categoria..."
+                      )}
+                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0">
+                    <div className="relative p-2">
+                      <Search className="absolute left-4 top-4 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar categoria..."
+                        className="pl-10 h-9"
+                        value={categorySearchTerm}
+                        onChange={(e) => setCategorySearchTerm(e.target.value)}
+                      />
+                    </div>
+                    <ScrollArea className="h-60">
+                      <div className="p-2">
+                        {filteredCategories.length === 0 ? (
+                          <p className="text-center text-sm text-muted-foreground py-4">
+                            Nenhuma categoria encontrada.
+                          </p>
+                        ) : (
+                          filteredCategories.map(cat => (
+                            <div
+                              key={cat.id}
+                              className={cn(
+                                "flex items-center gap-2 p-2 rounded-md cursor-pointer hover:bg-muted/50 text-sm",
+                                categoryId === cat.id && "bg-primary/10 text-primary font-medium"
+                              )}
+                              onClick={() => {
+                                setCategoryId(cat.id);
+                                setIsCategoryPopoverOpen(false);
+                                setCategorySearchTerm('');
+                                setSeguroLink(null); // Limpa o link de seguro ao mudar a categoria
+                              }}
+                            >
+                              <span>{cat.icon}</span>
+                              {cat.label}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
                 
                 {/* Indicador de Parcela de Seguro Selecionada */}
                 {seguroLink && (
