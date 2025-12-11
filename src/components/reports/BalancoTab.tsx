@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { ACCOUNT_TYPE_LABELS } from "@/types/finance";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { DateRange } from "../dashboard/DateRangePicker";
 
 const COLORS = {
   success: "hsl(142, 76%, 36%)",
@@ -78,7 +79,11 @@ const PIE_COLORS = [
 // Define o tipo de status esperado pelo IndicatorBadge
 type IndicatorStatus = "success" | "warning" | "danger" | "neutral";
 
-export function BalancoTab() {
+interface BalancoTabProps {
+  dateRange: DateRange;
+}
+
+export function BalancoTab({ dateRange }: BalancoTabProps) {
   const {
     transacoesV2,
     contasMovimento,
@@ -91,6 +96,23 @@ export function BalancoTab() {
     categoriasV2,
   } = useFinance();
 
+  // 1. Filtrar transações pelo período selecionado
+  const filteredTransacoesV2 = useMemo(() => {
+    if (!dateRange.from || !dateRange.to) return transacoesV2;
+    
+    const endOfDay = new Date(dateRange.to);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return transacoesV2.filter(t => {
+      try {
+        const dataT = parseISO(t.date);
+        return isWithinInterval(dataT, { start: dateRange.from!, end: endOfDay });
+      } catch {
+        return false;
+      }
+    });
+  }, [transacoesV2, dateRange]);
+
   // Calcula saldo de cada conta baseado em transações
   const saldosPorConta = useMemo(() => {
     const saldos: Record<string, number> = {};
@@ -99,7 +121,7 @@ export function BalancoTab() {
       saldos[conta.id] = conta.initialBalance;
     });
 
-    transacoesV2.forEach(t => {
+    transacoesV2.forEach(t => { // Usamos todas as transações para o saldo atual
       if (!saldos[t.accountId]) saldos[t.accountId] = 0;
       
       if (t.flow === 'in' || t.flow === 'transfer_in') {
@@ -178,9 +200,9 @@ export function BalancoTab() {
     // === PATRIMÔNIO LÍQUIDO ===
     const patrimonioLiquido = totalAtivos - totalPassivos;
 
-    // === VARIAÇÃO MENSAL ===
-    const transacoesMesAtual = transacoesV2.filter(t => t.date.startsWith(mesAtual));
-    const transacoesMesAnterior = transacoesV2.filter(t => t.date.startsWith(mesAnterior));
+    // === VARIAÇÃO MENSAL (Baseado no período filtrado) ===
+    const transacoesMesAtual = filteredTransacoesV2.filter(t => t.date.startsWith(mesAtual));
+    const transacoesMesAnterior = transacoesV2.filter(t => t.date.startsWith(mesAnterior)); // Usa transacoesV2 total para comparação histórica
     
     const calcularResultado = (transacoes: typeof transacoesV2) => {
       const entradas = transacoes
@@ -192,7 +214,7 @@ export function BalancoTab() {
       return entradas - saidas;
     };
 
-    const resultadoMesAtual = calcularResultado(transacoesMesAtual);
+    const resultadoMesAtual = calcularResultado(filteredTransacoesV2); // Resultado do período filtrado
     const resultadoMesAnterior = calcularResultado(transacoesMesAnterior);
     const variacaoMensal = resultadoMesAnterior !== 0
       ? ((resultadoMesAtual - resultadoMesAnterior) / Math.abs(resultadoMesAnterior)) * 100
@@ -226,7 +248,7 @@ export function BalancoTab() {
       variacaoMensal,
       resultadoMesAtual,
     };
-  }, [transacoesV2, contasMovimento, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, saldosPorConta]);
+  }, [contasMovimento, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, saldosPorConta, filteredTransacoesV2, transacoesV2]);
 
   // Evolução do PL nos últimos 12 meses
   const evolucaoPL = useMemo(() => {
@@ -793,7 +815,7 @@ export function BalancoTab() {
             value={formatPercent(metricas.endividamento.valor)}
             status={metricas.endividamento.status}
             trend={metricas.endividamento.valor < 30 ? "up" : "down"}
-            descricao="Percentual dos ativos comprometidos com dívidas. Ideal: abaixo de 30%"
+            descricao="Percentual dos ativos comprometidos com dívidas. Quanto menor, melhor. Ideal: abaixo de 30%"
             formula="(Passivo Total / Ativo Total) × 100"
             sparklineData={generateSparkline(metricas.endividamento.valor, metricas.endividamento.valor < 30 ? "down" : "up")}
             icon={<CreditCard className="w-4 h-4" />}
