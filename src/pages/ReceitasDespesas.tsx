@@ -78,47 +78,100 @@ const ReceitasDespesas = () => {
   const transactions = transacoesV2;
   const categories = categoriasV2;
 
-  // Filter transactions
+  const handlePeriodChange = useCallback((period: PeriodRange) => {
+    setPeriodRange(period);
+  }, []);
+
   const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
-  
+
+  // Helper function to calculate balance up to a specific date (exclusive)
+  const calculateBalanceUpToDate = useCallback((accountId: string, date: Date | undefined, allTransactions: TransacaoCompleta[], accounts: ContaCorrente[]): number => {
+    const account = accounts.find(a => a.id === accountId);
+    if (!account) return 0;
+
+    let balance = account.initialBalance;
+    
+    // If no date is provided, calculate global balance (end of all history)
+    const targetDate = date || new Date(9999, 11, 31);
+
+    const transactionsBeforeDate = allTransactions
+        .filter(t => t.accountId === accountId && new Date(t.date) < targetDate)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    transactionsBeforeDate.forEach(t => {
+        if (t.flow === 'in' || t.flow === 'transfer_in') {
+            balance += t.amount;
+        } else {
+            balance -= t.amount;
+        }
+    });
+
+    return balance;
+  }, []);
+
+  // Filter transactions
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       const matchSearch = !searchTerm || t.description.toLowerCase().includes(searchTerm.toLowerCase());
       const matchAccount = selectedAccountId === 'all' || t.accountId === selectedAccountId;
       const matchCategory = selectedCategoryId === 'all' || t.categoryId === selectedCategoryId;
       const matchType = selectedTypes.includes(t.operationType);
-      const matchDateFrom = !dateFrom || t.date >= dateFrom;
-      const matchDateTo = !dateTo || t.date <= dateTo;
-      const matchPeriod = !dateRange.from || !dateRange.to || 
-        (new Date(t.date) >= dateRange.from && new Date(t.date) <= dateRange.to);
       
-      return matchSearch && matchAccount && matchCategory && matchType && matchDateFrom && matchDateTo && matchPeriod;
+      const transactionDate = new Date(t.date);
+      
+      // Prioritize dateRange if set, otherwise use dateFrom/dateTo state
+      const matchPeriod = (dateRange.from || dateRange.to)
+        ? ((!dateRange.from || transactionDate >= dateRange.from) && (!dateRange.to || transactionDate <= dateRange.to))
+        : ((!dateFrom || t.date >= dateFrom) && (!dateTo || t.date <= dateTo));
+      
+      return matchSearch && matchAccount && matchCategory && matchType && matchPeriod;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, searchTerm, selectedAccountId, selectedCategoryId, selectedTypes, dateFrom, dateTo, dateRange]);
 
   // Calculate account summaries
   const accountSummaries: AccountSummary[] = useMemo(() => {
+    const periodStart = dateRange.from;
+    const periodEnd = dateRange.to;
+    
     return accounts.map(account => {
-      const accountTx = transactions.filter(t => t.accountId === account.id);
-      const totalIn = accountTx.filter(t => t.flow === 'in' || t.flow === 'transfer_in').reduce((s, t) => s + t.amount, 0);
-      const totalOut = accountTx.filter(t => t.flow === 'out' || t.flow === 'transfer_out').reduce((s, t) => s + t.amount, 0);
-      const currentBalance = account.initialBalance + totalIn - totalOut;
+      // 1. Calculate Period Initial Balance (balance right before periodStart)
+      const periodInitialBalance = periodStart 
+        ? calculateBalanceUpToDate(account.id, periodStart, transactions, accounts)
+        : calculateBalanceUpToDate(account.id, undefined, transactions, accounts); // If no period selected, show global current balance as initial balance (end of all history)
+
+      // 2. Calculate Period Transactions (transactions within the selected period)
+      const accountTxInPeriod = transactions.filter(t => {
+        if (t.accountId !== account.id) return false;
+        const transactionDate = new Date(t.date);
+        return (!periodStart || transactionDate >= periodStart) && 
+               (!periodEnd || transactionDate <= periodEnd);
+      });
+
+      // 3. Calculate Period Totals
+      const totalIn = accountTxInPeriod.filter(t => t.flow === 'in' || t.flow === 'transfer_in').reduce((s, t) => s + t.amount, 0);
+      const totalOut = accountTxInPeriod.filter(t => t.flow === 'out' || t.flow === 'transfer_out').reduce((s, t) => s + t.amount, 0);
       
+      // 4. Calculate Period Final Balance
+      const periodFinalBalance = periodInitialBalance + totalIn - totalOut;
+      
+      // 5. Reconciliation Status (based on transactions in the period)
+      const reconciliationStatus = accountTxInPeriod.every(t => t.conciliated) ? 'ok' : 'warning' as const;
+
       return {
         accountId: account.id,
         accountName: account.name,
         accountType: account.accountType,
         institution: account.institution,
-        initialBalance: account.initialBalance,
-        currentBalance,
-        projectedBalance: currentBalance,
+        initialBalance: periodInitialBalance, // Saldo Inicial (período)
+        currentBalance: periodFinalBalance, // Saldo Final (período)
+        projectedBalance: periodFinalBalance, // Simplified: using final balance as projected for now
         totalIn,
         totalOut,
-        reconciliationStatus: accountTx.every(t => t.conciliated) ? 'ok' : 'warning' as const,
-        transactionCount: accountTx.length
+        reconciliationStatus,
+        transactionCount: accountTxInPeriod.length
       };
     });
-  }, [accounts, transactions]);
+  }, [accounts, transactions, dateRange, calculateBalanceUpToDate]);
 
   // Handlers
   const handleMovimentar = (accountId: string) => {
@@ -447,7 +500,7 @@ const ReceitasDespesas = () => {
               <p className="text-muted-foreground mt-1">Contas Movimento e conciliação bancária</p>
             </div>
             <div className="flex items-center gap-2">
-              <PeriodSelector tabId="receitas-despesas" onPeriodChange={setPeriodRange} />
+              <PeriodSelector tabId="receitas-despesas" onPeriodChange={handlePeriodChange} />
               <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)}>
                 <Tags className="w-4 h-4 mr-2" />Categorias
               </Button>
