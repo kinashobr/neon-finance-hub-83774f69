@@ -132,6 +132,9 @@ function DREItem({ label, value, type, level = 0, icon, subItems }: DREItemProps
   );
 }
 
+// Define o tipo de status esperado pelos componentes ReportCard e IndicatorBadge
+type KPIStatus = "success" | "warning" | "danger" | "neutral" | "info";
+
 export function DRETab() {
   const {
     transacoesV2,
@@ -311,11 +314,26 @@ export function DRETab() {
       resultadoLiquido,
       evolucaoMensal,
       kpis: {
-        margemBruta: { valor: margemBruta, status: margemBruta >= 40 ? "success" : margemBruta >= 20 ? "warning" : "danger" as const },
-        margemOperacional: { valor: margemOperacional, status: margemOperacional >= 20 ? "success" : margemOperacional >= 10 ? "warning" : "danger" as const },
-        margemLiquida: { valor: margemLiquida, status: margemLiquida >= 15 ? "success" : margemLiquida >= 5 ? "warning" : "danger" as const },
-        indiceEficiencia: { valor: indiceEficiencia, status: indiceEficiencia <= 70 ? "success" : indiceEficiencia <= 85 ? "warning" : "danger" as const },
-        comprometimentoFixo: { valor: comprometimentoFixo, status: comprometimentoFixo <= 40 ? "success" : comprometimentoFixo <= 60 ? "warning" : "danger" as const },
+        margemBruta: { 
+          valor: margemBruta, 
+          status: (margemBruta >= 40 ? "success" : margemBruta >= 20 ? "warning" : "danger") as KPIStatus 
+        },
+        margemOperacional: { 
+          valor: margemOperacional, 
+          status: (margemOperacional >= 20 ? "success" : margemOperacional >= 10 ? "warning" : "danger") as KPIStatus 
+        },
+        margemLiquida: { 
+          valor: margemLiquida, 
+          status: (margemLiquida >= 15 ? "success" : margemLiquida >= 5 ? "warning" : "danger") as KPIStatus 
+        },
+        indiceEficiencia: { 
+          valor: indiceEficiencia, 
+          status: (indiceEficiencia <= 70 ? "success" : indiceEficiencia <= 85 ? "warning" : "danger") as KPIStatus 
+        },
+        comprometimentoFixo: { 
+          valor: comprometimentoFixo, 
+          status: (comprometimentoFixo <= 40 ? "success" : comprometimentoFixo <= 60 ? "warning" : "danger") as KPIStatus 
+        },
       },
       periodo: {
         inicio: format(dataInicio, 'dd/MM/yyyy'),
