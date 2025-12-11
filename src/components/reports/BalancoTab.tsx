@@ -94,41 +94,8 @@ export function BalancoTab({ dateRange }: BalancoTabProps) {
     stablecoins,
     objetivos,
     categoriasV2,
+    calculateBalanceUpToDate, // Usando a função centralizada
   } = useFinance();
-
-  // Helper para calcular saldo até uma data (usado para saldo inicial do período)
-  const calculateBalanceUpToDate = (accountId: string, date: Date, allTransactions: typeof transacoesV2, accounts: typeof contasMovimento): number => {
-    const account = accounts.find(a => a.id === accountId);
-    if (!account) return 0;
-
-    // Se a conta tem startDate, o saldo inicial é 0 e dependemos da transação sintética.
-    // Caso contrário, usamos o initialBalance legado.
-    let balance = account.startDate ? 0 : account.initialBalance; // MODIFICADO
-    
-    const transactionsBeforeDate = allTransactions
-        .filter(t => t.accountId === accountId && parseISO(t.date) < date)
-        .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
-
-    transactionsBeforeDate.forEach(t => {
-        const isCreditCard = account.accountType === 'cartao_credito';
-        
-        if (isCreditCard) {
-          if (t.operationType === 'despesa') {
-            balance -= t.amount;
-          } else if (t.operationType === 'transferencia') {
-            balance += t.amount;
-          }
-        } else {
-          if (t.flow === 'in' || t.flow === 'transfer_in') {
-            balance += t.amount;
-          } else {
-            balance -= t.amount;
-          }
-        }
-    });
-
-    return balance;
-  };
 
   // 1. Filtrar transações para o período selecionado
   const transacoesPeriodo = useMemo(() => {
@@ -151,8 +118,8 @@ export function BalancoTab({ dateRange }: BalancoTabProps) {
     contasMovimento.forEach(conta => {
       // O saldo inicial é o saldo acumulado ANTES do período
       const saldoInicialPeriodo = dateRange.from 
-        ? calculateBalanceUpToDate(conta.id, dateRange.from, transacoesV2, contasMovimento)
-        : calculateBalanceUpToDate(conta.id, new Date(9999, 11, 31), transacoesV2, contasMovimento); // Se não há data de início, usa o saldo final global
+        ? calculateBalanceUpToDate(conta.id, dateRange.from)
+        : calculateBalanceUpToDate(conta.id, undefined); // Se não há data de início, usa o saldo final global
         
       saldos[conta.id] = saldoInicialPeriodo;
     });
@@ -168,7 +135,7 @@ export function BalancoTab({ dateRange }: BalancoTabProps) {
     });
 
     return saldos;
-  }, [transacoesPeriodo, contasMovimento, transacoesV2, dateRange]);
+  }, [transacoesPeriodo, contasMovimento, calculateBalanceUpToDate, dateRange]);
   
   // Cálculos do Balanço Patrimonial
   const balanco = useMemo(() => {
@@ -299,7 +266,7 @@ export function BalancoTab({ dateRange }: BalancoTabProps) {
       variacaoMensal,
       resultadoMesAtual: resultadoPeriodoAtual,
     };
-  }, [transacoesV2, contasMovimento, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, saldosPorConta, dateRange, transacoesPeriodo]);
+  }, [transacoesV2, contasMovimento, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, saldosPorConta, dateRange, transacoesPeriodo, calculateBalanceUpToDate]);
 
   // Evolução do PL nos últimos 12 meses (mantido com base em todas as transações para histórico)
   const evolucaoPL = useMemo(() => {
@@ -310,39 +277,14 @@ export function BalancoTab({ dateRange }: BalancoTabProps) {
       const data = subMonths(now, i);
       const mesLabel = format(data, 'MMM', { locale: ptBR });
       
-      const inicio = startOfMonth(data);
       const fim = endOfMonth(data);
 
       // Calcular saldo acumulado até o final do mês
-      let saldoAcumulado = 0; // Começa em 0 e usa transações sintéticas
+      let saldoAcumulado = 0; 
       
       contasMovimento.forEach(conta => {
-        // Se a conta tem startDate, o saldo inicial é 0 e dependemos da transação sintética.
-        // Caso contrário, usamos o initialBalance legado.
-        let balance = conta.startDate ? 0 : conta.initialBalance; 
-        
-        transacoesV2.forEach(t => {
-          try {
-            const dataT = parseISO(t.date);
-            if (t.accountId === conta.id && dataT <= fim) {
-              const isCreditCard = conta.accountType === 'cartao_credito';
-              
-              if (isCreditCard) {
-                if (t.operationType === 'despesa') {
-                  balance -= t.amount;
-                } else if (t.operationType === 'transferencia') {
-                  balance += t.amount;
-                }
-              } else {
-                if (t.flow === 'in' || t.flow === 'transfer_in') {
-                  balance += t.amount;
-                } else {
-                  balance -= t.amount;
-                }
-              }
-            }
-          } catch (e) {}
-        });
+        // Usar a função centralizada para calcular o saldo final do mês
+        const balance = calculateBalanceUpToDate(conta.id, fim);
         
         if (conta.accountType !== 'cartao_credito') {
           saldoAcumulado += balance;
@@ -365,7 +307,7 @@ export function BalancoTab({ dateRange }: BalancoTabProps) {
     }
 
     return resultado;
-  }, [transacoesV2, contasMovimento, balanco]);
+  }, [contasMovimento, balanco, calculateBalanceUpToDate]);
 
   // Composição dos ativos para gráfico pizza
   const composicaoAtivos = useMemo(() => {
@@ -877,7 +819,7 @@ export function BalancoTab({ dateRange }: BalancoTabProps) {
             trend={metricas.liquidezCorrente.valor >= 1.5 ? "up" : "down"}
             descricao="Capacidade de pagar dívidas de curto prazo. Ideal: acima de 1.5x"
             formula="Ativo Circulante / Passivo Circulante"
-            sparklineData={generateSparkline(metricas.liquidezCorrente.valor, metricas.liquidezCorrente.valor >= 1.5 ? "up" : "down")}
+            sparklineData={generateSparkline(metricas.liquidezCorrente.valor, indicadores.liquidez.corrente.valor >= 1.5 ? "up" : "down")}
             icon={<Banknote className="w-4 h-4" />}
           />
           <DetailedIndicatorBadge

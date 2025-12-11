@@ -6,6 +6,7 @@ import {
   // Importando tipos legados para manter a compatibilidade temporária nos componentes
   Emprestimo, Veiculo, SeguroVeiculo, InvestimentoRF, Criptomoeda, Stablecoin, ObjetivoFinanceiro, MovimentacaoInvestimento, FinanceDataExport
 } from "@/types/finance";
+import { parseISO } from "date-fns";
 
 // ============================================
 // INTERFACE DO CONTEXTO
@@ -78,6 +79,9 @@ interface FinanceContextType {
   transacoesV2: TransacaoCompleta[];
   setTransacoesV2: (transactions: TransacaoCompleta[]) => void;
   addTransacaoV2: (transaction: TransacaoCompleta) => void;
+  
+  // Funções de Saldo
+  calculateBalanceUpToDate: (accountId: string, date: Date | undefined) => number;
   
   // Cálculos principais
   getTotalReceitas: (mes?: string) => number;
@@ -215,6 +219,48 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); }, [categoriasV2]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); }, [transacoesV2]);
+
+  // ============================================
+  // FUNÇÃO CENTRALIZADA DE CÁLCULO DE SALDO
+  // ============================================
+
+  const calculateBalanceUpToDate = useCallback((accountId: string, date: Date | undefined): number => {
+    const account = contasMovimento.find(a => a.id === accountId);
+    if (!account) return 0;
+
+    // Se a conta tem startDate, o saldo inicial é 0, pois o valor inicial é representado por uma transação sintética.
+    // Caso contrário, usamos o initialBalance legado.
+    let balance = account.startDate ? 0 : account.initialBalance; 
+    
+    // If no date is provided, calculate global balance (end of all history)
+    const targetDate = date || new Date(9999, 11, 31);
+
+    const transactionsBeforeDate = transacoesV2
+        .filter(t => t.accountId === accountId && parseISO(t.date) < targetDate)
+        .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+
+    transactionsBeforeDate.forEach(t => {
+        const isCreditCard = account.accountType === 'cartao_credito';
+        
+        if (isCreditCard) {
+          // Cartão de Crédito: Despesa (out) subtrai, Transferência (in) soma
+          if (t.operationType === 'despesa') {
+            balance -= t.amount;
+          } else if (t.operationType === 'transferencia') {
+            balance += t.amount;
+          }
+        } else {
+          // Contas normais: in soma, out subtrai
+          if (t.flow === 'in' || t.flow === 'transfer_in' || t.operationType === 'initial_balance') {
+            balance += t.amount;
+          } else {
+            balance -= t.amount;
+          }
+        }
+    });
+
+    return balance;
+  }, [contasMovimento, transacoesV2]);
 
   // ============================================
   // OPERAÇÕES DE EMPRÉSTIMOS
@@ -453,32 +499,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     let totalBalance = 0;
 
     contasMovimento.forEach(conta => {
-      let balance = conta.startDate ? 0 : conta.initialBalance; 
-      const accountTransactions = transacoesV2.filter(t => t.accountId === conta.id);
-
-      accountTransactions.forEach(t => {
-        const isCreditCard = conta.accountType === 'cartao_credito';
-        
-        if (isCreditCard) {
-          if (t.operationType === 'despesa') {
-            balance -= t.amount;
-          } else if (t.operationType === 'transferencia') {
-            balance += t.amount;
-          }
-        } else {
-          if (t.flow === 'in' || t.flow === 'transfer_in' || t.operationType === 'initial_balance') {
-            balance += t.amount;
-          } else {
-            balance -= t.amount;
-          }
-        }
-      });
-
-      if (conta.accountType === 'cartao_credito') {
-        totalBalance += balance;
-      } else {
-        totalBalance += balance;
-      }
+      totalBalance += calculateBalanceUpToDate(conta.id, undefined);
     });
 
     return totalBalance;
@@ -498,17 +519,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const saldoCartoes = contasMovimento
       .filter(c => c.accountType === 'cartao_credito')
       .reduce((acc, c) => {
-        let balance = c.startDate ? 0 : c.initialBalance;
-        const accountTransactions = transacoesV2.filter(t => t.accountId === c.id);
-        
-        accountTransactions.forEach(t => {
-          if (t.operationType === 'despesa') {
-            balance -= t.amount;
-          } else if (t.operationType === 'transferencia') {
-            balance += t.amount;
-          }
-        });
-        
+        const balance = calculateBalanceUpToDate(c.id, undefined);
         return acc + Math.abs(Math.min(0, balance));
       }, 0);
       
@@ -535,15 +546,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const saldoContasAtivas = contasMovimento
       .filter(c => c.accountType !== 'cartao_credito')
       .reduce((acc, c) => {
-        let balance = c.startDate ? 0 : c.initialBalance;
-        const accountTransactions = transacoesV2.filter(t => t.accountId === c.id);
-        accountTransactions.forEach(t => {
-          if (t.flow === 'in' || t.flow === 'transfer_in' || t.operationType === 'initial_balance') {
-            balance += t.amount;
-          } else {
-            balance -= t.amount;
-          }
-        });
+        const balance = calculateBalanceUpToDate(c.id, undefined);
         return acc + balance;
       }, 0);
       
@@ -672,6 +675,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     transacoesV2,
     setTransacoesV2,
     addTransacaoV2,
+    calculateBalanceUpToDate,
     getTotalReceitas,
     getTotalDespesas,
     getTotalDividas,

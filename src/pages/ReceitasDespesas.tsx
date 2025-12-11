@@ -44,6 +44,7 @@ const ReceitasDespesas = () => {
     investimentosRF,
     addMovimentacaoInvestimento,
     markSeguroParcelPaid,
+    calculateBalanceUpToDate, // Importando a função centralizada
   } = useFinance();
 
   // Local state for transfer groups
@@ -90,45 +91,6 @@ const ReceitasDespesas = () => {
     setDateRange(range);
   }, []);
 
-  // Helper function to calculate balance up to a specific date (exclusive)
-  const calculateBalanceUpToDate = useCallback((accountId: string, date: Date | undefined, allTransactions: TransacaoCompleta[], accounts: ContaCorrente[]): number => {
-    const account = accounts.find(a => a.id === accountId);
-    if (!account) return 0;
-
-    // Se a conta tem startDate, o saldo inicial é 0 e dependemos da transação sintética.
-    // Caso contrário, usamos o initialBalance legado.
-    let balance = account.startDate ? 0 : account.initialBalance; 
-    
-    // If no date is provided, calculate global balance (end of all history)
-    const targetDate = date || new Date(9999, 11, 31);
-
-    const transactionsBeforeDate = allTransactions
-        .filter(t => t.accountId === accountId && parseISO(t.date) < targetDate)
-        .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
-
-    transactionsBeforeDate.forEach(t => {
-        const isCreditCard = account.accountType === 'cartao_credito';
-        
-        if (isCreditCard) {
-          // Cartão de Crédito: Despesa (out) subtrai, Transferência (in) soma
-          if (t.operationType === 'despesa') {
-            balance -= t.amount;
-          } else if (t.operationType === 'transferencia') {
-            balance += t.amount;
-          }
-        } else {
-          // Contas normais: in soma, out subtrai
-          if (t.flow === 'in' || t.flow === 'transfer_in' || t.operationType === 'initial_balance') {
-            balance += t.amount;
-          } else {
-            balance -= t.amount;
-          }
-        }
-    });
-
-    return balance;
-  }, [accounts]); // Dependency on accounts is crucial here
-
   // Filter transactions
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
@@ -153,9 +115,7 @@ const ReceitasDespesas = () => {
     
     return accounts.map(account => {
       // 1. Calculate Period Initial Balance (balance right before periodStart)
-      const periodInitialBalance = periodStart 
-        ? calculateBalanceUpToDate(account.id, periodStart, transactions, accounts)
-        : calculateBalanceUpToDate(account.id, undefined, transactions, accounts); // If no period selected, show global current balance as initial balance (end of all history)
+      const periodInitialBalance = calculateBalanceUpToDate(account.id, periodStart);
 
       // 2. Calculate Period Transactions (transactions within the selected period)
       const accountTxInPeriod = transactions.filter(t => {
