@@ -204,15 +204,9 @@ export const DEFAULT_ACCOUNTS: ContaCorrente[] = [];
 
 export const DEFAULT_CATEGORIES: Categoria[] = [
   { id: 'cat_salario', label: 'Salário', icon: '💰', nature: 'receita', type: 'income' },
-  { id: 'cat_freelance', label: 'Freelance', icon: '💻', nature: 'receita', type: 'income' },
   { id: 'cat_rendimentos', label: 'Rendimentos sobre Investimentos', icon: '📈', nature: 'receita', type: 'income' },
-  { id: 'cat_aluguel', label: 'Aluguel', icon: '🏠', nature: 'despesa_fixa', type: 'expense' },
-  { id: 'cat_assinaturas', label: 'Assinaturas', icon: '🔁', nature: 'despesa_fixa', type: 'expense' },
-  { id: 'cat_saude', label: 'Saúde', icon: '💊', nature: 'despesa_fixa', type: 'expense' },
-  { id: 'cat_alimentacao', label: 'Alimentação', icon: '🍽️', nature: 'despesa_variavel', type: 'expense' },
-  { id: 'cat_transporte', label: 'Transporte', icon: '🚗', nature: 'despesa_variavel', type: 'expense' },
-  { id: 'cat_lazer', label: 'Lazer', icon: '🎮', nature: 'despesa_variavel', type: 'expense' },
   { id: 'cat_seguro', label: 'Seguro', icon: '🛡️', nature: 'despesa_fixa', type: 'expense' },
+  { id: 'cat_alimentacao', label: 'Alimentação', icon: '🍽️', nature: 'despesa_variavel', type: 'expense' },
 ];
 
 // Helpers
@@ -272,6 +266,7 @@ export function getDomainFromOperation(op: OperationType): TransactionDomain {
     case 'rendimento': // Rendimento é do domínio de investimento
       return 'investment';
     case 'pagamento_emprestimo':
+    case 'liberacao_emprestimo':
       return 'financing';
     case 'veiculo':
       return 'asset';
