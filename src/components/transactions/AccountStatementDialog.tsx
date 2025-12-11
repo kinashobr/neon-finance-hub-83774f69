@@ -105,7 +105,7 @@ export function AccountStatementDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[90vh] p-0 overflow-hidden flex flex-col">
+      <DialogContent className="max-w-6xl h-[90vh] p-0 overflow-hidden flex flex-col">
         <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -261,7 +261,7 @@ export function AccountStatementDialog({
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Movimentações</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="overflow-x-auto">
                 <TransactionTable
                   transactions={filteredTransactions}
                   accounts={allAccounts}

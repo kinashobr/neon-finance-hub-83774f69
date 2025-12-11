@@ -78,8 +78,10 @@ export function TransactionTable({
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    // Assume dateStr is in YYYY-MM-DD format
+    if (!dateStr || dateStr.length < 10) return dateStr;
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year.substring(2)}`;
   };
 
   const hasLinks = (t: TransacaoCompleta) => 
