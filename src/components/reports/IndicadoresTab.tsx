@@ -852,7 +852,7 @@ export function IndicadoresTab() {
           formula="100 - Max(% Caixa, % Investimentos, % Imobilizado)"
           sparklineData={generateSparkline(indicadores.outros.diversificacao.valor, indicadores.outros.diversificacao.valor >= 40 ? "up" : "down")}
           icon={<Activity className="w-4 h-4" />}
-        </DetailedIndicatorBadge>
+        />
       </IndicatorGroup>
 
       {/* INDICADORES PERSONALIZADOS */}
