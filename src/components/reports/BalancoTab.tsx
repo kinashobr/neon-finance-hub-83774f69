@@ -184,10 +184,10 @@ export function BalancoTab() {
     
     const calcularResultado = (transacoes: typeof transacoesV2) => {
       const entradas = transacoes
-        .filter(t => t.flow === 'in' && t.operationType !== 'transferencia')
+        .filter(t => t.flow === 'in' && t.operationType !== 'transferencia' && t.operationType !== 'liberacao_emprestimo')
         .reduce((acc, t) => acc + t.amount, 0);
       const saidas = transacoes
-        .filter(t => t.flow === 'out' && t.operationType !== 'transferencia')
+        .filter(t => t.flow === 'out' && t.operationType !== 'transferencia' && t.operationType !== 'aplicacao')
         .reduce((acc, t) => acc + t.amount, 0);
       return entradas - saidas;
     };
@@ -803,7 +803,7 @@ export function BalancoTab() {
             value={formatRatio(metricas.coberturaAtivos.valor)}
             status={metricas.coberturaAtivos.status}
             trend={metricas.coberturaAtivos.valor >= 2 ? "up" : "down"}
-            tooltip="Quantas vezes os ativos cobrem os passivos. Ideal: acima de 2x"
+            descricao="Quantas vezes os ativos cobrem os passivos. Ideal: acima de 2x"
             formula="Ativo Total / Passivo Total"
             sparklineData={generateSparkline(metricas.coberturaAtivos.valor, metricas.coberturaAtivos.valor >= 2 ? "up" : "down")}
             icon={<ShieldCheck className="w-4 h-4" />}
