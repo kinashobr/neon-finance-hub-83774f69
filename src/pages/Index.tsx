@@ -13,6 +13,13 @@ import {
 import { DashboardCustomizer, DashboardSection } from "@/components/dashboard/DashboardCustomizer";
 import { DateRangePicker, DateRange } from "@/components/dashboard/DateRangePicker";
 import { cn } from "@/lib/utils";
+import { PatrimonioCards } from "@/components/dashboard/PatrimonioCards";
+import { QuickActions } from "@/components/dashboard/QuickActions";
+import { EvolucaoPatrimonialChart } from "@/components/dashboard/EvolucaoPatrimonialChart";
+import { IndicadoresFinanceiros } from "@/components/dashboard/IndicadoresFinanceiros";
+import { TabelaConsolidada } from "@/components/dashboard/TabelaConsolidada";
+import { ObjetivosCards } from "@/components/dashboard/ObjetivosCards";
+import { DistribuicaoCharts } from "@/components/dashboard/DistribuicaoCharts";
 
 const defaultSections: DashboardSection[] = [
   { id: "patrimonio-cards", nome: "Cards de Patrimônio", visivel: true, ordem: 0 },
