@@ -27,7 +27,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { Plus, Trash2, Car, Shield, AlertTriangle, DollarSign, FileText, Search, ArrowRight, CheckCircle2, Clock } from "lucide-react";
+import { Plus, Trash2, Car, Shield, AlertTriangle, DollarSign, FileText, Search, ArrowRight, CheckCircle2, Clock, RefreshCw } from "lucide-react";
 import { useFinance, Veiculo, SeguroVeiculo } from "@/contexts/FinanceContext";
 import { EditableCell } from "@/components/EditableCell";
 import { cn } from "@/lib/utils";
