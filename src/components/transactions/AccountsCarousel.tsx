@@ -23,6 +23,17 @@ const reorder = (list: ContaCorrente[], startIndex: number, endIndex: number): C
   return result;
 };
 
+// Helper function to get the style for the draggable item
+const getItemStyle = (isDragging: boolean, draggableStyle: any) => ({
+  // Add a slight shadow and scale when dragging
+  boxShadow: isDragging ? "0 10px 20px rgba(0,0,0,0.3)" : "none",
+  transform: isDragging ? "scale(1.05)" : "none",
+  transition: isDragging ? "none" : "all 0.2s ease", // Disable transition while dragging for better responsiveness
+  zIndex: isDragging ? 9999 : 'auto',
+  // styles we need to apply on draggables
+  ...draggableStyle,
+});
+
 export function AccountsCarousel({ 
   accounts, 
   onMovimentar, 
@@ -108,12 +119,16 @@ export function AccountsCarousel({
               >
                 {orderedSummaries.map((summary, index) => (
                   <Draggable key={summary.accountId} draggableId={summary.accountId} index={index}>
-                    {(draggableProvided) => (
+                    {(draggableProvided, snapshot) => (
                       <div
                         ref={draggableProvided.innerRef}
                         {...draggableProvided.draggableProps}
                         {...draggableProvided.dragHandleProps}
                         className="shrink-0"
+                        style={getItemStyle(
+                          snapshot.isDragging,
+                          draggableProvided.draggableProps.style
+                        )}
                       >
                         <AccountCard
                           summary={summary}
