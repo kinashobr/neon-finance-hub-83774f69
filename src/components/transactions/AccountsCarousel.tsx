@@ -1,11 +1,26 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { AccountCard } from "./AccountCard";
 import { AccountSummary, ContaCorrente } from "@/types/finance";
-import { DragDropContext, Droppable, Draggable, DropResult, DraggableProvided, DraggableStateSnapshot } from "react-beautiful-dnd";
 import { useFinance } from "@/contexts/FinanceContext";
+import { SortableAccountCard } from "./SortableAccountCard";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 
 interface AccountsCarouselProps {
   accounts: AccountSummary[];
@@ -14,50 +29,6 @@ interface AccountsCarouselProps {
   onAddAccount?: () => void;
   onEditAccount?: (accountId: string) => void;
 }
-
-// Função auxiliar para reordenar a lista
-const reorder = (list: ContaCorrente[], startIndex: number, endIndex): ContaCorrente[] => {
-  const result = Array.from(list);
-  const [removed] = result.splice(startIndex, 1);
-  result.splice(endIndex, 0, removed);
-  return result;
-};
-
-// Helper function to get the style for the draggable item
-const getItemStyle = (isDragging: boolean, draggableStyle: any, snapshot: DraggableStateSnapshot) => {
-  if (!draggableStyle) return {};
-
-  const transform = draggableStyle.transform;
-  let newTransform = transform;
-
-  if (isDragging && transform) {
-    // Extrai o valor de translação X (o valor Y deve ser 0)
-    const match = transform.match(/translate\(([^,]+), ([^)]+)\)/);
-    if (match) {
-      const x = match[1];
-      // Força a translação Y para 0, mantendo a translação X
-      newTransform = `translate(${x}, 0px)`;
-    }
-    
-    // Aplica a escala e z-index alto
-    newTransform += ' scale(1.05)';
-  }
-
-  return {
-    ...draggableStyle,
-    // Garante que o elemento arrastado fique no topo
-    zIndex: isDragging ? 9999 : 'auto',
-    // Aplica a transformação corrigida
-    transform: newTransform,
-    // Transição suave para quando o drag terminar
-    transition: isDragging ? "none" : "all 0.2s ease", 
-    // Estilo visual durante o drag
-    boxShadow: isDragging ? "0 10px 20px rgba(0,0,0,0.3)" : "none",
-    cursor: isDragging ? 'grabbing' : 'grab',
-    // Opacidade para indicar que está sendo arrastado
-    opacity: isDragging ? 0.9 : 1,
-  };
-};
 
 export function AccountsCarousel({ 
   accounts, 
@@ -69,6 +40,27 @@ export function AccountsCarousel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const { contasMovimento, setContasMovimento } = useFinance();
 
+  // Mapear summaries para a ordem atual das contasMovimento
+  const orderedSummaries = useMemo(() => contasMovimento
+    .map(account => accounts.find(s => s.accountId === account.id))
+    .filter((s): s is AccountSummary => !!s), 
+    [contasMovimento, accounts]
+  );
+  
+  const accountIds = useMemo(() => contasMovimento.map(a => a.id), [contasMovimento]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      // Aumenta a tolerância para evitar drag acidental ao rolar
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
       const scrollAmount = 320;
@@ -79,27 +71,19 @@ export function AccountsCarousel({
     }
   };
 
-  const onDragEnd = useCallback((result: DropResult) => {
-    if (!result.destination) {
-      return;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      const oldIndex = accountIds.indexOf(active.id as string);
+      const newIndex = accountIds.indexOf(over?.id as string);
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = arrayMove(contasMovimento, oldIndex, newIndex);
+        setContasMovimento(newOrder);
+      }
     }
-
-    const startIndex = result.source.index;
-    const endIndex = result.destination.index;
-
-    const reorderedAccounts = reorder(
-      contasMovimento,
-      startIndex,
-      endIndex
-    );
-
-    setContasMovimento(reorderedAccounts);
-  }, [contasMovimento, setContasMovimento]);
-
-  // Mapear summaries para a ordem atual das contasMovimento
-  const orderedSummaries = contasMovimento
-    .map(account => accounts.find(s => s.accountId === account.id))
-    .filter((s): s is AccountSummary => !!s);
+  };
 
   return (
     <div className="relative">
@@ -133,61 +117,47 @@ export function AccountsCarousel({
         </div>
       </div>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <Droppable 
-          droppableId="accounts-carousel" 
-          direction="horizontal"
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+        modifiers={[restrictToHorizontalAxis]}
+      >
+        <SortableContext
+          items={accountIds}
+          strategy={horizontalListSortingStrategy}
         >
-          {(droppableProvided) => (
-            <ScrollArea className="w-full" ref={scrollRef}>
-              <div 
-                className="flex gap-4 pb-4"
-                ref={droppableProvided.innerRef}
-                {...droppableProvided.droppableProps}
-              >
-                {orderedSummaries.map((summary, index) => (
-                  <Draggable key={summary.accountId} draggableId={summary.accountId} index={index}>
-                    {(draggableProvided, snapshot) => (
-                      <div
-                        ref={draggableProvided.innerRef}
-                        {...draggableProvided.draggableProps}
-                        {...draggableProvided.dragHandleProps}
-                        className="shrink-0"
-                        style={getItemStyle(
-                          snapshot.isDragging,
-                          draggableProvided.draggableProps.style,
-                          snapshot
-                        )}
-                      >
-                        <AccountCard
-                          summary={summary}
-                          onMovimentar={onMovimentar}
-                          onViewHistory={onViewHistory}
-                          onEdit={onEditAccount}
-                        />
-                      </div>
-                    )}
-                  </Draggable>
-                ))}
-                {droppableProvided.placeholder}
+          <ScrollArea className="w-full" ref={scrollRef}>
+            <div 
+              className="flex gap-4 pb-4"
+              // O innerRef do SortableContext não é necessário aqui, pois o ScrollArea já gerencia o container
+            >
+              {orderedSummaries.map((summary) => (
+                <SortableAccountCard
+                  key={summary.accountId}
+                  summary={summary}
+                  onMovimentar={onMovimentar}
+                  onViewHistory={onViewHistory}
+                  onEdit={onEditAccount}
+                />
+              ))}
 
-                {orderedSummaries.length === 0 && (
-                  <div className="min-w-[280px] p-8 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-3 text-muted-foreground">
-                    <p className="text-sm">Nenhuma conta cadastrada</p>
-                    {onAddAccount && (
-                      <Button variant="outline" size="sm" onClick={onAddAccount}>
-                        <Plus className="w-4 h-4 mr-1" />
-                        Adicionar Conta
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-          )}
-        </Droppable>
-      </DragDropContext>
+              {orderedSummaries.length === 0 && (
+                <div className="min-w-[280px] p-8 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                  <p className="text-sm">Nenhuma conta cadastrada</p>
+                  {onAddAccount && (
+                    <Button variant="outline" size="sm" onClick={onAddAccount}>
+                      <Plus className="w-4 h-4 mr-1" />
+                      Adicionar Conta
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }
