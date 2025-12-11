@@ -1,10 +1,9 @@
-import { useRef, useMemo } from "react";
+import { useRef } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { AccountCard } from "./AccountCard";
 import { AccountSummary } from "@/types/finance";
-import { useFinance } from "@/contexts/FinanceContext";
 
 interface AccountsCarouselProps {
   accounts: AccountSummary[];

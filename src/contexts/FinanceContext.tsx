@@ -380,74 +380,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); }, [transacoesV2]);
 
   // ============================================
-  // CÁLCULOS DE SALDO POR CONTA (com lógica de implantação)
-  // ============================================
-
-  const saldosPorConta = useMemo(() => {
-    const saldos: Record<string, number> = {};
-    
-    // Inicializa com o saldo de implantação
-    contasMovimento.forEach(conta => {
-      saldos[conta.id] = conta.initialBalance;
-    });
-
-    // Aplica todas as transações
-    transacoesV2.forEach(t => {
-      if (!saldos[t.accountId]) saldos[t.accountId] = 0;
-      
-      if (t.flow === 'in' || t.flow === 'transfer_in') {
-        saldos[t.accountId] += t.amount;
-      } else {
-        saldos[t.accountId] -= t.amount;
-      }
-    });
-
-    return saldos;
-  }, [transacoesV2, contasMovimento]);
-
-  // Função para obter saldo de uma conta em uma data específica
-  const getSaldoEmData = useCallback((accountId: string, data: string): number => {
-    // Inicializa com o saldo de implantação
-    let saldo = contasMovimento.find(c => c.id === accountId)?.initialBalance || 0;
-    
-    // Aplica transações até a data especificada
-    const transacoesAteData = transacoesV2.filter(t => 
-      t.accountId === accountId && t.date <= data
-    );
-    
-    transacoesAteData.forEach(t => {
-      if (t.flow === 'in' || t.flow === 'transfer_in') {
-        saldo += t.amount;
-      } else {
-        saldo -= t.amount;
-      }
-    });
-    
-    return saldo;
-  }, [transacoesV2, contasMovimento]);
-
-  // Função para obter saldo inicial de um mês (será o saldo final do mês anterior)
-  const getSaldoInicialMes = useCallback((accountId: string, mes: string, ano: string): number => {
-    // Formato mes: "01", ano: "2024"
-    const dataReferencia = new Date(`${ano}-${mes}-01`);
-    const mesAnterior = dataReferencia.getMonth() === 0 ? 11 : dataReferencia.getMonth() - 1;
-    const anoAnterior = dataReferencia.getMonth() === 0 ? dataReferencia.getFullYear() - 1 : dataReferencia.getFullYear();
-    
-    const ultimoDiaMesAnterior = new Date(anoAnterior, mesAnterior + 1, 0);
-    const dataUltimoDia = ultimoDiaMesAnterior.toISOString().split('T')[0];
-    
-    return getSaldoEmData(accountId, dataUltimoDia);
-  }, [getSaldoEmData]);
-
-  // Função para obter saldo final de um mês
-  const getSaldoFinalMes = useCallback((accountId: string, mes: string, ano: string): number => {
-    const ultimoDiaMes = new Date(Number(ano), Number(mes), 0);
-    const dataUltimoDia = ultimoDiaMes.toISOString().split('T')[0];
-    
-    return getSaldoEmData(accountId, dataUltimoDia);
-  }, [getSaldoEmData]);
-
-  // ============================================
   // OPERAÇÕES DE TRANSAÇÕES LEGADAS
   // ============================================
 
@@ -894,7 +826,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 export function useFinance() {
   const context = useContext(FinanceContext);
   if (context === undefined) {
-    throw new Error("useFinance must be used within a FinanceProvider");
+    throw new Error("useFinance deve ser usado dentro de um FinanceProvider");
   }
   return context;
 }
