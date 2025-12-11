@@ -46,6 +46,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SidebarAlertas } from "@/components/dashboard/SidebarAlertas";
 
 interface NavSection {
   id: string;
@@ -88,9 +89,6 @@ const navSections: NavSection[] = [
   },
 ];
 
-const alerts = [
-  { id: 1, message: "Renda Fixa vencendo em 15 dias", type: "warning" },
-];
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
@@ -386,45 +384,8 @@ export function Sidebar() {
         {/* Divider */}
         <div className="my-4 mx-2 h-px sidebar-divider" />
 
-        {/* Alerts Section */}
-        {!collapsed && alerts.length > 0 && (
-          <div className="px-2">
-            <p className="text-xs sidebar-section-label mb-2">Avisos</p>
-            <div className="space-y-2">
-              {alerts.slice(0, 2).map((alert) => (
-                <div
-                  key={alert.id}
-                  className={cn(
-                    "flex items-start gap-2 p-2 rounded-lg text-xs",
-                    alert.type === "warning" ? "sidebar-alert-warning" : "sidebar-alert-danger"
-                  )}
-                >
-                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                  <span className="line-clamp-2">{alert.message}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {collapsed && alerts.length > 0 && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex justify-center">
-                <div className="w-10 h-10 rounded-lg sidebar-alert-warning flex items-center justify-center">
-                  <AlertTriangle className="w-4 h-4" />
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="sidebar-tooltip">
-              <div className="space-y-1">
-                {alerts.map((alert) => (
-                  <div key={alert.id} className="text-xs">{alert.message}</div>
-                ))}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        )}
+        {/* Alertas Inteligentes */}
+        <SidebarAlertas collapsed={collapsed} />
       </div>
 
       {/* Footer - Theme Selector */}

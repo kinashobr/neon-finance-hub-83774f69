@@ -42,81 +42,14 @@ export function PatrimonioCards({ data }: PatrimonioCardsProps) {
 
   const cards: CardData[] = [
     {
-      id: "patrimonio-total",
-      title: "Patrimônio Total",
-      value: data.patrimonioTotal,
-      change: 5.2,
-      icon: Wallet,
-      variant: "positive",
-      sparkline: generateSparkline(data.patrimonioTotal),
-      tooltip: "Soma de todos os ativos: investimentos + caixa + veículos"
-    },
-    {
       id: "saldo-caixa",
       title: "Saldo em Caixa",
       value: data.saldoCaixa,
       change: -2.1,
       icon: DollarSign,
       variant: data.saldoCaixa >= 0 ? "positive" : "negative",
-      sparkline: generateSparkline(data.saldoCaixa, 0.2),
-      tooltip: "Saldo disponível em conta corrente"
-    },
-    {
-      id: "investimentos",
-      title: "Investimentos Totais",
-      value: data.investimentosTotal,
-      change: 8.4,
-      icon: PiggyBank,
-      variant: "positive",
-      sparkline: generateSparkline(data.investimentosTotal),
-      tooltip: "Soma: RF + Cripto + Stables + Objetivos"
-    },
-    {
-      id: "dividas",
-      title: "Dívidas Totais",
-      value: data.dividasTotal,
-      change: -1.5,
-      icon: CreditCard,
-      variant: "negative",
-      sparkline: generateSparkline(data.dividasTotal, 0.05),
-      tooltip: "Total de empréstimos e financiamentos ativos"
-    },
-    {
-      id: "patrimonio-liquido",
-      title: "Patrimônio Líquido",
-      value: data.patrimonioLiquido,
-      change: 6.8,
-      icon: LineChart,
-      variant: data.patrimonioLiquido >= 0 ? "positive" : "negative",
-      sparkline: generateSparkline(data.patrimonioLiquido),
-      tooltip: "Ativos - Passivos"
-    },
-    {
-      id: "variacao-mes",
-      title: "Variação Mês (%)",
-      value: data.variacaoMes,
-      icon: ArrowUpDown,
-      variant: data.variacaoMes >= 0 ? "positive" : "negative",
-      sparkline: generateSparkline(Math.abs(data.variacaoMes), 0.3),
-      tooltip: "Variação percentual do patrimônio no mês atual"
-    },
-    {
-      id: "fluxo-caixa",
-      title: "Fluxo de Caixa",
-      value: data.fluxoCaixa,
-      icon: TrendingUp,
-      variant: data.fluxoCaixa >= 0 ? "positive" : "negative",
-      sparkline: generateSparkline(Math.abs(data.fluxoCaixa), 0.3),
-      tooltip: "Receitas - Despesas do mês atual"
-    },
-    {
-      id: "gastos-mes",
-      title: "Gastos do Mês",
-      value: data.gastosMes,
-      icon: TrendingDown,
-      variant: "negative",
-      sparkline: generateSparkline(data.gastosMes, 0.15),
-      tooltip: "Total de despesas no mês corrente"
+      sparkline: generateSparkline(Math.abs(data.saldoCaixa), 0.2),
+      tooltip: "Saldo disponível em todas as contas movimento"
     },
     {
       id: "receitas-mes",
@@ -124,8 +57,26 @@ export function PatrimonioCards({ data }: PatrimonioCardsProps) {
       value: data.receitasMes,
       icon: Receipt,
       variant: "positive",
-      sparkline: generateSparkline(data.receitasMes, 0.1),
+      sparkline: generateSparkline(data.receitasMes || 1, 0.1),
       tooltip: "Total de receitas no mês corrente"
+    },
+    {
+      id: "gastos-mes",
+      title: "Despesas do Mês",
+      value: data.gastosMes,
+      icon: TrendingDown,
+      variant: "negative",
+      sparkline: generateSparkline(data.gastosMes || 1, 0.15),
+      tooltip: "Total de despesas no mês corrente"
+    },
+    {
+      id: "fluxo-caixa",
+      title: "Balanço do Mês",
+      value: data.fluxoCaixa,
+      icon: TrendingUp,
+      variant: data.fluxoCaixa >= 0 ? "positive" : "negative",
+      sparkline: generateSparkline(Math.abs(data.fluxoCaixa) || 1, 0.3),
+      tooltip: "Receitas - Despesas do mês atual"
     },
   ];
 
@@ -168,7 +119,7 @@ export function PatrimonioCards({ data }: PatrimonioCardsProps) {
 
   return (
     <TooltipProvider>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {cards.map((card, index) => (
           <div
             key={card.id}

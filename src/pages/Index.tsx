@@ -19,14 +19,13 @@ import { cn } from "@/lib/utils";
 const defaultSections: DashboardSection[] = [
   { id: "patrimonio-cards", nome: "Cards de Patrimônio", visivel: true, ordem: 0 },
   { id: "quick-actions", nome: "Ações Rápidas", visivel: true, ordem: 1 },
-  { id: "evolucao-chart", nome: "Evolução Patrimonial", visivel: true, ordem: 2 },
-  { id: "heatmap", nome: "Heatmap Fluxo de Caixa", visivel: true, ordem: 3 },
-  { id: "indicadores", nome: "Indicadores Financeiros", visivel: true, ordem: 4 },
-  { id: "alertas", nome: "Alertas Financeiros", visivel: true, ordem: 5 },
-  { id: "tabela-consolidada", nome: "Tabela Consolidada", visivel: true, ordem: 6 },
-  { id: "objetivos", nome: "Objetivos Financeiros", visivel: true, ordem: 7 },
-  { id: "distribuicao-charts", nome: "Gráficos de Distribuição", visivel: true, ordem: 8 },
-  { id: "transacoes-recentes", nome: "Transações Recentes", visivel: true, ordem: 9 },
+  { id: "heatmap", nome: "Fluxo de Caixa Mensal", visivel: true, ordem: 2 },
+  { id: "evolucao-chart", nome: "Evolução Patrimonial", visivel: true, ordem: 3 },
+  { id: "transacoes-recentes", nome: "Transações Recentes", visivel: true, ordem: 4 },
+  { id: "indicadores", nome: "Indicadores Financeiros", visivel: false, ordem: 5 },
+  { id: "tabela-consolidada", nome: "Tabela Consolidada", visivel: false, ordem: 6 },
+  { id: "objetivos", nome: "Objetivos Financeiros", visivel: false, ordem: 7 },
+  { id: "distribuicao-charts", nome: "Gráficos de Distribuição", visivel: false, ordem: 8 },
 ];
 
 const Index = () => {
@@ -454,11 +453,10 @@ const Index = () => {
       case "evolucao-chart":
         return <EvolucaoPatrimonialChart data={evolucaoData} />;
       case "heatmap":
-        return <FluxoCaixaHeatmap month="12" year={2024} />;
+        const now = new Date();
+        return <FluxoCaixaHeatmap month={String(now.getMonth() + 1).padStart(2, '0')} year={now.getFullYear()} transacoes={transacoesV2} />;
       case "indicadores":
         return <IndicadoresFinanceiros indicadores={indicadores} />;
-      case "alertas":
-        return <AlertasFinanceiros />;
       case "tabela-consolidada":
         return <TabelaConsolidada data={tabelaConsolidada} />;
       case "objetivos":

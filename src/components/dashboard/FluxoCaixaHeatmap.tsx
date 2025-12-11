@@ -1,8 +1,6 @@
 import { useState, useMemo } from "react";
-import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useFinance } from "@/contexts/FinanceContext";
 
 interface DayData {
   day: number;
@@ -12,13 +10,22 @@ interface DayData {
   aportes: number;
 }
 
+interface TransacaoV2 {
+  id: string;
+  date: string;
+  amount: number;
+  operationType: string;
+  flow: string;
+  [key: string]: any;
+}
+
 interface FluxoCaixaHeatmapProps {
   month: string;
   year: number;
+  transacoes: TransacaoV2[];
 }
 
-export function FluxoCaixaHeatmap({ month, year }: FluxoCaixaHeatmapProps) {
-  const { transacoes } = useFinance();
+export function FluxoCaixaHeatmap({ month, year, transacoes }: FluxoCaixaHeatmapProps) {
   const [viewType, setViewType] = useState<"all" | "receitas" | "despesas" | "aportes">("all");
 
   const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -35,10 +42,22 @@ export function FluxoCaixaHeatmap({ month, year }: FluxoCaixaHeatmapProps) {
     
     for (let day = 1; day <= daysInMonth; day++) {
       const dayData = transacoes
-        .filter(t => new Date(t.data).getDate() === day && new Date(t.data).getMonth() === parseInt(month) - 1 && new Date(t.data).getFullYear() === year)
+        .filter(t => {
+          const txDate = new Date(t.date);
+          return txDate.getDate() === day && 
+                 txDate.getMonth() === parseInt(month) - 1 && 
+                 txDate.getFullYear() === year;
+        })
         .reduce((acc, t) => {
-          if (t.tipo === "receita") acc.receitas += t.valor;
-          else acc.despesas += t.valor;
+          if (t.operationType === "receita" || t.operationType === "rendimento") {
+            acc.receitas += t.amount;
+          } else if (t.operationType === "despesa" || t.operationType === "pagamento_emprestimo") {
+            acc.despesas += t.amount;
+          } else if (t.operationType === "transferencia") {
+            acc.transferencias += t.amount;
+          } else if (t.operationType === "aplicacao") {
+            acc.aportes += t.amount;
+          }
           return acc;
         }, { day, receitas: 0, despesas: 0, transferencias: 0, aportes: 0 });
       
@@ -47,6 +66,21 @@ export function FluxoCaixaHeatmap({ month, year }: FluxoCaixaHeatmapProps) {
     
     return result;
   }, [transacoes, month, year]);
+
+  // Calcular max para normalização
+  const maxValue = useMemo(() => {
+    const values = calendarDays
+      .filter((d): d is DayData => d !== null)
+      .map(d => {
+        switch (viewType) {
+          case "receitas": return d.receitas;
+          case "despesas": return d.despesas;
+          case "aportes": return d.aportes;
+          default: return d.receitas + d.despesas + d.transferencias + d.aportes;
+        }
+      });
+    return Math.max(...values, 1);
+  }, [calendarDays, viewType]);
 
   const getIntensity = (dayData: DayData | null): string => {
     if (!dayData) return "bg-transparent";
@@ -60,9 +94,11 @@ export function FluxoCaixaHeatmap({ month, year }: FluxoCaixaHeatmapProps) {
     }
 
     if (value === 0) return "bg-muted/30";
-    if (value < 500) return viewType === "despesas" ? "bg-destructive/20" : "bg-success/20";
-    if (value < 2000) return viewType === "despesas" ? "bg-destructive/40" : "bg-success/40";
-    if (value < 5000) return viewType === "despesas" ? "bg-destructive/60" : "bg-success/60";
+    
+    const intensity = value / maxValue;
+    if (intensity < 0.25) return viewType === "despesas" ? "bg-destructive/20" : "bg-success/20";
+    if (intensity < 0.5) return viewType === "despesas" ? "bg-destructive/40" : "bg-success/40";
+    if (intensity < 0.75) return viewType === "despesas" ? "bg-destructive/60" : "bg-success/60";
     return viewType === "despesas" ? "bg-destructive/80" : "bg-success/80";
   };
 
@@ -74,11 +110,31 @@ export function FluxoCaixaHeatmap({ month, year }: FluxoCaixaHeatmapProps) {
     return "border-border";
   };
 
+  const totalMes = useMemo(() => {
+    return calendarDays
+      .filter((d): d is DayData => d !== null)
+      .reduce((acc, d) => ({
+        receitas: acc.receitas + d.receitas,
+        despesas: acc.despesas + d.despesas,
+        saldo: acc.saldo + d.receitas - d.despesas
+      }), { receitas: 0, despesas: 0, saldo: 0 });
+  }, [calendarDays]);
+
+  const formatCurrency = (value: number) => 
+    value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
   return (
     <TooltipProvider>
       <div className="glass-card p-5 animate-fade-in-up">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-foreground">Fluxo de Caixa Mensal</h3>
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Fluxo de Caixa Mensal</h3>
+            <p className="text-sm text-muted-foreground">
+              Saldo: <span className={cn(totalMes.saldo >= 0 ? "text-success" : "text-destructive", "font-medium")}>
+                {formatCurrency(totalMes.saldo)}
+              </span>
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <div className="flex bg-muted rounded-lg p-1 text-xs">
               {[
@@ -99,6 +155,24 @@ export function FluxoCaixaHeatmap({ month, year }: FluxoCaixaHeatmapProps) {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* Resumo do mês */}
+        <div className="grid grid-cols-3 gap-3 mb-4 p-3 rounded-lg bg-muted/30">
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">Receitas</p>
+            <p className="text-sm font-semibold text-success">{formatCurrency(totalMes.receitas)}</p>
+          </div>
+          <div className="text-center border-x border-border">
+            <p className="text-xs text-muted-foreground">Despesas</p>
+            <p className="text-sm font-semibold text-destructive">{formatCurrency(totalMes.despesas)}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">Balanço</p>
+            <p className={cn("text-sm font-semibold", totalMes.saldo >= 0 ? "text-success" : "text-destructive")}>
+              {formatCurrency(totalMes.saldo)}
+            </p>
           </div>
         </div>
 
@@ -125,22 +199,38 @@ export function FluxoCaixaHeatmap({ month, year }: FluxoCaixaHeatmapProps) {
                   {dayData?.day}
                 </div>
               </TooltipTrigger>
-              {dayData && (
-                <TooltipContent className="w-48">
-                  <div className="space-y-1 text-xs">
-                    <p className="font-medium">Dia {dayData.day}</p>
-                    <div className="flex justify-between">
-                      <span className="text-success">Receitas:</span>
-                      <span>R$ {dayData.receitas.toLocaleString("pt-BR")}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-destructive">Despesas:</span>
-                      <span>R$ {dayData.despesas.toLocaleString("pt-BR")}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Saldo:</span>
-                      <span className={dayData.receitas - dayData.despesas >= 0 ? "text-success" : "text-destructive"}>
-                        R$ {(dayData.receitas - dayData.despesas).toLocaleString("pt-BR")}
+              {dayData && (dayData.receitas > 0 || dayData.despesas > 0 || dayData.transferencias > 0 || dayData.aportes > 0) && (
+                <TooltipContent className="w-52">
+                  <div className="space-y-1.5 text-xs">
+                    <p className="font-semibold border-b pb-1">Dia {dayData.day}</p>
+                    {dayData.receitas > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-success">Receitas:</span>
+                        <span>{formatCurrency(dayData.receitas)}</span>
+                      </div>
+                    )}
+                    {dayData.despesas > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-destructive">Despesas:</span>
+                        <span>{formatCurrency(dayData.despesas)}</span>
+                      </div>
+                    )}
+                    {dayData.transferencias > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-primary">Transferências:</span>
+                        <span>{formatCurrency(dayData.transferencias)}</span>
+                      </div>
+                    )}
+                    {dayData.aportes > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-warning">Aportes:</span>
+                        <span>{formatCurrency(dayData.aportes)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-1 border-t">
+                      <span className="text-muted-foreground font-medium">Saldo:</span>
+                      <span className={dayData.receitas - dayData.despesas >= 0 ? "text-success font-medium" : "text-destructive font-medium"}>
+                        {formatCurrency(dayData.receitas - dayData.despesas)}
                       </span>
                     </div>
                   </div>
