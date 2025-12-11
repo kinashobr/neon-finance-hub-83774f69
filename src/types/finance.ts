@@ -200,7 +200,9 @@ export interface AccountSummary {
 // Dados iniciais padrão - Sistema limpo, sem dados pré-preenchidos
 export const DEFAULT_ACCOUNTS: ContaCorrente[] = [];
 
-export const DEFAULT_CATEGORIES: Categoria[] = [];
+export const DEFAULT_CATEGORIES: Categoria[] = [
+  { id: 'cat_rendimento_inv', label: 'Rendimentos sobre Investimentos', icon: '📈', nature: 'receita', type: 'income' },
+];
 
 // Helpers
 export function generateTransactionId(): string {
@@ -253,6 +255,7 @@ export function getDomainFromOperation(op: OperationType): TransactionDomain {
       return 'operational';
     case 'aplicacao':
     case 'resgate':
+    case 'rendimento':
       return 'investment';
     case 'pagamento_emprestimo':
       return 'financing';

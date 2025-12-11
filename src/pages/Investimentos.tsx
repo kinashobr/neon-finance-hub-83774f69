@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { EditableCell } from "@/components/EditableCell";
 import { useToast } from "@/hooks/use-toast";
-import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
+import { DateRangeSelector } from "@/components/dashboard/DateRangeSelector"; // Importando o novo seletor
 
 const pieColors = [
   "hsl(142, 76%, 36%)",
@@ -66,12 +66,7 @@ const Investimentos = () => {
   } = useFinance();
   
   const [activeTab, setActiveTab] = useState("carteira");
-  const [periodRange, setPeriodRange] = useState<PeriodRange>({
-    startMonth: null,
-    startYear: null,
-    endMonth: null,
-    endYear: null,
-  });
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
 
   // Dialogs
   const [showAddRendimento, setShowAddRendimento] = useState<number | null>(null);
@@ -83,24 +78,43 @@ const Investimentos = () => {
     descricao: ""
   });
 
-  const handlePeriodChange = useCallback((period: PeriodRange) => {
-    setPeriodRange(period);
+  const handleDateRangeChange = useCallback((range: { from: Date | undefined; to: Date | undefined }) => {
+    setDateRange(range);
   }, []);
 
-  const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
+  // Filtrar transações V2 por período (para cálculo de saldos de contas)
+  const filteredTransacoesV2 = useMemo(() => {
+    if (!dateRange.from || !dateRange.to) return transacoesV2;
+    
+    return transacoesV2.filter(t => {
+      const transactionDate = new Date(t.date + "T00:00:00");
+      return transactionDate >= dateRange.from! && transactionDate <= dateRange.to!;
+    });
+  }, [transacoesV2, dateRange]);
 
-  // Calcular total de investimentos das contas movimento tipo investimento
-  const totalInvestimentosContas = useMemo(() => {
-    const investmentAccountTypes = ['aplicacao_renda_fixa', 'poupanca', 'criptoativos', 'reserva_emergencia', 'objetivos_financeiros'];
-    return contasMovimento
-      .filter(c => investmentAccountTypes.includes(c.accountType))
-      .reduce((acc, conta) => {
-        const contaTx = transacoesV2.filter(t => t.accountId === conta.id);
-        const totalIn = contaTx.filter(t => t.flow === 'in' || t.flow === 'transfer_in').reduce((s, t) => s + t.amount, 0);
-        const totalOut = contaTx.filter(t => t.flow === 'out' || t.flow === 'transfer_out').reduce((s, t) => s + t.amount, 0);
-        return acc + conta.initialBalance + totalIn - totalOut;
-      }, 0);
-  }, [contasMovimento, transacoesV2]);
+  // Calcular saldos das contas de investimento no período
+  const saldosContasInvestimento = useMemo(() => {
+    const saldos: Record<string, number> = {};
+    
+    contasMovimento.forEach(conta => {
+      if (['aplicacao_renda_fixa', 'poupanca', 'criptoativos', 'reserva_emergencia', 'objetivos_financeiros'].includes(conta.accountType)) {
+        let balance = conta.initialBalance;
+        
+        // Filtrar transações até o final do período
+        const txInPeriod = filteredTransacoesV2.filter(t => t.accountId === conta.id);
+        
+        txInPeriod.forEach(t => {
+          if (t.flow === 'in' || t.flow === 'transfer_in') {
+            balance += t.amount;
+          } else {
+            balance -= t.amount;
+          }
+        });
+        saldos[conta.id] = balance;
+      }
+    });
+    return saldos;
+  }, [contasMovimento, filteredTransacoesV2]);
 
   // Separate accounts by type for tab filtering
   const investmentAccounts = useMemo(() => {
@@ -139,40 +153,17 @@ const Investimentos = () => {
 
   // Cálculos padronizados
   const calculosPatrimonio = useMemo(() => {
-    // Totais legados
+    // Totais legados (assumindo que o valor legado é o valor atual, pois não temos histórico de transações para eles)
     const totalRF_legado = investimentosRF.reduce((acc, i) => acc + i.valor, 0);
     const totalCripto_legado = criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0);
     const totalStables_legado = stablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
     const totalObjetivos_legado = objetivos.reduce((acc, o) => acc + o.atual, 0);
     
-    // Totais das Contas Movimento
-    const totalRF_contas = rfAccounts.reduce((acc, c) => {
-      const tx = transacoesV2.filter(t => t.accountId === c.id);
-      const inTx = tx.filter(t => t.flow === 'in').reduce((s, t) => s + t.amount, 0);
-      const outTx = tx.filter(t => t.flow === 'out').reduce((s, t) => s + t.amount, 0);
-      return acc + c.initialBalance + inTx - outTx;
-    }, 0);
-
-    const totalCripto_contas = cryptoAccounts.reduce((acc, c) => {
-      const tx = transacoesV2.filter(t => t.accountId === c.id);
-      const inTx = tx.filter(t => t.flow === 'in').reduce((s, t) => s + t.amount, 0);
-      const outTx = tx.filter(t => t.flow === 'out').reduce((s, t) => s + t.amount, 0);
-      return acc + c.initialBalance + inTx - outTx;
-    }, 0);
-
-    const totalStables_contas = stablecoinAccounts.reduce((acc, c) => {
-      const tx = transacoesV2.filter(t => t.accountId === c.id);
-      const inTx = tx.filter(t => t.flow === 'in').reduce((s, t) => s + t.amount, 0);
-      const outTx = tx.filter(t => t.flow === 'out').reduce((s, t) => s + t.amount, 0);
-      return acc + c.initialBalance + inTx - outTx;
-    }, 0);
-
-    const totalObjetivos_contas = objetivosAccounts.reduce((acc, c) => {
-      const tx = transacoesV2.filter(t => t.accountId === c.id);
-      const inTx = tx.filter(t => t.flow === 'in').reduce((s, t) => s + t.amount, 0);
-      const outTx = tx.filter(t => t.flow === 'out').reduce((s, t) => s + t.amount, 0);
-      return acc + c.initialBalance + inTx - outTx;
-    }, 0);
+    // Totais das Contas Movimento (usando saldos calculados no período)
+    const totalRF_contas = rfAccounts.reduce((acc, c) => acc + (saldosContasInvestimento[c.id] || 0), 0);
+    const totalCripto_contas = cryptoAccounts.reduce((acc, c) => acc + (saldosContasInvestimento[c.id] || 0), 0);
+    const totalStables_contas = stablecoinAccounts.reduce((acc, c) => acc + (saldosContasInvestimento[c.id] || 0), 0);
+    const totalObjetivos_contas = objetivosAccounts.reduce((acc, c) => acc + (saldosContasInvestimento[c.id] || 0), 0);
 
     // Totais Consolidados
     const totalRF = totalRF_legado + totalRF_contas;
@@ -226,7 +217,7 @@ const Investimentos = () => {
       totalObjetivos_legado,
       totalObjetivos_contas,
     };
-  }, [investimentosRF, criptomoedas, stablecoins, objetivos, getValorFipeTotal, getTotalReceitas, getTotalDespesas, contasMovimento, transacoesV2]);
+  }, [investimentosRF, criptomoedas, stablecoins, objetivos, getValorFipeTotal, getTotalReceitas, getTotalDespesas, contasMovimento, saldosContasInvestimento]);
 
   const distribuicaoCarteira = useMemo(() => [
     { name: "Renda Fixa", value: calculosPatrimonio.totalRF },
@@ -273,10 +264,7 @@ const Investimentos = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <PeriodSelector 
-              onPeriodChange={handlePeriodChange} 
-              tabId="investimentos" 
-            />
+            <DateRangeSelector onDateRangeChange={handleDateRangeChange} />
           </div>
         </div>
 
@@ -500,10 +488,7 @@ const Investimentos = () => {
                   <TableBody>
                     {/* Contas Movimento RF */}
                     {rfAccounts.map((acc) => {
-                      const tx = transacoesV2.filter(t => t.accountId === acc.id);
-                      const inTx = tx.filter(t => t.flow === 'in').reduce((s, t) => s + t.amount, 0);
-                      const outTx = tx.filter(t => t.flow === 'out').reduce((s, t) => s + t.amount, 0);
-                      const valorAtual = acc.initialBalance + inTx - outTx;
+                      const valorAtual = saldosContasInvestimento[acc.id] || 0;
                       
                       return (
                         <TableRow key={acc.id} className="bg-primary/5">
@@ -613,10 +598,7 @@ const Investimentos = () => {
                   <TableBody>
                     {/* Contas Movimento Cripto */}
                     {cryptoAccounts.map((acc) => {
-                      const tx = transacoesV2.filter(t => t.accountId === acc.id);
-                      const inTx = tx.filter(t => t.flow === 'in').reduce((s, t) => s + t.amount, 0);
-                      const outTx = tx.filter(t => t.flow === 'out').reduce((s, t) => s + t.amount, 0);
-                      const valorAtual = acc.initialBalance + inTx - outTx;
+                      const valorAtual = saldosContasInvestimento[acc.id] || 0;
                       
                       return (
                         <TableRow key={acc.id} className="bg-primary/5">
@@ -726,10 +708,7 @@ const Investimentos = () => {
                   <TableBody>
                     {/* Contas Movimento Stablecoins */}
                     {stablecoinAccounts.map((acc) => {
-                      const tx = transacoesV2.filter(t => t.accountId === acc.id);
-                      const inTx = tx.filter(t => t.flow === 'in').reduce((s, t) => s + t.amount, 0);
-                      const outTx = tx.filter(t => t.flow === 'out').reduce((s, t) => s + t.amount, 0);
-                      const valorAtual = acc.initialBalance + inTx - outTx;
+                      const valorAtual = saldosContasInvestimento[acc.id] || 0;
                       
                       return (
                         <TableRow key={acc.id} className="bg-primary/5">
@@ -812,10 +791,7 @@ const Investimentos = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Contas Movimento Objetivos */}
               {objetivosAccounts.map((acc) => {
-                const tx = transacoesV2.filter(t => t.accountId === acc.id);
-                const inTx = tx.filter(t => t.flow === 'in').reduce((s, t) => s + t.amount, 0);
-                const outTx = tx.filter(t => t.flow === 'out').reduce((s, t) => s + t.amount, 0);
-                const valorAtual = acc.initialBalance + inTx - outTx;
+                const valorAtual = saldosContasInvestimento[acc.id] || 0;
                 
                 return (
                   <Card key={acc.id} className="glass-card bg-primary/5">

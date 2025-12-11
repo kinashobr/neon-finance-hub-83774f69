@@ -27,7 +27,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   PieChart as RechartsPie,
   Pie,
   Cell,
@@ -136,7 +135,11 @@ function DREItem({ label, value, type, level = 0, icon, subItems }: DREItemProps
 // Define o tipo de status esperado pelos componentes ReportCard e IndicatorBadge
 type KPIStatus = "success" | "warning" | "danger" | "neutral";
 
-export function DRETab() {
+interface DRETabProps {
+  dateRange: { from: Date | undefined; to: Date | undefined };
+}
+
+export function DRETab({ dateRange }: DRETabProps) {
   const {
     transacoesV2,
     categoriasV2,
@@ -149,30 +152,37 @@ export function DRETab() {
   // Cálculos da DRE
   const dre = useMemo(() => {
     const now = new Date();
-    const mesAtual = format(now, 'yyyy-MM');
-
+    
     // Definir período de análise
     let dataInicio: Date;
-    let dataFim: Date = now;
+    let dataFim: Date;
     
-    switch (periodo) {
-      case "mensal":
-        dataInicio = startOfMonth(now);
-        dataFim = endOfMonth(now);
-        break;
-      case "trimestral":
-        dataInicio = subMonths(startOfMonth(now), 2);
-        break;
-      case "anual":
-      default:
-        dataInicio = subMonths(startOfMonth(now), 11);
-        break;
+    if (dateRange.from && dateRange.to) {
+      dataInicio = dateRange.from;
+      dataFim = dateRange.to;
+    } else {
+      // Se não houver filtro externo, usa o filtro interno (mensal/trimestral/anual)
+      switch (periodo) {
+        case "mensal":
+          dataInicio = startOfMonth(now);
+          dataFim = endOfMonth(now);
+          break;
+        case "trimestral":
+          dataInicio = subMonths(startOfMonth(now), 2);
+          dataFim = endOfMonth(now);
+          break;
+        case "anual":
+        default:
+          dataInicio = subMonths(startOfMonth(now), 11);
+          dataFim = endOfMonth(now);
+          break;
+      }
     }
 
     // Filtrar transações do período
     const transacoesPeriodo = transacoesV2.filter(t => {
       try {
-        const dataT = parseISO(t.date);
+        const dataT = parseISO(t.date + "T00:00:00");
         return isWithinInterval(dataT, { start: dataInicio, end: dataFim });
       } catch {
         return false;
@@ -264,7 +274,7 @@ export function DRETab() {
 
       const transacoesMes = transacoesV2.filter(t => {
         try {
-          const dataT = parseISO(t.date);
+          const dataT = parseISO(t.date + "T00:00:00");
           return isWithinInterval(dataT, { start: inicio, end: fim });
         } catch {
           return false;
@@ -341,7 +351,7 @@ export function DRETab() {
         fim: format(dataFim, 'dd/MM/yyyy'),
       },
     };
-  }, [transacoesV2, categoriasV2, emprestimos, periodo]);
+  }, [transacoesV2, categoriasV2, emprestimos, periodo, dateRange]);
 
   const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
@@ -425,25 +435,27 @@ export function DRETab() {
         />
       </div>
 
-      {/* Filtro de Período */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="text-sm text-muted-foreground">
-          Período: <span className="font-medium text-foreground">{dre.periodo.inicio}</span> a <span className="font-medium text-foreground">{dre.periodo.fim}</span>
+      {/* Filtro de Período (Interno, só aparece se não houver filtro externo) */}
+      {!dateRange.from && (
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="text-sm text-muted-foreground">
+            Período: <span className="font-medium text-foreground">{dre.periodo.inicio}</span> a <span className="font-medium text-foreground">{dre.periodo.fim}</span>
+          </div>
+          <Tabs value={periodo} onValueChange={(v) => setPeriodo(v as any)}>
+            <TabsList className="bg-muted/50">
+              <TabsTrigger value="mensal" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                Mensal
+              </TabsTrigger>
+              <TabsTrigger value="trimestral" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                Trimestral
+              </TabsTrigger>
+              <TabsTrigger value="anual" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                Anual
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
-        <Tabs value={periodo} onValueChange={(v) => setPeriodo(v as any)}>
-          <TabsList className="bg-muted/50">
-            <TabsTrigger value="mensal" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              Mensal
-            </TabsTrigger>
-            <TabsTrigger value="trimestral" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              Trimestral
-            </TabsTrigger>
-            <TabsTrigger value="anual" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              Anual
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+      )}
 
       {/* DRE Estruturada */}
       <ExpandablePanel
@@ -613,7 +625,16 @@ export function DRETab() {
                   }}
                   formatter={(value: number, name: string) => [formatCurrency(value), name]}
                 />
-                <Legend />
+                <Legend 
+                  formatter={(value) => {
+                    const labels: Record<string, string> = {
+                      receitas: "Receitas",
+                      despesas: "Despesas",
+                      resultado: "Resultado",
+                    };
+                    return labels[value] || value;
+                  }}
+                />
                 <Bar dataKey="receitas" name="Receitas" fill={COLORS.success} opacity={0.8} radius={[4, 4, 0, 0]} />
                 <Bar dataKey="despesas" name="Despesas" fill={COLORS.danger} opacity={0.8} radius={[4, 4, 0, 0]} />
                 <Line type="monotone" dataKey="resultado" name="Resultado" stroke={COLORS.primary} strokeWidth={3} dot={false} />

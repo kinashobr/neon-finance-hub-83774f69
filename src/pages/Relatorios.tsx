@@ -5,18 +5,13 @@ import { BalancoTab } from "@/components/reports/BalancoTab";
 import { DRETab } from "@/components/reports/DRETab";
 import { IndicadoresTab } from "@/components/reports/IndicadoresTab";
 import { Scale, Receipt, Activity } from "lucide-react";
-import { PeriodSelector, PeriodRange } from "@/components/dashboard/PeriodSelector";
+import { DateRangeSelector } from "@/components/dashboard/DateRangeSelector"; // Importando o novo seletor
 
 const Relatorios = () => {
-  const [periodRange, setPeriodRange] = useState<PeriodRange>({
-    startMonth: null,
-    startYear: null,
-    endMonth: null,
-    endYear: null,
-  });
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
 
-  const handlePeriodChange = useCallback((period: PeriodRange) => {
-    setPeriodRange(period);
+  const handleDateRangeChange = useCallback((range: { from: Date | undefined; to: Date | undefined }) => {
+    setDateRange(range);
   }, []);
 
   return (
@@ -32,10 +27,7 @@ const Relatorios = () => {
               Análise contábil profissional • Balanço, DRE e Indicadores
             </p>
           </div>
-          <PeriodSelector 
-            onPeriodChange={handlePeriodChange} 
-            tabId="relatorios" 
-          />
+          <DateRangeSelector onDateRangeChange={handleDateRangeChange} />
         </div>
 
         {/* Navigation Tabs */}
@@ -67,13 +59,13 @@ const Relatorios = () => {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="balanco" className="mt-6">
-            <BalancoTab />
+            <BalancoTab dateRange={dateRange} />
           </TabsContent>
           <TabsContent value="dre" className="mt-6">
-            <DRETab />
+            <DRETab dateRange={dateRange} />
           </TabsContent>
           <TabsContent value="indicadores" className="mt-6">
-            <IndicadoresTab />
+            <IndicadoresTab dateRange={dateRange} />
           </TabsContent>
         </Tabs>
       </div>

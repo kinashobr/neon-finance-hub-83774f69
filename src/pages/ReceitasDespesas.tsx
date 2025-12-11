@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { 
   ContaCorrente, Categoria, TransacaoCompleta, TransferGroup,
   AccountSummary, OperationType, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, 
-  generateTransactionId, formatCurrency, generateTransferGroupId
+  generateTransactionId, formatCurrency, generateTransferGroupId, getDomainFromOperation
 } from "@/types/finance";
 
 // Components
@@ -20,6 +20,7 @@ import { AccountFormModal } from "@/components/transactions/AccountFormModal";
 import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
 import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
+import { DateRangeSelector } from "@/components/dashboard/DateRangeSelector"; // Importando o novo seletor
 import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
 
 // Context
@@ -52,7 +53,9 @@ const ReceitasDespesas = () => {
   const [showMovimentarModal, setShowMovimentarModal] = useState(false);
   const [selectedAccountForModal, setSelectedAccountForModal] = useState<string>();
   const [showReconciliation, setShowReconciliation] = useState(false);
-  const [periodRange, setPeriodRange] = useState<PeriodRange>({ startMonth: null, startYear: null, endMonth: null, endYear: null });
+  
+  // Usando DateRange para o filtro principal
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   
   // New modals
   const [showAccountModal, setShowAccountModal] = useState(false);
@@ -66,7 +69,7 @@ const ReceitasDespesas = () => {
   const [viewingAccountId, setViewingAccountId] = useState<string | null>(null);
   const [showStatementDialog, setShowStatementDialog] = useState(false);
 
-  // Filter state
+  // Filter state (mantidos para a tabela de transações, mas o filtro principal usa dateRange)
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
@@ -79,11 +82,9 @@ const ReceitasDespesas = () => {
   const transactions = transacoesV2;
   const categories = categoriasV2;
 
-  const handlePeriodChange = useCallback((period: PeriodRange) => {
-    setPeriodRange(period);
+  const handleDateRangeChange = useCallback((range: { from: Date | undefined; to: Date | undefined }) => {
+    setDateRange(range);
   }, []);
-
-  const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
 
   // Helper function to calculate balance up to a specific date (exclusive)
   const calculateBalanceUpToDate = useCallback((accountId: string, date: Date | undefined, allTransactions: TransacaoCompleta[], accounts: ContaCorrente[]): number => {
@@ -130,16 +131,15 @@ const ReceitasDespesas = () => {
       const matchCategory = selectedCategoryId === 'all' || t.categoryId === selectedCategoryId;
       const matchType = selectedTypes.includes(t.operationType);
       
-      const transactionDate = new Date(t.date);
+      const transactionDate = new Date(t.date + "T00:00:00"); // Adiciona T00:00:00 para evitar problemas de timezone
       
-      // Prioritize dateRange if set, otherwise use dateFrom/dateTo state
-      const matchPeriod = (dateRange.from || dateRange.to)
-        ? ((!dateRange.from || transactionDate >= dateRange.from) && (!dateRange.to || transactionDate <= dateRange.to))
-        : ((!dateFrom || t.date >= dateFrom) && (!dateTo || t.date <= dateTo));
+      // Aplicar filtro de data do DateRangeSelector
+      const matchPeriod = (!dateRange.from || transactionDate >= dateRange.from) && 
+                          (!dateRange.to || transactionDate <= dateRange.to);
       
       return matchSearch && matchAccount && matchCategory && matchType && matchPeriod;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, searchTerm, selectedAccountId, selectedCategoryId, selectedTypes, dateFrom, dateTo, dateRange]);
+  }, [transactions, searchTerm, selectedAccountId, selectedCategoryId, selectedTypes, dateRange]);
 
   // Calculate account summaries
   const accountSummaries: AccountSummary[] = useMemo(() => {
@@ -155,7 +155,7 @@ const ReceitasDespesas = () => {
       // 2. Calculate Period Transactions (transactions within the selected period)
       const accountTxInPeriod = transactions.filter(t => {
         if (t.accountId !== account.id) return false;
-        const transactionDate = new Date(t.date);
+        const transactionDate = new Date(t.date + "T00:00:00");
         return (!periodStart || transactionDate >= periodStart) && 
                (!periodEnd || transactionDate <= periodEnd);
       });
@@ -409,6 +409,42 @@ const ReceitasDespesas = () => {
           };
           newTransactions.push(outgoingTx);
         }
+        
+        // PARTIDA DOBRADA: Rendimento (Conta de Investimento → Conta Corrente)
+        if (transaction.operationType === 'rendimento' && transaction.links?.investmentId) {
+          const groupId = `rend_${Date.now()}`;
+          
+          // 1. Transação de ENTRADA (Conta Corrente - já é a transação original)
+          transaction.links.transferGroupId = groupId;
+          transaction.flow = 'in'; 
+          
+          // 2. Transação de ENTRADA (Conta de Investimento - aumenta o saldo da conta de investimento)
+          const incomingInvTx: TransacaoCompleta = {
+            ...transaction,
+            id: generateTransactionId(),
+            accountId: transaction.links.investmentId, // Conta de investimento
+            flow: 'in',
+            operationType: 'rendimento',
+            domain: 'investment',
+            categoryId: transaction.categoryId,
+            links: {
+              investmentId: transaction.accountId, // Referência à conta origem
+              loanId: null,
+              transferGroupId: groupId,
+              parcelaId: null,
+              vehicleTransactionId: null,
+            },
+            description: transaction.description || `Rendimento creditado no investimento`,
+            conciliated: false,
+            attachments: [],
+            meta: {
+              createdBy: 'system',
+              source: 'manual',
+              createdAt: new Date().toISOString(),
+            }
+          };
+          newTransactions.push(incomingInvTx);
+        }
 
         // Handle special operation types
         if (transaction.operationType === 'liberacao_emprestimo' && transaction.meta?.numeroContrato) {
@@ -463,7 +499,7 @@ const ReceitasDespesas = () => {
         }
 
         if (transaction.operationType === 'rendimento' && transaction.links?.investmentId) {
-          // Add investment movement
+          // Add investment movement (legacy system)
           addMovimentacaoInvestimento({
             data: transaction.date,
             tipo: 'Rendimento',
@@ -584,8 +620,10 @@ const ReceitasDespesas = () => {
 
     // Get investments and loans from context for linking
     const investments = useMemo(() => {
-      return investimentosRF.map(i => ({ id: `inv_${i.id}`, name: i.aplicacao }));
-    }, [investimentosRF]);
+      return contasMovimento
+        .filter(c => c.accountType === 'aplicacao_renda_fixa' || c.accountType === 'poupanca' || c.accountType === 'criptoativos' || c.accountType === 'reserva_emergencia' || c.accountType === 'objetivos_financeiros')
+        .map(c => ({ id: c.id, name: c.name }));
+    }, [contasMovimento]);
 
     const loans = useMemo(() => {
       return emprestimos
@@ -629,7 +667,7 @@ const ReceitasDespesas = () => {
               <p className="text-muted-foreground mt-1">Contas Movimento e conciliação bancária</p>
             </div>
             <div className="flex items-center gap-2">
-              <PeriodSelector tabId="receitas-despesas" onPeriodChange={handlePeriodChange} />
+              <DateRangeSelector onDateRangeChange={handleDateRangeChange} />
               <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)}>
                 <Tags className="w-4 h-4 mr-2" />Categorias
               </Button>
