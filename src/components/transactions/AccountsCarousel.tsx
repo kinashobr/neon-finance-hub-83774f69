@@ -25,13 +25,15 @@ const reorder = (list: ContaCorrente[], startIndex: number, endIndex: number): C
 
 // Helper function to get the style for the draggable item
 const getItemStyle = (isDragging: boolean, draggableStyle: any) => ({
-  // Add a slight shadow and scale when dragging
+  ...draggableStyle, // Aplica os estilos de posicionamento do react-beautiful-dnd primeiro
+  
+  // Adiciona estilos visuais personalizados
   boxShadow: isDragging ? "0 10px 20px rgba(0,0,0,0.3)" : "none",
-  transform: isDragging ? "scale(1.05)" : "none",
-  transition: isDragging ? "none" : "all 0.2s ease", // Disable transition while dragging for better responsiveness
+  transform: isDragging 
+    ? `${draggableStyle.transform || ''} scale(1.05)` // Adiciona escala à transformação existente
+    : 'none',
+  transition: isDragging ? "none" : "all 0.2s ease", 
   zIndex: isDragging ? 9999 : 'auto',
-  // styles we need to apply on draggables
-  ...draggableStyle,
 });
 
 export function AccountsCarousel({ 
