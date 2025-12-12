@@ -14,7 +14,10 @@ import {
   Shield,
   Calendar,
   Settings,
-  Settings2
+  Settings2,
+  Eye, // ADDED
+  EyeOff, // ADDED
+  BarChart3 // ADDED
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +34,17 @@ import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AreaChart,
+  Area,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip, // ADDED
+  LineChart, // ADDED
+  Line // ADDED
+} from "recharts";
 
 interface Alerta {
   id: string;
