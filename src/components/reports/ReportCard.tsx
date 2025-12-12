@@ -113,11 +113,10 @@ export function ReportCard({
         </div>
         {icon && (
           <div className={cn(
-            "p-3 rounded-xl shrink-0 flex items-center justify-center", // Adicionado flex e justify/align
-            statusIconBg[status] // Usando o novo mapa de cores de fundo
+            "p-3 rounded-xl shrink-0 flex items-center justify-center", // <-- APLICADO: p-3 rounded-xl
+            statusIconBg[status]
           )}>
             {/* Ajuste do tamanho do ícone */}
-            {/* Clonamos o ícone para aplicar o tamanho dinamicamente */}
             {typeof icon === 'object' && icon !== null && 'type' in icon && (icon.type as any).displayName === 'LucideIcon' ? (
               // @ts-ignore
               <icon.type {...icon.props} className={iconSizes[size]} />
