@@ -178,8 +178,6 @@ const STORAGE_KEYS = {
   SEGUROS_VEICULO: "neon_finance_seguros_veiculo",
   OBJETIVOS: "neon_finance_objetivos",
   
-  // Removidos: INVESTIMENTOS_RF, CRIPTOMOEDAS, STABLECOINS, MOVIMENTACOES_INV
-  
   // New integrated keys (V2)
   CONTAS_MOVIMENTO: "fin_accounts_v1",
   CATEGORIAS_V2: "fin_categories_v1",
@@ -246,18 +244,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   );
   
   // Estados V1 removidos, mas mantemos o useState para evitar erros de compilação na Etapa 1
-  const [investimentosRF, setInvestimentosRF] = useState<any[]>(() => 
-    loadFromStorage("LEGACY_RF", initialInvestimentosRF)
-  );
-  const [criptomoedas, setCriptomoedas] = useState<any[]>(() => 
-    loadFromStorage("LEGACY_CRIPTO", initialCriptomoedas)
-  );
-  const [stablecoins, setStablecoins] = useState<any[]>(() => 
-    loadFromStorage("LEGACY_STABLE", initialStablecoins)
-  );
-  const [movimentacoesInvestimento, setMovimentacoesInvestimento] = useState<any[]>(() => 
-    loadFromStorage("LEGACY_MOV", initialMovimentacoesInv)
-  );
+  const [investimentosRF, setInvestimentosRF] = useState<any[]>(initialInvestimentosRF);
+  const [criptomoedas, setCriptomoedas] = useState<any[]>(initialCriptomoedas);
+  const [stablecoins, setStablecoins] = useState<any[]>(initialStablecoins);
+  const [movimentacoesInvestimento, setMovimentacoesInvestimento] = useState<any[]>(initialMovimentacoesInv);
 
   // Estados novos integrados (V2)
   const [contasMovimento, setContasMovimento] = useState<ContaCorrente[]>(() => 
@@ -278,10 +268,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.VEICULOS, veiculos); }, [veiculos]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); }, [segurosVeiculo]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos); }, [objetivos]);
-  
-  // Efeitos V1 removidos
-  // useEffect(() => { saveToStorage(STORAGE_KEYS.INVESTIMENTOS_RF, investimentosRF); }, [investimentosRF]);
-  // ...
   
   useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); }, [categoriasV2]);
@@ -405,24 +391,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const deleteObjetivo = (id: number) => {
     setObjetivos(objetivos.filter(o => o.id !== id));
   };
-
-  // ============================================
-  // OPERAÇÕES V1 REMOVIDAS (Apenas placeholders para evitar erros de interface)
-  // ============================================
-  
-  const addInvestimentoRF = (inv: any) => { console.warn("Função V1 removida"); };
-  const updateInvestimentoRF = (id: number, updates: any) => { console.warn("Função V1 removida"); };
-  const deleteInvestimentoRF = (id: number) => { console.warn("Função V1 removida"); };
-  const addCriptomoeda = (cripto: any) => { console.warn("Função V1 removida"); };
-  const updateCriptomoeda = (id: number, updates: any) => { console.warn("Função V1 removida"); };
-  const deleteCriptomoeda = (id: number) => { console.warn("Função V1 removida"); };
-  const addStablecoin = (stable: any) => { console.warn("Função V1 removida"); };
-  const updateStablecoin = (id: number, updates: any) => { console.warn("Função V1 removida"); };
-  const deleteStablecoin = (id: number) => { console.warn("Função V1 removida"); };
-  const addMovimentacaoInvestimento = (mov: any) => { console.warn("Função V1 removida"); };
-  const updateMovimentacaoInvestimento = (id: number, updates: any) => { console.warn("Função V1 removida"); };
-  const deleteMovimentacaoInvestimento = (id: number) => { console.warn("Função V1 removida"); };
-
 
   // ============================================
   // OPERAÇÕES TRANSAÇÕES V2
@@ -598,6 +566,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    // Adiciona entidades V2 mantidas para compatibilidade de exportação
+    (data.data as any).emprestimos = emprestimos;
+    (data.data as any).veiculos = veiculos;
+    (data.data as any).segurosVeiculo = segurosVeiculo;
+    (data.data as any).objetivos = objetivos;
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -613,16 +587,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const data = JSON.parse(text);
 
       if (data.schemaVersion === '2.0' && data.data) {
-        // Importa apenas coleções V2
+        // Importa coleções V2
         if (data.data.accounts) setContasMovimento(data.data.accounts);
         if (data.data.categories) setCategoriasV2(data.data.categories);
         if (data.data.transactions) setTransacoesV2(data.data.transactions);
         
-        // Se houver dados legados, eles são ignorados, mas o contexto precisa ser resetado
-        setEmprestimos(data.emprestimos || initialEmprestimos);
-        setVeiculos(data.veiculos || initialVeiculos);
-        setSegurosVeiculo(data.segurosVeiculo || initialSegurosVeiculo);
-        setObjetivos(data.objetivos || initialObjetivos);
+        // Importa entidades V2 mantidas
+        if (data.data.emprestimos) setEmprestimos(data.data.emprestimos);
+        if (data.data.veiculos) setVeiculos(data.data.veiculos);
+        if (data.data.segurosVeiculo) setSegurosVeiculo(data.data.segurosVeiculo);
+        if (data.data.objetivos) setObjetivos(data.data.objetivos);
         
         // Resetar estados V1 que foram removidos
         setInvestimentosRF(initialInvestimentosRF);
@@ -630,7 +604,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setStablecoins(initialStablecoins);
         setMovimentacoesInvestimento(initialMovimentacoesInv);
 
-        return { success: true, message: "Dados V2 importados com sucesso! Dados legados foram ignorados." };
+        return { success: true, message: "Dados V2 importados com sucesso!" };
       } else {
         return { success: false, message: "Erro ao importar dados. Versão do schema incompatível." };
       }
@@ -693,18 +667,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     criptomoedas,
     stablecoins,
     movimentacoesInvestimento,
-    addInvestimentoRF,
-    updateInvestimentoRF,
-    deleteInvestimentoRF,
-    addCriptomoeda,
-    updateCriptomoeda,
-    deleteCriptomoeda,
-    addStablecoin,
-    updateStablecoin,
-    deleteStablecoin,
-    addMovimentacaoInvestimento,
-    updateMovimentacaoInvestimento,
-    deleteMovimentacaoInvestimento,
+    addInvestimentoRF: () => { console.warn("Função V1 removida"); },
+    updateInvestimentoRF: () => { console.warn("Função V1 removida"); },
+    deleteInvestimentoRF: () => { console.warn("Função V1 removida"); },
+    addCriptomoeda: () => { console.warn("Função V1 removida"); },
+    updateCriptomoeda: () => { console.warn("Função V1 removida"); },
+    deleteCriptomoeda: () => { console.warn("Função V1 removida"); },
+    addStablecoin: () => { console.warn("Função V1 removida"); },
+    updateStablecoin: () => { console.warn("Função V1 removida"); },
+    deleteStablecoin: () => { console.warn("Função V1 removida"); },
+    addMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
+    updateMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
+    deleteMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
   };
 
   return (
