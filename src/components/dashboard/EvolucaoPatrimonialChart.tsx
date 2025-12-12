@@ -17,27 +17,22 @@ interface EvolucaoData {
 }
 
 interface EvolucaoPatrimonialChartProps {
-  data: EvolucaoData[];
+  // Removed unused 'data' prop
 }
 
 const lineOptions = [
   { id: "patrimonioTotal", label: "Patrimônio", color: "hsl(199, 89%, 48%)" },
   { id: "receitas", label: "Receitas", color: "hsl(142, 76%, 36%)" },
   { id: "despesas", label: "Despesas", color: "hsl(0, 72%, 51%)" },
-  // Removendo linhas de Investimentos e Dívidas para focar no PL, Receitas e Despesas
-  // { id: "investimentos", label: "Investimentos", color: "hsl(270, 100%, 65%)" },
-  // { id: "dividas", label: "Dívidas", color: "hsl(38, 92%, 50%)" },
 ];
 
-export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps) {
+export function EvolucaoPatrimonialChart({}: EvolucaoPatrimonialChartProps) {
   const { 
     transacoesV2, 
     contasMovimento,
-    emprestimos,
-    veiculos,
+    getValorFipeTotal,
+    getSaldoDevedor,
     calculateBalanceUpToDate,
-    getSaldoDevedor, // Mantido para cálculo de passivos globais
-    getValorFipeTotal, // Mantido para cálculo de ativos globais
   } = useFinance();
   
   const [periodo, setPeriodo] = useState("12m");
@@ -72,10 +67,8 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
     const valorVeiculos = getValorFipeTotal(); 
     const totalAtivos = saldoContasAtivas + valorVeiculos;
 
-    // Passivos: Saldo Devedor de Empréstimos + Saldo Negativo de Cartões
     // Simplificação: Usamos o saldo devedor global (getSaldoDevedor) para todos os pontos no tempo,
     // pois o cálculo de amortização histórica de empréstimos é complexo e não implementado.
-    // Para um gráfico de evolução, o ideal seria calcular o saldo devedor de empréstimos na data 'targetDate'.
     // Para manter a forma do gráfico e evitar regressão, usaremos o total de passivos global.
     const totalPassivos = getSaldoDevedor(); 
 
@@ -121,8 +114,8 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
         patrimonioTotal: patrimonioLiquido, 
         receitas, 
         despesas, 
-        investimentos: 0, // Não usado no gráfico final
-        dividas: 0, // Não usado no gráfico final
+        investimentos: 0, 
+        dividas: 0, 
       });
     }
     return result;
@@ -183,13 +176,13 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
                 </linearGradient>
               ))}
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 18%)" vertical={false} />
-            <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
-            <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+            <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
             <Tooltip
               contentStyle={{
-                backgroundColor: "hsl(220, 20%, 8%)",
-                border: "1px solid hsl(220, 20%, 18%)",
+                backgroundColor: "hsl(var(--card))",
+                border: "1px solid hsl(var(--border))",
                 borderRadius: "12px",
               }}
               formatter={(value: number, name: string) => [`R$ ${value.toLocaleString("pt-BR")}`, lineOptions.find(l => l.id === name)?.label || name]}

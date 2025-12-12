@@ -673,7 +673,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
           badge={variacaoPL.percent >= 0 ? "Crescendo" : "Reduzindo"}
           badgeStatus={variacaoPL.percent >= 0 ? "success" : "danger"}
         >
-          <EvolucaoPatrimonialChart data={[]} />
+          <EvolucaoPatrimonialChart />
         </ExpandablePanel>
       </div>
 
