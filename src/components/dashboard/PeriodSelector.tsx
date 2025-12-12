@@ -144,14 +144,18 @@ export function PeriodSelector({
     if (!r.from || !r.to) return "Selecione um período";
     
     // Se chegamos aqui, r.from e r.to são Date objects.
-    const fromStr = format(r.from, "dd/MM/yyyy", { locale: ptBR });
-    const toStr = format(r.to, "dd/MM/yyyy", { locale: ptBR });
+    // Usamos uma verificação de tipo para garantir que o compilador saiba que são Date
+    const fromDate = r.from as Date;
+    const toDate = r.to as Date;
 
-    if (isSameDay(r.from, r.to)) {
+    const fromStr = format(fromDate, "dd/MM/yyyy", { locale: ptBR });
+    const toStr = format(toDate, "dd/MM/yyyy", { locale: ptBR });
+
+    if (isSameDay(fromDate, toDate)) {
       return fromStr;
     }
-    if (isSameMonth(r.from, r.to) && isSameYear(r.from, r.to)) {
-      return `${format(r.from, "dd", { locale: ptBR })} - ${toStr}`;
+    if (isSameMonth(fromDate, toDate) && isSameYear(fromDate, toDate)) {
+      return `${format(fromDate, "dd", { locale: ptBR })} - ${toStr}`;
     }
     
     return `${fromStr} - ${toStr}`;
