@@ -179,10 +179,10 @@ export function PeriodSelector({
         side="bottom"
         align="start"
       >
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           
           {/* Coluna Presets */}
-          <div className="w-[150px] shrink-0 space-y-1.5">
+          <div className="w-[140px] shrink-0 space-y-1">
             <Label className="text-xs font-medium text-muted-foreground px-1">Presets</Label>
             <div className="flex flex-col gap-1">
               {presets.map((preset) => (
@@ -208,8 +208,8 @@ export function PeriodSelector({
             </div>
           </div>
 
-          {/* Coluna Calendário */}
-          <div className="space-y-3 min-w-[600px]">
+          {/* Coluna Calendário Compacta */}
+          <div className="space-y-2 min-w-[520px] max-w-[520px]">
             <Calendar
               mode="range"
               selected={{ from: tempRange.from, to: tempRange.to }}
@@ -219,27 +219,27 @@ export function PeriodSelector({
               initialFocus
             />
 
-            <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+            <div className="flex items-center gap-2 pt-2 border-t border-border/40">
               <Button 
                 onClick={handleCalendarApply} 
-                className="flex-1 h-8 gap-1 text-xs"
+                className="flex-1 h-7 gap-1 text-xs"
                 disabled={!tempRange.from || !tempRange.to}
               >
                 <Check className="w-3 h-3" />
                 Aplicar Datas
               </Button>
+
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleClearAll}
-                className="h-8 gap-1 text-xs text-destructive hover:text-destructive"
+                className="h-7 gap-1 text-xs text-destructive hover:text-destructive"
               >
                 <X className="w-3 h-3" />
                 Limpar
               </Button>
             </div>
           </div>
-
         </div>
       </PopoverContent>
     </Popover>
