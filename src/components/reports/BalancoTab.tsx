@@ -65,6 +65,8 @@ const COLORS = {
   muted: "hsl(var(--muted-foreground))",
   card: "hsl(var(--card))",
   border: "hsl(var(--border))",
+  gold: "hsl(45, 93%, 47%)", // Added
+  cyan: "hsl(180, 70%, 50%)", // Added
 };
 
 const PIE_COLORS = [

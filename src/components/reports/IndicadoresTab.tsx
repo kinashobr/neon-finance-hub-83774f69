@@ -52,7 +52,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays } from "date-fns";
 import { toast } from "sonner";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
@@ -120,27 +120,6 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
   const { range1, range2 } = dateRanges;
 
-  // Estado para indicadores personalizados
-  const [customIndicators, setCustomIndicators] = useState<CustomIndicator[]>(() => {
-    try {
-      const stored = localStorage.getItem(CUSTOM_INDICATORS_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [newIndicator, setNewIndicator] = useState<Partial<CustomIndicator>>({
-    nome: '',
-    descricao: '',
-    formula: '',
-    formato: 'percent',
-    limiteVerde: 0,
-    limiteAmarelo: 0,
-    invertido: false,
-  });
-
   // --- NOVOS TIPOS PARA CORREÇÃO ---
   type LiquidezKey = 'corrente' | 'seca' | 'imediata' | 'geral';
   type EndividamentoKey = 'total' | 'dividaPL' | 'composicao' | 'imobilizacao';
@@ -176,6 +155,27 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
       return base + range * 0.5 + (Math.random() - 0.5) * range * 0.4;
     }).concat([Math.abs(current)]);
   }, []);
+
+  // Estado para indicadores personalizados
+  const [customIndicators, setCustomIndicators] = useState<CustomIndicator[]>(() => {
+    try {
+      const stored = localStorage.getItem(CUSTOM_INDICATORS_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [newIndicator, setNewIndicator] = useState<Partial<CustomIndicator>>({
+    nome: '',
+    descricao: '',
+    formula: '',
+    formato: 'percent',
+    limiteVerde: 0,
+    limiteAmarelo: 0,
+    invertido: false,
+  });
 
   // Salvar indicadores personalizados
   const saveCustomIndicators = (indicators: CustomIndicator[]) => {
