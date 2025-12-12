@@ -119,21 +119,31 @@ const ReceitasDespesas = () => {
     const periodEnd = dateRanges.range1.to;
     
     return visibleAccounts.map(account => {
-      // 1. Calculate Period Initial Balance (balance accumulated up to the start date, inclusive)
-      const periodInitialBalance = calculateBalanceUpToDate(account.id, periodStart, transactions, accounts);
-
-      // 2. Calculate Period Transactions (transactions strictly AFTER periodStart, up to periodEnd)
+      // 1. Calculate Period Initial Balance (balance accumulated UP TO the day BEFORE periodStart)
+      
+      let periodInitialBalance = 0;
+      
+      if (periodStart) {
+          // Calculate balance up to the day before periodStart (exclusive of periodStart)
+          const dayBeforeStart = subDays(periodStart, 1);
+          periodInitialBalance = calculateBalanceUpToDate(account.id, dayBeforeStart, transactions, accounts);
+      }
+      // If periodStart is undefined (Todo o período), periodInitialBalance remains 0.
+      
+      // 2. Calculate Period Transactions (transactions strictly ON or AFTER periodStart, up to periodEnd)
       const accountTxInPeriod = transactions.filter(t => {
         if (t.accountId !== account.id) return false;
         
         // Exclude synthetic initial balance transactions from period flow calculation
-        if (t.operationType === 'initial_balance') return false;
+        // These transactions are already accounted for in periodInitialBalance if they occurred before periodStart.
+        if (t.operationType === 'initial_balance' && periodStart) return false;
         
         const transactionDate = parseISO(t.date);
         
-        if (!periodStart) return true;
+        if (!periodStart) return true; // Todo o período: includes all transactions (including initial_balance if it exists)
         
-        return transactionDate > periodStart && transactionDate <= (periodEnd || new Date());
+        // Period defined: include transactions ON or AFTER periodStart, up to periodEnd
+        return transactionDate >= periodStart && transactionDate <= (periodEnd || new Date());
       });
 
       // 3. Calculate Period Totals
