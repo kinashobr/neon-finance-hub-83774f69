@@ -211,6 +211,29 @@ export function PeriodSelector({
     handleApply({ range1: ranges.range1, range2: newRange2 });
   };
   
+  // Função para alternar o modo de comparação
+  const handleComparisonToggle = (checked: boolean) => {
+    setIsComparisonEnabled(checked);
+    
+    let newRange2 = ranges.range2;
+    let newPreset2 = selectedPreset2;
+
+    if (checked) {
+      // Se ativando, define o padrão como 'Período Anterior' se não houver um range 2 válido
+      if (!newRange2.from || newPreset2 === 'none') {
+        newRange2 = calculateRangeFromPreset('previousPeriod', ranges.range1);
+        newPreset2 = 'previousPeriod';
+      }
+    } else {
+      // Se desativando, limpa o range 2
+      newRange2 = { from: undefined, to: undefined };
+      newPreset2 = 'none';
+    }
+    
+    setSelectedPreset2(newPreset2);
+    handleApply({ range1: ranges.range1, range2: newRange2 });
+  };
+
   // Aplica o intervalo temporário (do calendário) ao range de edição
   const handleCalendarApply = () => {
     if (!tempRange.from && !tempRange.to) return;
