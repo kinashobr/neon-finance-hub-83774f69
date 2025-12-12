@@ -39,7 +39,7 @@ const Relatorios = () => {
             </p>
           </div>
           <PeriodSelector 
-            initialRanges={initialRanges}
+            initialRanges={dateRanges}
             onDateRangeChange={handlePeriodChange} 
           />
         </div>

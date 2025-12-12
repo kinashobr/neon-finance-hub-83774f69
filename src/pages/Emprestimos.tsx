@@ -119,7 +119,7 @@ const Emprestimos = () => {
           </div>
           <div className="flex items-center gap-2">
             <PeriodSelector 
-              initialRanges={initialRanges}
+              initialRanges={dateRanges}
               onDateRangeChange={handlePeriodChange} 
             />
             <LoanForm onSubmit={handleAddLoan} contasCorrentes={contasCorrentes} />

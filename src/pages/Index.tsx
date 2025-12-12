@@ -255,7 +255,7 @@ const Index = () => {
           </div>
           <div className="ml-auto">
             <PeriodSelector 
-              initialRanges={initialRanges}
+              initialRanges={dateRanges}
               onDateRangeChange={handlePeriodChange} 
             />
           </div>

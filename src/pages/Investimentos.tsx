@@ -75,29 +75,17 @@ const Investimentos = () => {
   const now = new Date();
   const initialRange1: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
   
-  // Calcula o período anterior como range inicial 2
-  const diffInDays = (initialRange1.to!.getTime() - initialRange1.from!.getTime()) / (1000 * 60 * 60 * 24);
-  const prevTo = subDays(initialRange1.from!, 1);
-  const prevFrom = subDays(prevTo, diffInDays);
-  const initialRange2: DateRange = { from: prevFrom, to: prevTo };
-
-  const initialRanges: ComparisonDateRanges = { range1: initialRange1, range2: initialRange2 };
+  // O range2 será calculado automaticamente pelo PeriodSelector
+  const initialRanges: ComparisonDateRanges = { 
+    range1: initialRange1, 
+    range2: { from: undefined, to: undefined } 
+  };
   
   const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(initialRanges);
 
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
   }, []);
-
-  // Dialogs
-  const [showAddRendimento, setShowAddRendimento] = useState<string | null>(null); // Alterado para string (accountId)
-
-  // Forms
-  const [formRendimento, setFormRendimento] = useState({
-    data: "",
-    valor: "",
-    descricao: ""
-  });
 
   // Helper para calcular saldo atual de uma conta (usando a data final do período P1)
   const calculateAccountBalance = useCallback((accountId: string, targetDate: Date | undefined): number => {
@@ -240,7 +228,7 @@ const Investimentos = () => {
             </p>
           </div>
           <PeriodSelector 
-            initialRanges={initialRanges}
+            initialRanges={dateRanges}
             onDateRangeChange={handlePeriodChange} 
           />
         </div>
