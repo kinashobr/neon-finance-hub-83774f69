@@ -43,16 +43,18 @@ export function CockpitCards({ data }: CockpitCardsProps) {
       icon: Target,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
+      status: data.patrimonioTotal >= 0 ? 'neutral' : 'danger',
     },
     {
       id: 'variacao',
       title: 'Variação do Período',
       value: formatCurrency(Math.abs(data.variacaoPatrimonio)),
-      subtitle: `${isPositiveVariation ? '+' : '-'}${Math.abs(data.variacaoPercentual).toFixed(1)}%`,
+      subtitle: `${isPositiveVariation ? '+' : ''}${data.variacaoPercentual.toFixed(1)}%`,
       icon: isPositiveVariation ? TrendingUp : TrendingDown,
       color: isPositiveVariation ? 'text-success' : 'text-destructive',
       bgColor: isPositiveVariation ? 'bg-success/10' : 'bg-destructive/10',
       trend: isPositiveVariation ? 'up' : 'down',
+      status: isPositiveVariation ? 'success' : 'danger',
     },
     {
       id: 'liquidez',
@@ -61,6 +63,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
       icon: Wallet,
       color: 'text-info',
       bgColor: 'bg-info/10',
+      status: data.liquidezImediata > 0 ? 'info' : 'danger',
     },
     {
       id: 'compromissos',
@@ -69,6 +72,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
       icon: CalendarClock,
       color: 'text-warning',
       bgColor: 'bg-warning/10',
+      status: 'warning',
     },
     {
       id: 'projecao',
@@ -78,33 +82,45 @@ export function CockpitCards({ data }: CockpitCardsProps) {
       color: isPositiveProjection ? 'text-success' : 'text-destructive',
       bgColor: isPositiveProjection ? 'bg-success/10' : 'bg-destructive/10',
       trend: isPositiveProjection ? 'up' : 'down',
+      status: isPositiveProjection ? 'success' : 'danger',
     },
   ];
+  
+  const statusColors = {
+    success: "border-l-success",
+    warning: "border-l-warning",
+    danger: "border-l-destructive",
+    neutral: "border-l-primary",
+    info: "border-l-neon-cyan",
+  };
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
       {cards.map((card) => (
         <div
           key={card.id}
-          className="glass-card p-4 flex flex-col gap-2 hover:shadow-lg transition-shadow"
+          className={cn(
+            "glass-card p-4 flex flex-col gap-2 transition-all hover:scale-[1.02] border-l-4",
+            statusColors[card.status as keyof typeof statusColors]
+          )}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
               {card.title}
             </span>
             <div className={cn("p-1.5 rounded-md", card.bgColor)}>
-              <card.icon className={cn("h-3.5 w-3.5", card.color)} />
+              <card.icon className={cn("h-4 w-4", card.color)} />
             </div>
           </div>
           
-          <div className="flex items-end justify-between gap-2">
-            <span className={cn("text-lg font-bold", card.trend ? card.color : "text-foreground")}>
+          <div className="flex flex-col">
+            <span className={cn("text-2xl font-bold", card.color)}>
               {card.trend === 'down' && '-'}
               {card.trend === 'up' && '+'}
               {card.value}
             </span>
             {card.subtitle && (
-              <span className={cn("text-xs font-medium", card.color)}>
+              <span className={cn("text-xs font-medium mt-1", card.color)}>
                 {card.subtitle}
               </span>
             )}

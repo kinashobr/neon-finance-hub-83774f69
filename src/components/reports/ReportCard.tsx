@@ -51,6 +51,14 @@ export function ReportCard({
     info: "text-neon-cyan",
   };
 
+  const statusIconBg = {
+    success: "bg-success/10 text-success",
+    warning: "bg-warning/10 text-warning",
+    danger: "bg-destructive/10 text-destructive",
+    neutral: "bg-primary/10 text-primary",
+    info: "bg-neon-cyan/10 text-neon-cyan",
+  };
+
   const sizeClasses = {
     sm: "p-3",
     md: "p-4",
@@ -105,12 +113,8 @@ export function ReportCard({
         </div>
         {icon && (
           <div className={cn(
-            "p-3 rounded-xl shrink-0",
-            status === "success" && "bg-success/10 text-success",
-            status === "warning" && "bg-warning/10 text-warning",
-            status === "danger" && "bg-destructive/10 text-destructive",
-            status === "neutral" && "bg-primary/10 text-primary",
-            status === "info" && "bg-neon-cyan/10 text-neon-cyan"
+            "p-3 rounded-xl shrink-0 flex items-center justify-center", // Adicionado flex e justify/align
+            statusIconBg[status] // Usando o novo mapa de cores de fundo
           )}>
             {/* Ajuste do tamanho do ícone */}
             {/* Clonamos o ícone para aplicar o tamanho dinamicamente */}
