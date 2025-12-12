@@ -40,9 +40,12 @@ export function PeriodSelector({
   initialRanges,
   className,
 }: PeriodSelectorProps) {
+  // Ensure initialRanges.range1 is never undefined when initializing state
+  const safeInitialRange1 = initialRanges.range1 || { from: undefined, to: undefined };
+  
   const [isOpen, setIsOpen] = useState(false);
-  const [range, setRange] = useState<DateRange>(initialRanges.range1);
-  const [tempRange, setTempRange] = useState<DateRange>(initialRanges.range1);
+  const [range, setRange] = useState<DateRange>(safeInitialRange1);
+  const [tempRange, setTempRange] = useState<DateRange>(safeInitialRange1);
   const [selectedPreset, setSelectedPreset] = useState<string>('custom');
 
   const calculateRangeFromPreset = useCallback((presetId: string): DateRange => {
@@ -150,7 +153,7 @@ export function PeriodSelector({
   });
 
   const formatDateRange = (r: DateRange | undefined) => {
-    if (!r) return "Todo o período"; // Defensive check for undefined/null range object
+    if (!r) return "Todo o período";
     
     if (!r.from && !r.to) return "Todo o período";
     
