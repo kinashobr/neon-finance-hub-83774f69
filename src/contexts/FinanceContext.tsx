@@ -709,3 +709,842 @@ export function useFinance() {
   }
   return context;
 }
+</dyad-file>
+
+### 2. `src/pages/ReceitasDespesas.tsx`
+
+Ajustar o cálculo do `periodInitialBalance` para usar a data de início do período (`periodStart`) como limite, garantindo que a transação de saldo inicial sintético seja incluída se estiver na data de início do período.
+
+<dyad-write path="src/pages/ReceitasDespesas.tsx" description="Ajustando o cálculo do Saldo Inicial do Período para incluir transações na data de início do período.">
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Button } from "@/components/ui/button";
+import { RefreshCw, Tags, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { isWithinInterval, startOfMonth, endOfMonth, parseISO, subDays } from "date-fns";
+
+// Types
+import { 
+  ContaCorrente, Categoria, TransacaoCompleta, TransferGroup,
+  AccountSummary, OperationType, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, 
+  generateTransactionId, formatCurrency, generateTransferGroupId,
+  DateRange, ComparisonDateRanges
+} from "@/types/finance";
+
+// Components
+import { AccountsCarousel } from "@/components/transactions/AccountsCarousel";
+import { MovimentarContaModal } from "@/components/transactions/MovimentarContaModal";
+import { KPISidebar } from "@/components/transactions/KPISidebar";
+import { ReconciliationPanel } from "@/components/transactions/ReconciliationPanel";
+import { AccountFormModal } from "@/components/transactions/AccountFormModal";
+import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
+import { CategoryListModal } from "@/components/transactions/CategoryListModal";
+import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
+import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
+
+// Context
+import { useFinance } from "@/contexts/FinanceContext";
+
+const ReceitasDespesas = () => {
+  const { 
+    contasMovimento, 
+    setContasMovimento,
+    categoriasV2, 
+    setCategoriasV2,
+    transacoesV2, 
+    setTransacoesV2,
+    addTransacaoV2,
+    emprestimos,
+    addEmprestimo,
+    markLoanParcelPaid,
+    unmarkLoanParcelPaid,
+    veiculos,
+    addVeiculo,
+    calculateBalanceUpToDate, // Importado do contexto
+    dateRanges, // <-- Use context state
+    setDateRanges, // <-- Use context setter
+  } = useFinance();
+
+  // Local state for transfer groups
+  const [transferGroups, setTransferGroups] = useState<TransferGroup[]>([]);
+
+  // UI state
+  const [showMovimentarModal, setShowMovimentarModal] = useState(false);
+  const [selectedAccountForModal, setSelectedAccountForModal] = useState<string>();
+  const [showReconciliation, setShowReconciliation] = useState(false);
+  
+  // New modals
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<ContaCorrente>();
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showCategoryListModal, setShowCategoryListModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Categoria>();
+  const [editingTransaction, setEditingTransaction] = useState<TransacaoCompleta>();
+  
+  // Statement dialog
+  const [viewingAccountId, setViewingAccountId] = useState<string | null>(null);
+  const [showStatementDialog, setShowStatementDialog] = useState(false);
+
+  // Filter state (mantido para filtros internos da tabela, mas datas são controladas pelo PeriodSelector)
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedAccountId, setSelectedAccountId] = useState("all");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("all");
+  const [selectedTypes, setSelectedTypes] = useState<OperationType[]>(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'rendimento', 'initial_balance']);
+  
+  // Removendo dateFrom/dateTo do estado local, pois PeriodSelector controla isso
+  const dateFrom = dateRanges.range1.from ? dateRanges.range1.from.toISOString().split('T')[0] : "";
+  const dateTo = dateRanges.range1.to ? dateRanges.range1.to.toISOString().split('T')[0] : "";
+
+  // Alias for context data
+  const accounts = contasMovimento;
+  const transactions = transacoesV2;
+  const categories = categoriasV2;
+
+  const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
+    setDateRanges(ranges);
+  }, [setDateRanges]);
+
+  // Filter transactions
+  const filteredTransactions = useMemo(() => {
+    const range = dateRanges.range1; // Use range1 for filtering transactions in this view
+    
+    return transactions.filter(t => {
+      const matchSearch = !searchTerm || t.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchAccount = selectedAccountId === 'all' || t.accountId === selectedAccountId;
+      const matchCategory = selectedCategoryId === 'all' || t.categoryId === selectedCategoryId;
+      const matchType = selectedTypes.includes(t.operationType);
+      
+      const transactionDate = parseISO(t.date);
+      
+      // Filtro de período usando dateRange.range1
+      const matchPeriod = (!range.from || isWithinInterval(transactionDate, { start: range.from, end: range.to || new Date() }));
+      
+      return matchSearch && matchAccount && matchCategory && matchType && matchPeriod;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [transactions, searchTerm, selectedAccountId, selectedCategoryId, selectedTypes, dateRanges]);
+
+  // Calculate account summaries
+  const accountSummaries: AccountSummary[] = useMemo(() => {
+    const periodStart = dateRanges.range1.from;
+    const periodEnd = dateRanges.range1.to;
+    
+    return accounts.map(account => {
+      // 1. Calculate Period Initial Balance (balance right before periodStart)
+      // Se houver data de início, calculamos o saldo ATÉ o dia anterior ao início do período.
+      // Se a transação de saldo inicial estiver na data de início do período, ela deve ser incluída aqui.
+      const dateBeforeStart = periodStart ? subDays(periodStart, 1) : undefined;
+      
+      // CORREÇÃO: Se a transação de saldo inicial estiver na data de início do período, ela deve ser incluída no saldo inicial.
+      // No entanto, a função calculateBalanceUpToDate já lida com a inclusão de transações 'initial_balance'
+      // se a data for <= targetDate.
+      // Se periodStart é 01/11/2025, dateBeforeStart é 31/10/2025.
+      // Se a transação inicial é 01/11/2025, ela é excluída.
+      // Para incluir a transação inicial na data de início do período, precisamos de uma lógica mais refinada.
+      
+      // Vamos usar a data de início do período como limite para o cálculo do saldo inicial,
+      // mas apenas para transações de 'initial_balance'.
+      
+      const initialTx = transactions.find(t => 
+          t.accountId === account.id && t.operationType === 'initial_balance'
+      );
+      
+      let periodInitialBalance = 0;
+      
+      if (initialTx && periodStart && parseISO(initialTx.date) <= periodStart) {
+          // Se a transação inicial existe e está na data de início do período ou antes,
+          // usamos o saldo calculado até a data de início do período (inclusive)
+          periodInitialBalance = calculateBalanceUpToDate(account.id, periodStart, transactions, accounts);
+          
+          // Agora, subtraímos as transações operacionais que ocorreram no dia 'periodStart'
+          // para obter o saldo ANTES das operações do dia.
+          const txOnStartDay = transactions.filter(t => 
+              t.accountId === account.id && 
+              t.operationType !== 'initial_balance' &&
+              t.date === initialTx.date
+          );
+          
+          txOnStartDay.forEach(t => {
+              const isCreditCard = account.accountType === 'cartao_credito';
+              
+              if (isCreditCard) {
+                  if (t.operationType === 'despesa') {
+                      periodInitialBalance += t.amount;
+                  } else if (t.operationType === 'transferencia') {
+                      periodInitialBalance -= t.amount;
+                  }
+              } else {
+                  if (t.flow === 'in' || t.flow === 'transfer_in') {
+                      periodInitialBalance -= t.amount;
+                  } else {
+                      periodInitialBalance += t.amount;
+                  }
+              }
+          });
+          
+      } else if (periodStart) {
+          // Se não há transação inicial ou ela é posterior ao período, calculamos o saldo até o dia anterior
+          periodInitialBalance = calculateBalanceUpToDate(account.id, dateBeforeStart, transactions, accounts);
+      } else {
+          // Se não há período selecionado, o saldo inicial é 0 (ou o saldo inicial da conta, que é 0)
+          periodInitialBalance = 0;
+      }
+      
+      // 2. Calculate Period Transactions (transactions within the selected period)
+      const accountTxInPeriod = transactions.filter(t => {
+        if (t.accountId !== account.id) return false;
+        const transactionDate = parseISO(t.date);
+        
+        // Se não houver data de início, consideramos todas as transações
+        if (!periodStart) return true;
+        
+        // Se houver data de início, filtramos as transações DENTRO do período
+        // E excluímos a transação de 'initial_balance' se ela estiver na data de início do período,
+        // pois ela já foi contabilizada no periodInitialBalance.
+        const isInitialTxOnStartDay = t.operationType === 'initial_balance' && t.date === initialTx?.date;
+        if (isInitialTxOnStartDay) return false;
+        
+        return isWithinInterval(transactionDate, { start: periodStart, end: periodEnd || new Date() });
+      });
+
+      // 3. Calculate Period Totals
+      let totalIn = 0;
+      let totalOut = 0;
+      
+      accountTxInPeriod.forEach(t => {
+        const isCreditCard = account.accountType === 'cartao_credito';
+        
+        if (isCreditCard) {
+          // Cartão de Crédito: Despesa (out) é uma saída, Transferência (in) é uma entrada
+          if (t.operationType === 'despesa') {
+            totalOut += t.amount;
+          } else if (t.operationType === 'transferencia') {
+            totalIn += t.amount;
+          }
+        } else {
+          // Contas normais
+          if (t.flow === 'in' || t.flow === 'transfer_in') {
+            totalIn += t.amount;
+          } else {
+            totalOut += t.amount;
+          }
+        }
+      });
+      
+      // 4. Calculate Period Final Balance
+      const periodFinalBalance = periodInitialBalance + totalIn - totalOut;
+      
+      // 5. Reconciliation Status (based on transactions in the period)
+      const conciliatedCount = accountTxInPeriod.filter(t => t.conciliated).length;
+      const reconciliationStatus = accountTxInPeriod.length === 0 || conciliatedCount === accountTxInPeriod.length ? 'ok' : 'warning' as const;
+
+      return {
+        accountId: account.id,
+        accountName: account.name,
+        accountType: account.accountType,
+        institution: account.institution,
+        initialBalance: periodInitialBalance, // Saldo Inicial (período)
+        currentBalance: periodFinalBalance, // Saldo Final (período)
+        projectedBalance: periodFinalBalance, // Simplified: using final balance as projected for now
+        totalIn,
+        totalOut,
+        reconciliationStatus,
+        transactionCount: accountTxInPeriod.length
+      };
+    });
+  }, [accounts, transactions, dateRanges, calculateBalanceUpToDate]);
+
+  // Handlers
+  const handleMovimentar = (accountId: string) => {
+    setSelectedAccountForModal(accountId);
+    setEditingTransaction(undefined);
+    setShowMovimentarModal(true);
+  };
+
+  const handleViewStatement = (accountId: string) => {
+    setViewingAccountId(accountId);
+    setShowStatementDialog(true);
+  };
+
+  const handleTransactionSubmit = (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => {
+    if (editingTransaction) {
+      // When editing, also update linked transactions
+      const linkedGroupId = editingTransaction.links?.transferGroupId;
+      if (linkedGroupId) {
+        // Update both sides of the transfer
+        setTransacoesV2(prev => prev.map(t => {
+          if (t.id === transaction.id) return transaction;
+          if (t.links?.transferGroupId === linkedGroupId && t.id !== transaction.id) {
+            // Determine flow for the other side based on account type
+            const otherAccount = accounts.find(a => a.id === t.accountId);
+            const isCreditCard = otherAccount?.accountType === 'cartao_credito';
+            
+            let newFlow: 'in' | 'out' | 'transfer_in' | 'transfer_out';
+            
+            if (isCreditCard) {
+              // Se o outro lado é CC, a transação original era o pagamento (transferencia)
+              // O lado oposto é a Conta Corrente (transferencia)
+              newFlow = t.accountId === transferGroup?.fromAccountId ? 'transfer_out' : 'transfer_in';
+            } else {
+              // Lógica normal de transferência
+              newFlow = t.accountId === transferGroup?.fromAccountId ? 'transfer_out' : 'transfer_in';
+            }
+            
+            return { 
+              ...t, 
+              amount: transaction.amount, 
+              date: transaction.date, 
+              description: transaction.description,
+              flow: newFlow,
+            };
+          }
+          return t;
+        }));
+      } else {
+        setTransacoesV2(transacoesV2.map(t => t.id === transaction.id ? transaction : t));
+      }
+    } else {
+      const newTransactions = [transaction];
+      
+      // PARTIDA DOBRADA: Transferência (inclui pagamento de fatura CC)
+      if (transferGroup) {
+        setTransferGroups(prev => [...prev, transferGroup]);
+        
+        const fromAccount = accounts.find(a => a.id === transferGroup.fromAccountId);
+        const toAccount = accounts.find(a => a.id === transferGroup.toAccountId);
+        
+        const isToCreditCard = toAccount?.accountType === 'cartao_credito';
+        
+        let incomingTx: TransacaoCompleta;
+        
+        if (isToCreditCard) {
+          // Pagamento de Fatura: 
+          // Transação original (transaction) é a ENTRADA no CC (flow: in)
+          // Precisamos criar a transação de SAÍDA da Conta Corrente (fromAccount)
+          
+          // Transação de SAÍDA da Conta Corrente (fromAccount)
+          incomingTx = {
+            ...transaction,
+            id: generateTransactionId(),
+            accountId: transferGroup.fromAccountId,
+            flow: 'transfer_out', // Saída da conta corrente
+            operationType: 'transferencia',
+            domain: 'operational',
+            categoryId: null,
+            links: { ...transaction.links, transferGroupId: transferGroup.id },
+            description: transferGroup.description || `Pagamento de fatura CC ${toAccount?.name}`,
+          };
+          
+          // Atualiza a transação original (entrada no CC)
+          transaction.links.transferGroupId = transferGroup.id;
+          transaction.flow = 'in';
+          
+        } else {
+          // Transferência normal (CC para CC)
+          
+          // Transação de ENTRADA na Conta Destino (toAccount)
+          incomingTx = {
+            ...transaction,
+            id: generateTransactionId(),
+            accountId: transferGroup.toAccountId,
+            flow: 'transfer_in',
+            operationType: 'transferencia',
+            domain: 'operational',
+            categoryId: null,
+            links: { ...transaction.links, transferGroupId: transferGroup.id },
+            description: transferGroup.description || `Transferência recebida de ${fromAccount?.name}`,
+          };
+          
+          // Atualiza a transação original (saída da Conta Origem)
+          transaction.links.transferGroupId = transferGroup.id;
+          transaction.flow = 'transfer_out';
+        }
+        
+        newTransactions.push(incomingTx);
+      }
+
+      // PARTIDA DOBRADA: Aplicação (Conta Corrente → Conta de Investimento)
+      if (transaction.operationType === 'aplicacao' && transaction.links?.investmentId) {
+        const groupId = `app_${Date.now()}`;
+        
+        // 1. Transação de SAÍDA (Conta Corrente - já é a transação original)
+        transaction.links.transferGroupId = groupId;
+        transaction.flow = 'out'; 
+        
+        // 2. Transação de ENTRADA (Conta de Investimento)
+        const incomingTx: TransacaoCompleta = {
+          ...transaction,
+          id: generateTransactionId(),
+          accountId: transaction.links.investmentId, // Conta de investimento
+          flow: 'in',
+          operationType: 'aplicacao',
+          domain: 'investment',
+          amount: transaction.amount,
+          categoryId: null,
+          description: transaction.description || `Aplicação recebida de conta corrente`,
+          links: {
+            investmentId: transaction.accountId, // Referência à conta origem
+            loanId: null,
+            transferGroupId: groupId,
+            parcelaId: null,
+            vehicleTransactionId: null,
+          },
+          conciliated: false,
+          attachments: [],
+          meta: {
+            createdBy: 'system',
+            source: 'manual',
+            createdAt: new Date().toISOString(),
+          }
+        };
+        newTransactions.push(incomingTx);
+      }
+
+      // PARTIDA DOBRADA: Resgate (Conta de Investimento → Conta Corrente)
+      if (transaction.operationType === 'resgate' && transaction.links?.investmentId) {
+        const groupId = `res_${Date.now()}`;
+        
+        // 1. Transação de ENTRADA (Conta Corrente - já é a transação original)
+        transaction.links.transferGroupId = groupId;
+        transaction.flow = 'in'; 
+        
+        // 2. Transação de SAÍDA (Conta de Investimento)
+        const outgoingTx: TransacaoCompleta = {
+          ...transaction,
+          id: generateTransactionId(),
+          date: transaction.date,
+          accountId: transaction.links.investmentId, // Conta de investimento
+          flow: 'out',
+          operationType: 'resgate',
+          domain: 'investment',
+          amount: transaction.amount,
+          categoryId: null,
+          description: transaction.description || `Resgate enviado para conta corrente`,
+          links: {
+            investmentId: transaction.accountId, // Referência à conta destino
+            loanId: null,
+            transferGroupId: groupId,
+            parcelaId: null,
+            vehicleTransactionId: null,
+          },
+          conciliated: false,
+          attachments: [],
+            meta: {
+              createdBy: 'system',
+              source: 'manual',
+              createdAt: new Date().toISOString(),
+            }
+          };
+          newTransactions.push(outgoingTx);
+        }
+
+        // Handle special operation types
+        if (transaction.operationType === 'liberacao_emprestimo' && transaction.meta?.numeroContrato) {
+          // Create pending loan
+          addEmprestimo({
+            contrato: transaction.meta.numeroContrato,
+            valorTotal: transaction.amount,
+            parcela: 0,
+            meses: 0,
+            taxaMensal: 0,
+            status: 'pendente_config',
+            liberacaoTransactionId: transaction.id,
+            contaCorrenteId: transaction.accountId,
+            dataInicio: transaction.date,
+          });
+        }
+
+        // Handle loan payment - mark parcel as paid
+        if (transaction.operationType === 'pagamento_emprestimo' && transaction.links?.loanId) {
+          const loanIdNum = parseInt(transaction.links.loanId.replace('loan_', ''));
+          const parcelaNum = transaction.links.parcelaId ? parseInt(transaction.links.parcelaId) : undefined;
+          if (!isNaN(loanIdNum)) {
+            markLoanParcelPaid(loanIdNum, transaction.amount, transaction.date, parcelaNum);
+          }
+        }
+
+        // Handle vehicle insurance payment - mark parcel as paid
+        if (transaction.operationType === 'despesa' && transaction.links?.vehicleTransactionId) {
+          const [seguroIdStr, parcelaNumeroStr] = transaction.links.vehicleTransactionId.split('_');
+          const seguroId = parseInt(seguroIdStr);
+          const parcelaNumero = parseInt(parcelaNumeroStr);
+          
+          if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
+            // The context handles the update via markSeguroParcelPaid
+          }
+        }
+
+        if (transaction.operationType === 'veiculo' && transaction.meta?.vehicleOperation === 'compra') {
+          // Create pending vehicle
+          addVeiculo({
+            modelo: '',
+            ano: new Date().getFullYear(),
+            dataCompra: transaction.date,
+            valorVeiculo: transaction.amount,
+            valorSeguro: 0,
+            vencimentoSeguro: "",
+            parcelaSeguro: 0,
+            valorFipe: transaction.amount,
+            status: 'pendente_cadastro',
+            compraTransactionId: transaction.id,
+          });
+        }
+
+        if (transaction.operationType === 'rendimento' && transaction.links?.investmentId) {
+          // The transaction itself (type 'rendimento') is enough to update the account balance.
+        }
+        
+        console.log("New Transactions to add:", newTransactions); // Debug log
+        newTransactions.forEach(t => addTransacaoV2(t));
+      }
+    };
+
+    const handleEditTransaction = (transaction: TransacaoCompleta) => {
+      setEditingTransaction(transaction);
+      setSelectedAccountForModal(transaction.accountId);
+      setShowMovimentarModal(true);
+    };
+
+    const handleDeleteTransaction = (id: string) => {
+      if (!confirm("Excluir esta transação?")) return;
+      
+      // 1. Encontrar a transação a ser excluída
+      const transactionToDelete = transacoesV2.find(t => t.id === id);
+      
+      // 2. Reverter status de pagamento de empréstimo, se aplicável
+      if (transactionToDelete?.operationType === 'pagamento_emprestimo' && transactionToDelete.links?.loanId) {
+        const loanIdNum = parseInt(transactionToDelete.links.loanId.replace('loan_', ''));
+        if (!isNaN(loanIdNum)) {
+          unmarkLoanParcelPaid(loanIdNum);
+        }
+      }
+      
+      // 3. Excluir a transação e seus vínculos (partida dobrada)
+      const linkedGroupId = transactionToDelete?.links?.transferGroupId;
+      
+      if (linkedGroupId) {
+        // Delete both sides of the linked transaction (transfer, aplicacao, resgate)
+        setTransacoesV2(prev => prev.filter(t => t.links?.transferGroupId !== linkedGroupId));
+        toast.success("Transações vinculadas excluídas");
+      } else {
+        setTransacoesV2(prev => prev.filter(t => t.id !== id));
+        toast.success("Transação excluída");
+      }
+    };
+
+    const handleToggleConciliated = (id: string, value: boolean) => {
+      setTransacoesV2(prev => prev.map(t => t.id === id ? { ...t, conciliated: value } : t));
+    };
+
+    // Transaction count by category
+    const transactionCountByCategory = useMemo(() => {
+      const counts: Record<string, number> = {};
+      transactions.forEach(t => {
+        if (t.categoryId) {
+          counts[t.categoryId] = (counts[t.categoryId] || 0) + 1;
+        }
+      });
+      return counts;
+    }, [transactions]);
+
+
+    const handleReconcile = (accountId: string) => {
+      setTransacoesV2(prev => prev.map(t => 
+        t.accountId === accountId ? { ...t, conciliated: true } : t
+      ));
+      toast.success("Conta conciliada!");
+    };
+
+    // Account CRUD
+    const handleAccountSubmit = (account: ContaCorrente) => {
+      const isNewAccount = !editingAccount;
+      
+      // Saldo inicial é extraído do objeto temporário do modal, mas não é salvo no ContaCorrente.
+      // O valor inicial é sempre representado pela transação sintética.
+      const initialBalanceAmount = account.initialBalance;
+      
+      // A conta é salva com initialBalance = 0, pois o valor inicial será representado pela transação.
+      const newAccount: ContaCorrente = { ...account, initialBalance: 0 }; 
+      
+      if (isNewAccount) {
+        setContasMovimento([...accounts, newAccount]);
+        
+        // 2. Cria a transação sintética de saldo inicial se o valor for diferente de zero
+        if (initialBalanceAmount !== 0) {
+          const initialTx: TransacaoCompleta = {
+            id: generateTransactionId(),
+            date: account.startDate!, // Data de início é obrigatória no formulário
+            accountId: account.id,
+            flow: initialBalanceAmount >= 0 ? 'in' : 'out',
+            operationType: 'initial_balance',
+            domain: 'operational',
+            amount: Math.abs(initialBalanceAmount),
+            categoryId: null,
+            description: `Saldo Inicial de Implantação`,
+            links: {
+              investmentId: null,
+              loanId: null,
+              transferGroupId: null,
+              parcelaId: null,
+              vehicleTransactionId: null,
+            },
+            conciliated: true,
+            attachments: [],
+            meta: {
+              createdBy: 'system',
+              source: 'manual',
+              createdAt: new Date().toISOString(),
+              notes: `Saldo inicial de ${formatCurrency(initialBalanceAmount)} em ${account.startDate}`
+            }
+          };
+          addTransacaoV2(initialTx);
+        }
+      } else {
+        // --- EDITING LOGIC ---
+        setContasMovimento(accounts.map(a => a.id === newAccount.id ? newAccount : a));
+        
+        // Handle synthetic initial balance transaction update
+        const existingInitialTx = transactions.find(t => 
+            t.accountId === newAccount.id && t.operationType === 'initial_balance'
+        );
+        
+        if (initialBalanceAmount !== 0) {
+            const newInitialTx: TransacaoCompleta = {
+                ...(existingInitialTx || {
+                    id: generateTransactionId(),
+                    accountId: newAccount.id,
+                    operationType: 'initial_balance',
+                    domain: 'operational',
+                    categoryId: null,
+                    description: `Saldo Inicial de Implantação`,
+                    links: { investmentId: null, loanId: null, transferGroupId: null, parcelaId: null, vehicleTransactionId: null },
+                    conciliated: true,
+                    attachments: [],
+                    meta: { createdBy: 'system', source: 'manual', createdAt: new Date().toISOString() }
+                }),
+                date: newAccount.startDate!,
+                amount: Math.abs(initialBalanceAmount),
+                flow: initialBalanceAmount >= 0 ? 'in' : 'out',
+            };
+            
+            if (existingInitialTx) {
+                // Update existing transaction
+                setTransacoesV2(prev => prev.map(t => t.id === existingInitialTx.id ? newInitialTx : t));
+            } else {
+                // Add new transaction
+                addTransacaoV2(newInitialTx);
+            }
+        } else if (existingInitialTx) {
+            // Delete existing transaction if new balance is 0
+            setTransacoesV2(prev => prev.filter(t => t.id !== existingInitialTx.id));
+        }
+      }
+      setEditingAccount(undefined);
+    };
+
+    const handleAccountDelete = (accountId: string) => {
+      const hasTransactions = transactions.some(t => t.accountId === accountId);
+      if (hasTransactions) {
+        toast.error("Não é possível excluir conta com transações");
+        return;
+      }
+      setContasMovimento(accounts.filter(a => a.id !== accountId));
+    };
+
+    const handleEditAccount = (accountId: string) => {
+      const account = accounts.find(a => a.id === accountId);
+      if (account) {
+        // Find the synthetic initial balance transaction
+        const initialTx = transactions.find(t => 
+            t.accountId === accountId && t.operationType === 'initial_balance'
+        );
+        
+        let initialBalanceValue = 0;
+        if (initialTx) {
+            initialBalanceValue = initialTx.flow === 'in' ? initialTx.amount : -initialTx.amount;
+        }
+        
+        // Create a temporary account object to pass the correct initial balance value to the form
+        const accountForEdit: ContaCorrente = {
+            ...account,
+            // CORREÇÃO AQUI: Passar o valor real do saldo inicial para o formulário
+            initialBalance: initialBalanceValue, 
+        };
+        
+        setEditingAccount(accountForEdit);
+        setShowAccountModal(true);
+      }
+    };
+
+    // Category CRUD
+    const handleCategorySubmit = (category: Categoria) => {
+      if (editingCategory) {
+        setCategoriasV2(categories.map(c => c.id === category.id ? category : c));
+      } else {
+        setCategoriasV2([...categories, category]);
+      }
+      setEditingCategory(undefined);
+    };
+
+    const handleCategoryDelete = (categoryId: string) => {
+      const hasTransactions = transactions.some(t => t.categoryId === categoryId);
+      if (hasTransactions) {
+        toast.error("Não é possível excluir categoria em uso");
+        return;
+      }
+      setCategoriasV2(categories.filter(c => c.id !== categoryId));
+    };
+
+    // Get investments and loans from context for linking (V2 entities)
+    const investments = useMemo(() => {
+      return accounts
+        .filter(c => 
+          c.accountType === 'aplicacao_renda_fixa' || 
+          c.accountType === 'poupanca' ||
+          c.accountType === 'criptoativos' ||
+          c.accountType === 'reserva_emergencia' ||
+          c.accountType === 'objetivos_financeiros'
+        )
+        .map(i => ({ id: i.id, name: i.name }));
+    }, [accounts]);
+
+    const loans = useMemo(() => {
+      return emprestimos
+        .filter(e => e.status !== 'pendente_config')
+        .map(e => {
+          // Generate parcelas array if loan has meses configured
+          const parcelas = e.meses > 0 ? Array.from({ length: e.meses }, (_, i) => {
+            const vencimento = new Date(e.dataInicio || new Date());
+            vencimento.setMonth(vencimento.getMonth() + i + 1);
+            return {
+              numero: i + 1,
+              vencimento: vencimento.toISOString().split('T')[0],
+              valor: e.parcela,
+              pago: i < (e.parcelasPagas || 0),
+            };
+          }) : [];
+
+          return {
+            id: `loan_${e.id}`,
+            institution: e.contrato,
+            numeroContrato: e.contrato,
+            parcelas,
+            valorParcela: e.parcela,
+            totalParcelas: e.meses,
+          };
+        });
+    }, [emprestimos]);
+
+    // Get viewing account data
+    const viewingAccount = viewingAccountId ? accounts.find(a => a.id === viewingAccountId) : null;
+    const viewingSummary = viewingAccountId ? accountSummaries.find(s => s.accountId === viewingAccountId) : null;
+    const viewingTransactions = viewingAccountId ? transactions.filter(t => t.accountId === viewingAccountId) : [];
+
+    return (
+      <MainLayout>
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between animate-fade-in">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Receitas e Despesas</h1>
+              <p className="text-muted-foreground mt-1">Contas Movimento e conciliação bancária</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <PeriodSelector 
+                initialRanges={dateRanges}
+                onDateRangeChange={handlePeriodChange} 
+              />
+              <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)}>
+                <Tags className="w-4 h-4 mr-2" />Categorias
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowReconciliation(!showReconciliation)}>
+                <RefreshCw className="w-4 h-4 mr-2" />Conciliar
+              </Button>
+            </div>
+          </div>
+
+          {/* Accounts Carousel */}
+          <div className="glass-card p-4">
+            <AccountsCarousel
+              accounts={accountSummaries}
+              onMovimentar={handleMovimentar}
+              onViewHistory={handleViewStatement}
+              onAddAccount={() => { setEditingAccount(undefined); setShowAccountModal(true); }}
+              onEditAccount={handleEditAccount}
+            />
+          </div>
+
+          {/* Reconciliation Panel */}
+          {showReconciliation && (
+            <ReconciliationPanel
+              accounts={accounts}
+              transactions={transactions}
+              onReconcile={handleReconcile}
+            />
+          )}
+
+          {/* KPI Sidebar - full width */}
+          <div className="glass-card p-4">
+            <KPISidebar transactions={filteredTransactions} categories={categories} />
+          </div>
+        </div>
+
+        {/* Modals */}
+        <MovimentarContaModal
+          open={showMovimentarModal}
+          onOpenChange={setShowMovimentarModal}
+          accounts={accounts}
+          categories={categories}
+          investments={investments}
+          loans={loans}
+          selectedAccountId={selectedAccountForModal}
+          onSubmit={handleTransactionSubmit}
+          editingTransaction={editingTransaction}
+        />
+
+        <AccountFormModal
+          open={showAccountModal}
+          onOpenChange={setShowAccountModal}
+          account={editingAccount}
+          onSubmit={handleAccountSubmit}
+          onDelete={handleAccountDelete}
+          hasTransactions={editingAccount ? transactions.some(t => t.accountId === editingAccount.id) : false}
+        />
+
+        <CategoryFormModal
+          open={showCategoryModal}
+          onOpenChange={setShowCategoryModal}
+          category={editingCategory}
+          onSubmit={handleCategorySubmit}
+          onDelete={handleCategoryDelete}
+          hasTransactions={editingCategory ? transactions.some(t => t.categoryId === editingCategory.id) : false}
+        />
+
+        <CategoryListModal
+          open={showCategoryListModal}
+          onOpenChange={setShowCategoryListModal}
+          categories={categories}
+          onAddCategory={() => { setEditingCategory(undefined); setShowCategoryModal(true); }}
+          onEditCategory={(cat) => { setEditingCategory(cat); setShowCategoryModal(true); }}
+          onDeleteCategory={handleCategoryDelete}
+          transactionCountByCategory={transactionCountByCategory}
+        />
+
+        {viewingAccount && viewingSummary && (
+          <AccountStatementDialog
+            open={showStatementDialog}
+            onOpenChange={setShowStatementDialog}
+            account={viewingAccount}
+            accountSummary={viewingSummary}
+            transactions={viewingTransactions}
+            categories={categories}
+            onEditTransaction={handleEditTransaction}
+            onDeleteTransaction={handleDeleteTransaction}
+            onToggleConciliated={handleToggleConciliated}
+            onReconcileAll={() => handleReconcile(viewingAccountId!)}
+          />
+        )}
+      </MainLayout>
+    );
+  };
+
+  export default ReceitasDespesas;
