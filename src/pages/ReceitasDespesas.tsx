@@ -104,6 +104,38 @@ const ReceitasDespesas = () => {
   // Transações do Período 2 (Comparação)
   const transacoesPeriodo2 = useMemo(() => filterTransactionsByRange(dateRanges.range2), [filterTransactionsByRange, dateRanges.range2]);
 
+  // Filtered transactions based on local filters (search, account, category, type)
+  const filteredTransactions = useMemo(() => {
+    let filtered = transacoesPeriodo1;
+
+    // 1. Search Term
+    if (searchTerm) {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      filtered = filtered.filter(t => 
+        t.description.toLowerCase().includes(lowerSearchTerm) ||
+        accounts.find(a => a.id === t.accountId)?.name.toLowerCase().includes(lowerSearchTerm) ||
+        categories.find(c => c.id === t.categoryId)?.label.toLowerCase().includes(lowerSearchTerm)
+      );
+    }
+
+    // 2. Account Filter
+    if (selectedAccountId !== 'all') {
+      filtered = filtered.filter(t => t.accountId === selectedAccountId);
+    }
+
+    // 3. Category Filter
+    if (selectedCategoryId !== 'all') {
+      filtered = filtered.filter(t => t.categoryId === selectedCategoryId);
+    }
+
+    // 4. Type Filter (Total types is 10 based on initial state)
+    if (selectedTypes.length < 10) { 
+      filtered = filtered.filter(t => selectedTypes.includes(t.operationType));
+    }
+    
+    return filtered;
+  }, [transacoesPeriodo1, searchTerm, selectedAccountId, selectedCategoryId, selectedTypes, accounts, categories]);
+
   // Calculate account summaries
   const accountSummaries: AccountSummary[] = useMemo(() => {
     const periodStart = dateRanges.range1.from; // D_start (startOfDay)
