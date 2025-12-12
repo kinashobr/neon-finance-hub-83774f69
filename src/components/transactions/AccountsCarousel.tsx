@@ -40,14 +40,20 @@ export function AccountsCarousel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const { contasMovimento, setContasMovimento } = useFinance();
 
-  // Mapear summaries para a ordem atual das contasMovimento
-  const orderedSummaries = useMemo(() => contasMovimento
+  // Filtra contas ocultas (como a conta de contrapartida)
+  const visibleContasMovimento = useMemo(() => 
+    contasMovimento.filter(c => !c.hidden), 
+    [contasMovimento]
+  );
+
+  // Mapear summaries para a ordem atual das contas visíveis
+  const orderedSummaries = useMemo(() => visibleContasMovimento
     .map(account => accounts.find(s => s.accountId === account.id))
     .filter((s): s is AccountSummary => !!s), 
-    [contasMovimento, accounts]
+    [visibleContasMovimento, accounts]
   );
   
-  const accountIds = useMemo(() => contasMovimento.map(a => a.id), [contasMovimento]);
+  const accountIds = useMemo(() => visibleContasMovimento.map(a => a.id), [visibleContasMovimento]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -75,12 +81,21 @@ export function AccountsCarousel({
     const { active, over } = event;
 
     if (active.id !== over?.id) {
-      const oldIndex = accountIds.indexOf(active.id as string);
-      const newIndex = accountIds.indexOf(over?.id as string);
+      // Encontra os IDs das contas visíveis e suas posições
+      const visibleIds = contasMovimento.filter(c => !c.hidden).map(c => c.id);
+      const oldIndex = visibleIds.indexOf(active.id as string);
+      const newIndex = visibleIds.indexOf(over?.id as string);
       
       if (oldIndex !== -1 && newIndex !== -1) {
-        const newOrder = arrayMove(contasMovimento, oldIndex, newIndex);
-        setContasMovimento(newOrder);
+        // Cria uma lista temporária apenas com as contas visíveis
+        const visibleAccounts = contasMovimento.filter(c => !c.hidden);
+        const newVisibleOrder = arrayMove(visibleAccounts, oldIndex, newIndex);
+        
+        // Reconstroi a lista completa, mantendo as contas ocultas no final (ou onde estavam)
+        const hiddenAccounts = contasMovimento.filter(c => c.hidden);
+        const newFullOrder = [...newVisibleOrder, ...hiddenAccounts];
+        
+        setContasMovimento(newFullOrder);
       }
     }
   };

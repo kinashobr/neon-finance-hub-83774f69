@@ -11,8 +11,8 @@ import { toast } from "sonner";
 interface AccountFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  account?: ContaCorrente;
-  onSubmit: (account: ContaCorrente) => void;
+  account?: ContaCorrente & { initialBalanceValue?: number }; // Adicionado para receber o valor real
+  onSubmit: (account: ContaCorrente, initialBalanceValue: number) => void; // Alterado para passar o valor real
   onDelete?: (accountId: string) => void;
   hasTransactions?: boolean;
 }
@@ -24,7 +24,8 @@ const ACCOUNT_TYPE_ICONS: Record<AccountType, typeof Building2> = {
   criptoativos: Bitcoin,
   reserva_emergencia: Shield,
   objetivos_financeiros: Target,
-  cartao_credito: CreditCard, // NOVO ÍCONE
+  cartao_credito: CreditCard,
+  initial_balance_contra: Wallet, // Usando Wallet como fallback, mas esta conta é oculta
 };
 
 // Helper para formatar número para string BR
@@ -55,9 +56,9 @@ export function AccountFormModal({
   const [name, setName] = useState("");
   const [accountType, setAccountType] = useState<AccountType>("conta_corrente");
   const [institution, setInstitution] = useState("");
-  const [initialBalance, setInitialBalance] = useState("");
+  const [initialBalanceInput, setInitialBalanceInput] = useState(""); // Valor do input
   const [currency, setCurrency] = useState("BRL");
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]); // ADICIONADO
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
 
   const isEditing = !!account;
 
@@ -66,32 +67,30 @@ export function AccountFormModal({
       setName(account.name);
       setAccountType(account.accountType || 'conta_corrente');
       setInstitution(account.institution || "");
-      // Formata o saldo inicial para o padrão BR
-      setInitialBalance(formatToBR(account.initialBalance));
+      // Usa o valor real passado via prop (initialBalanceValue)
+      setInitialBalanceInput(formatToBR(account.initialBalanceValue ?? 0)); 
       setCurrency(account.currency);
-      setStartDate(account.startDate || new Date().toISOString().split('T')[0]); // USAR DATA EXISTENTE OU PADRÃO
+      setStartDate(account.startDate || new Date().toISOString().split('T')[0]);
     } else if (open) {
       setName("");
       setAccountType("conta_corrente");
       setInstitution("");
-      setInitialBalance(formatToBR(0)); // Inicia com 0,00
+      setInitialBalanceInput(formatToBR(0));
       setCurrency("BRL");
-      setStartDate(new Date().toISOString().split('T')[0]); // RESET
+      setStartDate(new Date().toISOString().split('T')[0]);
     }
   }, [open, account]);
 
   const handleBalanceChange = (value: string) => {
-    // Permite o sinal de menos (-) no início, além de números, vírgula e ponto.
     let cleanedValue = value.replace(/[^\d,.-]/g, '');
     
-    // Garante que o '-' só apareça no início
     if (cleanedValue.startsWith('-')) {
       cleanedValue = '-' + cleanedValue.substring(1).replace(/-/g, '');
     } else {
       cleanedValue = cleanedValue.replace(/-/g, '');
     }
     
-    setInitialBalance(cleanedValue);
+    setInitialBalanceInput(cleanedValue);
   };
 
   const handleSubmit = () => {
@@ -105,7 +104,7 @@ export function AccountFormModal({
     }
 
     // Converte a string BR para float
-    const parsedBalance = parseFromBR(initialBalance) || 0;
+    const parsedBalance = parseFromBR(initialBalanceInput) || 0;
 
     const newAccount: ContaCorrente = {
       id: account?.id || generateAccountId(),
@@ -113,15 +112,16 @@ export function AccountFormModal({
       accountType,
       institution: institution.trim() || undefined,
       currency,
-      initialBalance: parsedBalance, // Salva o valor real para ser usado na transação sintética
-      startDate, // ADICIONADO
+      initialBalance: 0, // Saldo inicial da conta é sempre 0, pois será lançado via transação
+      startDate,
       color: account?.color || 'hsl(var(--primary))',
       icon: account?.icon || 'building-2',
       createdAt: account?.createdAt || new Date().toISOString(),
       meta: account?.meta || {}
     };
 
-    onSubmit(newAccount);
+    // Passa a conta e o valor real do saldo inicial para o handler
+    onSubmit(newAccount, parsedBalance);
     onOpenChange(false);
     toast.success(isEditing ? "Conta atualizada!" : "Conta criada!");
   };
@@ -174,7 +174,9 @@ export function AccountFormModal({
                 <SelectValue placeholder="Selecione o tipo..." />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map((type) => {
+                {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[])
+                  .filter(type => type !== 'initial_balance_contra') // Filtra a conta de contrapartida
+                  .map((type) => {
                   const Icon = ACCOUNT_TYPE_ICONS[type];
                   return (
                     <SelectItem key={type} value={type}>
@@ -207,7 +209,7 @@ export function AccountFormModal({
                 type="text"
                 inputMode="decimal"
                 placeholder="0,00"
-                value={initialBalance}
+                value={initialBalanceInput}
                 onChange={(e) => handleBalanceChange(e.target.value)}
               />
             </div>
@@ -226,7 +228,7 @@ export function AccountFormModal({
             </div>
           </div>
           
-          {/* NOVO CAMPO: Data de Início */}
+          {/* Data de Início */}
           <div className="space-y-2">
             <Label htmlFor="startDate">Data de Início (Saldo Inicial) *</Label>
             <Input

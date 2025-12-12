@@ -10,7 +10,8 @@ export type AccountType =
   | 'criptoativos' 
   | 'reserva_emergencia' 
   | 'objetivos_financeiros'
-  | 'cartao_credito'; // NOVO TIPO
+  | 'cartao_credito' // NOVO TIPO
+  | 'initial_balance_contra'; // NOVO TIPO: Conta de contrapartida para saldo inicial
 
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   conta_corrente: 'Conta Corrente',
@@ -20,6 +21,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   reserva_emergencia: 'Reserva de Emergência',
   objetivos_financeiros: 'Objetivos Financeiros',
   cartao_credito: 'Cartão de Crédito', // NOVO LABEL
+  initial_balance_contra: 'Saldo de Implantação', // NOVO LABEL
 };
 
 // Tipos de Categoria
@@ -44,6 +46,7 @@ export interface ContaCorrente {
   icon?: string;
   createdAt: string;
   meta: Record<string, unknown>;
+  hidden?: boolean; // NOVO: Para contas de contrapartida
 }
 
 // Categoria de Transação (atualizada)
@@ -63,9 +66,6 @@ export interface TransactionLinks {
   parcelaId: string | null;
   vehicleTransactionId: string | null;
 }
-
-// Tipos de Fluxo
-export type FlowType = 'in' | 'out' | 'transfer_in' | 'transfer_out';
 
 // Tipos de Operação no Modal (atualizado com veículos e liberação empréstimo)
 export type OperationType = 
