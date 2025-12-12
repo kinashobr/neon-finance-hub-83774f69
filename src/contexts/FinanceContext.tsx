@@ -88,7 +88,8 @@ interface FinanceContextType {
   updateSeguroVeiculo: (id: number, seguro: Partial<SeguroVeiculo>) => void;
   deleteSeguroVeiculo: (id: number) => void;
   markSeguroParcelPaid: (seguroId: number, parcelaNumero: number, transactionId: string) => void;
-
+  unmarkSeguroParcelPaid: (seguroId: number, parcelaNumero: number) => void; // <-- FIX 2
+  
   // Objetivos Financeiros
   objetivos: ObjetivoFinanceiro[];
   addObjetivo: (obj: Omit<ObjetivoFinanceiro, "id">) => void;
@@ -107,6 +108,7 @@ interface FinanceContextType {
   // Transações V2 (integrated)
   transacoesV2: TransacaoCompleta[];
   setTransacoesV2: Dispatch<SetStateAction<TransacaoCompleta[]>>;
+  addTransacaoV2: (transaction: TransacaoCompleta) => void; // <-- FIX 1 & 3
   
   // Data Filtering (NEW)
   dateRanges: ComparisonDateRanges;
@@ -443,6 +445,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return { ...seguro, parcelas: updatedParcelas };
     }));
   }, []);
+  
+  const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => { // <-- FIX 2 Implementation
+    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
+      if (seguro.id !== seguroId) return seguro;
+      
+      const updatedParcelas = seguro.parcelas.map(parcela => {
+        if (parcela.numero === parcelaNumero) {
+          return { ...parcela, paga: false, transactionId: undefined };
+        }
+        return parcela;
+      });
+      
+      return { ...seguro, parcelas: updatedParcelas };
+    }));
+  }, []);
 
   const addObjetivo = (obj: Omit<ObjetivoFinanceiro, "id">) => {
     const newId = Math.max(0, ...objetivos.map(o => o.id)) + 1;
@@ -461,7 +478,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // OPERAÇÕES TRANSAÇÕES V2
   // ============================================
 
-  const addTransacaoV2 = (transaction: TransacaoCompleta) => {
+  const addTransacaoV2 = (transaction: TransacaoCompleta) => { // <-- FIX 1 & 3 Implementation
     setTransacoesV2(prev => [...prev, transaction]);
   };
 
@@ -655,6 +672,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     updateSeguroVeiculo,
     deleteSeguroVeiculo,
     markSeguroParcelPaid,
+    unmarkSeguroParcelPaid, // <-- FIX 2 Implementation
     objetivos,
     addObjetivo,
     updateObjetivo,
@@ -666,6 +684,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setCategoriasV2,
     transacoesV2,
     setTransacoesV2,
+    addTransacaoV2, // <-- FIX 1 & 3 Implementation
     
     // Data Filtering (NEW)
     dateRanges,
