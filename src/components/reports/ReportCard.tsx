@@ -7,6 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface ReportCardProps {
   title: string;
@@ -80,52 +81,53 @@ export function ReportCard({
   const TrendIcon = trend && trend > 0 ? TrendingUp : trend && trend < 0 ? TrendingDown : Minus;
 
   const content = (
-    <div
+    <Card 
       className={cn(
         "glass-card border-l-4 animate-fade-in-up transition-all hover:scale-[1.02]",
         statusColors[status],
-        sizeClasses[size],
         className
       )}
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground truncate">
-            {title}
-          </p>
-          <p className={cn("font-bold mt-1", valueSizes[size], statusTextColors[status])}>
-            {value}
-          </p>
-          {subtitle && (
-            <p className="text-xs text-muted-foreground mt-1 truncate">{subtitle}</p>
-          )}
-          {trend !== undefined && (
+      <CardContent className={cn("p-5", sizeClasses[size])}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground truncate">
+              {title}
+            </p>
+            <p className={cn("font-bold mt-1", valueSizes[size], statusTextColors[status])}>
+              {value}
+            </p>
+            {subtitle && (
+              <p className="text-xs text-muted-foreground mt-1 truncate">{subtitle}</p>
+            )}
+            {trend !== undefined && (
+              <div className={cn(
+                "flex items-center gap-1 mt-2 text-sm font-medium",
+                trend > 0 ? "text-success" : trend < 0 ? "text-destructive" : "text-muted-foreground"
+              )}>
+                <TrendIcon className="w-4 h-4" />
+                <span>{trend > 0 ? "+" : ""}{trend.toFixed(1)}%</span>
+                {trendLabel && <span className="text-muted-foreground text-xs">vs {trendLabel}</span>}
+              </div>
+            )}
+          </div>
+          {icon && (
             <div className={cn(
-              "flex items-center gap-1 mt-2 text-sm font-medium",
-              trend > 0 ? "text-success" : trend < 0 ? "text-destructive" : "text-muted-foreground"
+              "p-3 rounded-xl shrink-0 flex items-center justify-center",
+              statusIconBg[status]
             )}>
-              <TrendIcon className="w-4 h-4" />
-              <span>{trend > 0 ? "+" : ""}{trend.toFixed(1)}%</span>
-              {trendLabel && <span className="text-muted-foreground text-xs">vs {trendLabel}</span>}
+              {typeof icon === 'object' && icon !== null && 'type' in icon && (icon.type as any).displayName === 'LucideIcon' ? (
+                // @ts-ignore
+                <icon.type {...icon.props} className={iconSizes[size]} />
+              ) : (
+                icon
+              )}
             </div>
           )}
         </div>
-        {icon && (
-          <div className={cn(
-            "p-3 rounded-xl shrink-0 flex items-center justify-center",
-            statusIconBg[status]
-          )}>
-            {typeof icon === 'object' && icon !== null && 'type' in icon && (icon.type as any).displayName === 'LucideIcon' ? (
-              // @ts-ignore
-              <icon.type {...icon.props} className={iconSizes[size]} />
-            ) : (
-              icon
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 
   if (tooltip) {
