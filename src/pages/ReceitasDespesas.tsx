@@ -80,7 +80,7 @@ const ReceitasDespesas = () => {
   // Alias for context data
   const accounts = contasMovimento;
   const transactions = transacoesV2;
-  const categories = categoriasV2;
+  categories = categoriasV2;
 
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
@@ -111,21 +111,25 @@ const ReceitasDespesas = () => {
     const periodEnd = dateRanges.range1.to;
     
     return accounts.map(account => {
-      // 1. Calculate Period Initial Balance (balance right before periodStart)
-      // Se houver data de início, calculamos o saldo até o dia anterior.
-      const dateBeforeStart = periodStart ? subDays(periodStart, 1) : undefined;
-      const periodInitialBalance = calculateBalanceUpToDate(account.id, dateBeforeStart, transactions, accounts);
+      // 1. Calculate Period Initial Balance (balance accumulated up to the start date, inclusive)
+      // If periodStart is defined, we calculate balance up to that date (inclusive).
+      const periodInitialBalance = calculateBalanceUpToDate(account.id, periodStart, transactions, accounts); // CRITICAL CHANGE 1: Use periodStart directly
 
-      // 2. Calculate Period Transactions (transactions within the selected period)
+      // 2. Calculate Period Transactions (transactions strictly AFTER periodStart, up to periodEnd)
       const accountTxInPeriod = transactions.filter(t => {
         if (t.accountId !== account.id) return false;
+        
+        // Exclude synthetic initial balance transactions from period flow calculation
+        if (t.operationType === 'initial_balance') return false; // CRITICAL CHANGE 2: Exclude initial_balance from flow
+        
         const transactionDate = parseISO(t.date);
         
         // Se não houver data de início, consideramos todas as transações
         if (!periodStart) return true;
         
-        // Se houver data de início, filtramos as transações DENTRO do período
-        return isWithinInterval(transactionDate, { start: periodStart, end: periodEnd || new Date() });
+        // We only count transactions strictly AFTER periodStart, because transactions ON periodStart are included in periodInitialBalance.
+        // We use the original periodEnd (inclusive).
+        return transactionDate > periodStart && transactionDate <= (periodEnd || new Date()); // CRITICAL CHANGE 3: Check strictly > periodStart
       });
 
       // 3. Calculate Period Totals
