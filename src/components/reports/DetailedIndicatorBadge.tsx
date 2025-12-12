@@ -68,7 +68,7 @@ export function DetailedIndicatorBadge({
               <Calculator className="w-3 h-3" />
               Fórmula:
             </div>
-            <code className="text-xs bg-muted px-2 py-1 rounded block whitespace-normal break-words">
+            <code className="text-xs bg-muted text-foreground px-2 py-1 rounded block whitespace-normal break-words">
               {formula}
             </code>
           </div>

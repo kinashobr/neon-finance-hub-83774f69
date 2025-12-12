@@ -27,22 +27,22 @@ export function IndicatorBadge({
 }: IndicatorBadgeProps) {
   const statusStyles = {
     success: {
-      bg: "bg-success/10 border-success/30",
+      bg: "bg-success/20 border-success/40",
       text: "text-success",
       sparkline: "hsl(var(--success))", // CORRIGIDO: Usando variável CSS
     },
     warning: {
-      bg: "bg-warning/10 border-warning/30",
+      bg: "bg-warning/20 border-warning/40",
       text: "text-warning",
       sparkline: "hsl(var(--warning))", // CORRIGIDO: Usando variável CSS
     },
     danger: {
-      bg: "bg-destructive/10 border-destructive/30",
+      bg: "bg-destructive/20 border-destructive/40",
       text: "text-destructive",
       sparkline: "hsl(var(--destructive))", // CORRIGIDO: Usando variável CSS
     },
     neutral: {
-      bg: "bg-primary/10 border-primary/30",
+      bg: "bg-primary/20 border-primary/40",
       text: "text-primary",
       sparkline: "hsl(var(--primary))", // CORRIGIDO: Usando variável CSS
     },

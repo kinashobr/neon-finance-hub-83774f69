@@ -36,11 +36,11 @@ export function ReportCard({
   size = "md",
 }: ReportCardProps) {
   const statusColors = {
-    success: "border-l-success bg-success/5",
-    warning: "border-l-warning bg-warning/5",
-    danger: "border-l-destructive bg-destructive/5",
-    neutral: "border-l-primary bg-primary/5",
-    info: "border-l-neon-cyan bg-neon-cyan/5",
+    success: "border-l-success bg-success/10",
+    warning: "border-l-warning bg-warning/10",
+    danger: "border-l-destructive bg-destructive/10",
+    neutral: "border-l-primary bg-primary/10",
+    info: "border-l-neon-cyan bg-neon-cyan/10",
   };
 
   const statusTextColors = {
@@ -100,11 +100,11 @@ export function ReportCard({
         {icon && (
           <div className={cn(
             "p-2.5 rounded-xl shrink-0",
-            status === "success" && "bg-success/10 text-success",
-            status === "warning" && "bg-warning/10 text-warning",
-            status === "danger" && "bg-destructive/10 text-destructive",
-            status === "neutral" && "bg-primary/10 text-primary",
-            status === "info" && "bg-neon-cyan/10 text-neon-cyan"
+            status === "success" && "bg-success/20 text-success",
+            status === "warning" && "bg-warning/20 text-warning",
+            status === "danger" && "bg-destructive/20 text-destructive",
+            status === "neutral" && "bg-primary/20 text-primary",
+            status === "info" && "bg-neon-cyan/20 text-neon-cyan"
           )}>
             {icon}
           </div>
