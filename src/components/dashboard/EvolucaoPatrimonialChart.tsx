@@ -51,32 +51,26 @@ export function EvolucaoPatrimonialChart({}: EvolucaoPatrimonialChartProps) {
   };
 
   const calculatePLAtDate = useCallback((targetDate: Date) => {
-    // 1. Calcular Saldo de Contas (Ativos Circulantes e Investimentos)
+    // Para o gráfico de evolução, calculamos a evolução dos ATIVOS LÍQUIDOS (Caixa + Investimentos)
+    // A evolução histórica de Passivos e Veículos é complexa e não implementada,
+    // então focamos no que o sistema pode calcular com precisão: o saldo das contas.
+    
     const saldosPorConta = contasMovimento.map(conta => ({
       id: conta.id,
       type: conta.accountType,
       saldo: calculateBalanceUpToDate(conta.id, targetDate, transacoesV2, contasMovimento),
     }));
 
-    // Ativos = Saldo de contas (exceto CC) + Veículos (valor FIPE global, simplificado)
-    const saldoContasAtivas = saldosPorConta
+    // Ativos Líquidos = Soma de todos os saldos positivos das contas (exceto CC, que é passivo)
+    const totalAtivosLiquidos = saldosPorConta
       .filter(c => c.type !== 'cartao_credito')
       .reduce((acc, c) => acc + Math.max(0, c.saldo), 0);
       
-    // Simplificação: Usamos o valor FIPE atual para todos os pontos no tempo,
-    // pois o cálculo de depreciação histórica é complexo e não implementado.
-    const valorVeiculos = getValorFipeTotal(); 
-    const totalAtivos = saldoContasAtivas + valorVeiculos;
-
-    // Simplificação: Usamos o saldo devedor global (getSaldoDevedor) para todos os pontos no tempo,
-    // pois o cálculo de amortização histórica de empréstimos é complexo e não implementado.
-    // Para manter a forma do gráfico e evitar regressão, usaremos o total de passivos global.
-    const totalPassivos = getSaldoDevedor(); 
-
-    const patrimonioLiquido = totalAtivos - totalPassivos;
+    // Usamos o total de ativos líquidos como proxy para o Patrimônio Líquido em evolução.
+    const patrimonioLiquido = totalAtivosLiquidos;
     
-    return { totalAtivos, totalPassivos, patrimonioLiquido };
-  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate, getValorFipeTotal, getSaldoDevedor]);
+    return { patrimonioLiquido };
+  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
 
 
   const filteredData = useMemo(() => {
