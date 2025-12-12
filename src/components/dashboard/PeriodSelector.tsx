@@ -149,7 +149,9 @@ export function PeriodSelector({
     to: r.to ? endOfDay(r.to) : undefined,
   });
 
-  const formatDateRange = (r: DateRange) => {
+  const formatDateRange = (r: DateRange | undefined) => {
+    if (!r) return "Todo o período"; // Defensive check for undefined/null range object
+    
     if (!r.from && !r.to) return "Todo o período";
     
     // Se uma das datas estiver faltando, mas a outra estiver presente,
