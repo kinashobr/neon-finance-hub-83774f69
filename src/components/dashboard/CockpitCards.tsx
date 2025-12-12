@@ -5,8 +5,7 @@ import {
   CalendarClock,
   ArrowUpRight,
   ArrowDownRight,
-  Target,
-  Banknote
+  Target
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

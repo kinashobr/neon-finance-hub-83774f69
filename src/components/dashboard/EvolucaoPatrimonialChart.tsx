@@ -30,18 +30,13 @@ const lineOptions = [
 export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps) {
   const { 
     transacoesV2, 
-    emprestimos, 
-    veiculos, 
     investimentosRF, 
     criptomoedas, 
     stablecoins, 
     objetivos,
     contasMovimento,
-    getValorFipeTotal,
     getSaldoDevedor,
     getPatrimonioLiquido,
-    getAtivosTotal,
-    getPassivosTotal,
   } = useFinance();
   
   const [periodo, setPeriodo] = useState("12m");
@@ -140,7 +135,7 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
       });
     }
     return result;
-  }, [transacoesV2, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, contasMovimento, getPatrimonioLiquido, getSaldoDevedor]);
+  }, [transacoesV2, investimentosRF, criptomoedas, stablecoins, objetivos, getPatrimonioLiquido, getSaldoDevedor]);
 
   const dataToShow = useMemo(() => {
     switch (periodo) {

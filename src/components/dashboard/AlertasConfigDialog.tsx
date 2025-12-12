@@ -14,10 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { 
   AlertTriangle, 
-  TrendingDown, 
-  CreditCard, 
   Target,
-  Percent,
   Save
 } from "lucide-react";
 
@@ -42,12 +39,12 @@ const ALERTA_INFO: Record<string, { icon: React.ElementType; descricao: string; 
     unidade: ""
   },
   "dividas-altas": {
-    icon: CreditCard,
+    icon: Target,
     descricao: "Alerta quando dívidas ultrapassarem X% do saldo disponível",
     unidade: "%"
   },
   "margem-baixa": {
-    icon: TrendingDown,
+    icon: Target,
     descricao: "Alerta quando a margem de poupança ficar abaixo de X%",
     unidade: "%"
   },

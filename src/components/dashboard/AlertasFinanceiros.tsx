@@ -6,23 +6,14 @@ import {
   Info, 
   CheckCircle, 
   X, 
-  ChevronRight, 
   Bell,
   TrendingUp,
   TrendingDown,
   DollarSign,
-  CreditCard,
   Target,
   Shield,
   Calendar,
-  Sparkles,
-  Clock,
-  BarChart3,
-  Users,
   Settings,
-  Plus,
-  Eye,
-  EyeOff,
   Settings2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,39 +21,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  Tooltip, 
-  TooltipContent, 
-  TooltipProvider, 
-  TooltipTrigger 
-} from "@/components/ui/tooltip";
-import { 
   Dialog, 
   DialogContent, 
   DialogHeader, 
   DialogTitle,
   DialogDescription
 } from "@/components/ui/dialog";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
-import { 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip as RechartsTooltip,
-  LineChart,
-  Line,
-  BarChart,
-  Bar
-} from "recharts";
 import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { Input } from "@/components/ui/input";
@@ -91,15 +55,6 @@ interface Alerta {
     variacao: number;
     unidade: string;
   };
-}
-
-interface Metrica {
-  nome: string;
-  valor: number;
-  meta?: number;
-  variacao: number;
-  unidade: string;
-  cor: string;
 }
 
 interface AlertaConfig {
@@ -199,14 +154,10 @@ const ALERTA_CONFIGS: AlertaConfig[] = [
 export function AlertasFinanceiros() {
   const { 
     transacoesV2, 
-    emprestimos, 
     veiculos, 
-    investimentosRF, 
     criptomoedas, 
     stablecoins, 
     objetivos,
-    getTotalReceitas,
-    getTotalDespesas,
     getAtivosTotal,
     getPassivosTotal,
     getPatrimonioLiquido
@@ -269,8 +220,7 @@ export function AlertasFinanceiros() {
     const patrimonioLiquido = getPatrimonioLiquido();
 
     // Métricas de investimentos
-    const totalInvestimentos = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0) +
-      criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) +
+    const totalInvestimentos = criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) +
       stablecoins.reduce((acc, s) => acc + s.valorBRL, 0) +
       objetivos.reduce((acc, o) => acc + o.atual, 0);
 
@@ -302,7 +252,7 @@ export function AlertasFinanceiros() {
         endividamento: { valor: passivos > 0 ? (passivos / ativos) * 100 : 0, meta: 30, variacao: 0, unidade: "%", cor: "hsl(38, 92%, 50%)" }
       }
     };
-  }, [transacoesV2, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos]);
+  }, [transacoesV2, veiculos, criptomoedas, stablecoins, objetivos, getAtivosTotal, getPassivosTotal, getPatrimonioLiquido]);
 
   // Backend: Geração inteligente de alertas
   const gerarAlertas = useCallback(() => {
@@ -507,19 +457,6 @@ export function AlertasFinanceiros() {
   const marcarTodosComoLido = useCallback(() => {
     setAlertasLidos(new Set(alertas.map(a => a.id)));
   }, [alertas]);
-
-  const restaurarAlerta = useCallback((alertaId: string) => {
-    setAlertasLidos(prev => {
-      const novo = new Set(prev);
-      novo.delete(alertaId);
-      return novo;
-    });
-    setAlertasIgnorados(prev => {
-      const novo = new Set(prev);
-      novo.delete(alertaId);
-      return novo;
-    });
-  }, []);
 
   const toggleConfig = useCallback((configId: string) => {
     setAlertasConfig(prev => prev.map(c => 
@@ -882,13 +819,13 @@ export function AlertasFinanceiros() {
                           mes: ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][i],
                           valor: Math.random() * 100
                         }))}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 18%)" vertical={false} />
-                          <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                          <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
                           <RechartsTooltip
-                            contentStyle={{ backgroundColor: "hsl(220, 20%, 8%)", border: "1px solid hsl(220, 20%, 18%)", borderRadius: "8px" }}
+                            contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
                           />
-                          <Area type="monotone" dataKey="valor" stroke="hsl(199, 89%, 48%)" strokeWidth={2} fillOpacity={1} fill="hsl(199, 89%, 48%)" />
+                          <Area type="monotone" dataKey="valor" stroke="hsl(var(--primary))" strokeWidth={2} fillOpacity={1} fill="hsl(var(--primary))" />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
@@ -904,14 +841,14 @@ export function AlertasFinanceiros() {
                           atual: Math.random() * 100,
                           meta: 80
                         }))}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 18%)" vertical={false} />
-                          <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                          <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
                           <RechartsTooltip
-                            contentStyle={{ backgroundColor: "hsl(220, 20%, 8%)", border: "1px solid hsl(220, 20%, 18%)", borderRadius: "8px" }}
+                            contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
                           />
-                          <Line type="monotone" dataKey="atual" stroke="hsl(199, 89%, 48%)" strokeWidth={2} dot={{ fill: "hsl(199, 89%, 48%)" }} />
-                          <Line type="monotone" dataKey="meta" stroke="hsl(142, 76%, 36%)" strokeWidth={2} strokeDasharray="5 5" dot={{ fill: "hsl(142, 76%, 36%)" }} />
+                          <Line type="monotone" dataKey="atual" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: "hsl(var(--primary))" }} />
+                          <Line type="monotone" dataKey="meta" stroke="hsl(var(--success))" strokeWidth={2} strokeDasharray="5 5" dot={{ fill: "hsl(var(--success))" }} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
