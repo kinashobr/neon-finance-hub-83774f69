@@ -436,7 +436,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
       // Lógica simplificada para tendência baseada no status (para indicadores que 'melhoram' com o aumento)
       let defaultTrend: "up" | "down" | "stable" = "stable";
       if (status === 'success') defaultTrend = "up";
-      else if (status === 'danger') defaultTrend = "down';
+      else if (status === 'danger') defaultTrend = "down"; // CORRIGIDO: Removido o apóstrofo extra
       
       // Inverte a tendência para indicadores onde 'menor é melhor' (ex: endividamento)
       const isInverse = group === 'endividamento' || (group === 'eficiencia' && key !== 'despesasFixas') || (group === 'pessoais' && key === 'comprometimento');
