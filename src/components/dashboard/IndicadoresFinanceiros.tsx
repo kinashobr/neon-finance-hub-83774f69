@@ -18,6 +18,43 @@ interface IndicadoresFinanceirosProps {
   indicadores: Indicador[];
 }
 
+// Funções e estilos auxiliares
+const getStatus = (indicador: Indicador): "success" | "warning" | "danger" => {
+  const { valor, limites, inverso } = indicador;
+  
+  if (inverso) {
+    if (valor <= limites.bom) return "success";
+    if (valor <= limites.atencao) return "warning";
+    return "danger";
+  } else {
+    if (valor >= limites.bom) return "success";
+    if (valor >= limites.atencao) return "warning";
+    return "danger";
+  }
+};
+
+const formatValue = (indicador: Indicador): string => {
+  switch (indicador.formato) {
+    case "percent": return `${indicador.valor.toFixed(1)}%`;
+    case "decimal": return indicador.valor.toFixed(2);
+    case "currency": return `R$ ${indicador.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+    default: return indicador.valor.toString();
+  }
+};
+
+const statusStyles = {
+  success: "stat-card-positive",
+  warning: "stat-card-neutral",
+  danger: "stat-card-negative",
+};
+
+const statusTextStyles = {
+  success: "text-success",
+  warning: "text-warning",
+  danger: "text-destructive",
+};
+
+
 export function IndicadoresFinanceiros({ indicadores }: IndicadoresFinanceirosProps) {
   const { transacoesV2, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos } = useFinance();
 
@@ -71,41 +108,6 @@ export function IndicadoresFinanceiros({ indicadores }: IndicadoresFinanceirosPr
       pesoRV: totalInvestimentos > 0 ? ((criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) + objetivos.reduce((acc, o) => acc + o.atual, 0)) / totalInvestimentos) * 100 : 0,
     };
   }, [transacoesV2, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos]);
-
-  const getStatus = (indicador: Indicador): "success" | "warning" | "danger" => {
-    const { valor, limites, inverso } = indicador;
-    
-    if (inverso) {
-      if (valor <= limites.bom) return "success";
-      if (valor <= limites.atencao) return "warning";
-      return "danger";
-    } else {
-      if (valor >= limites.bom) return "success";
-      if (valor >= limites.atencao) return "warning";
-      return "danger";
-    }
-  };
-
-  const formatValue = (indicador: Indicador): string => {
-    switch (indicador.formato) {
-      case "percent": return `${indicador.valor.toFixed(1)}%`;
-      case "decimal": return indicador.valor.toFixed(2);
-      case "currency": return `R$ ${indicador.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-      default: return indicador.valor.toString();
-    }
-  };
-
-  const statusStyles = {
-    success: "stat-card-positive",
-    warning: "stat-card-neutral",
-    danger: "stat-card-negative",
-  };
-
-  const statusTextStyles = {
-    success: "text-success",
-    warning: "text-warning",
-    danger: "text-destructive",
-  };
 
   const indicadoresData: Indicador[] = useMemo(() => [
     {

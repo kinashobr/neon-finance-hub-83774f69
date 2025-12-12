@@ -16,6 +16,19 @@ import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector
 import { cn } from "@/lib/utils";
 import { startOfMonth, endOfMonth, isWithinInterval, format, parseISO } from "date-fns";
 import { ContaCorrente } from "@/types/finance";
+import { Info } from "lucide-react"; // Importação de ícone
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // Importações de Tooltip
+
+// Interface e tipos copiados de IndicadoresFinanceiros.tsx para uso local
+interface Indicador {
+  id: string;
+  nome: string;
+  valor: number;
+  formato: "percent" | "decimal" | "currency";
+  limites: { bom: number; atencao: number };
+  inverso?: boolean;
+  formula: string;
+}
 
 const defaultSections: DashboardSection[] = [
   { id: "patrimonio-cards", nome: "Cards de Patrimônio", visivel: true, ordem: 0 },
@@ -28,6 +41,43 @@ const defaultSections: DashboardSection[] = [
   { id: "objetivos", nome: "Objetivos Financeiros", visivel: false, ordem: 7 },
   { id: "distribuicao-charts", nome: "Gráficos de Distribuição", visivel: false, ordem: 8 },
 ];
+
+// Funções e estilos auxiliares para a seção de Indicadores (copiados de IndicadoresFinanceiros.tsx)
+const getStatus = (indicador: Indicador): "success" | "warning" | "danger" => {
+  const { valor, limites, inverso } = indicador;
+  
+  if (inverso) {
+    if (valor <= limites.bom) return "success";
+    if (valor <= limites.atencao) return "warning";
+    return "danger";
+  } else {
+    if (valor >= limites.bom) return "success";
+    if (valor >= limites.atencao) return "warning";
+    return "danger";
+  }
+};
+
+const formatValue = (indicador: Indicador): string => {
+  switch (indicador.formato) {
+    case "percent": return `${indicador.valor.toFixed(1)}%`;
+    case "decimal": return indicador.valor.toFixed(2);
+    case "currency": return `R$ ${indicador.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+    default: return indicador.valor.toString();
+  }
+};
+
+const statusStyles = {
+  success: "stat-card-positive",
+  warning: "stat-card-neutral",
+  danger: "stat-card-negative",
+};
+
+const statusTextStyles = {
+  success: "text-success",
+  warning: "text-warning",
+  danger: "text-destructive",
+};
+
 
 const Index = () => {
   const { 
@@ -209,7 +259,7 @@ const Index = () => {
     });
   }, [transacoesV2, totalInvestimentos, totalDividas, getPatrimonioLiquido]);
 
-  const indicadores = useMemo(() => [
+  const indicadoresData: Indicador[] = useMemo(() => [
     // Indicadores mantidos como placeholders, pois a lógica real está em IndicadoresTab
     {
       id: "liquidez",
@@ -422,50 +472,82 @@ const Index = () => {
     ].filter(item => item.valor > 0);
   }, [investimentosRF, stablecoins, objetivos, criptomoedas]);
 
+  const handleResetCustomization = () => {
+    setSections(defaultSections);
+    setLayout("fluid");
+  };
+
+  const renderSection = (sectionId: string) => {
+    switch (sectionId) {
+      case "patrimonio-cards":
+        return <PatrimonioCards data={patrimonioData} />;
+      case "quick-actions":
+        return <QuickActions />;
+      case "evolucao-chart":
+        return <EvolucaoPatrimonialChart data={evolucaoData} />;
+      case "heatmap":
+        const month = dateRange.from ? format(dateRange.from, 'MM') : format(now, 'MM');
+        const year = dateRange.from ? dateRange.from.getFullYear() : now.getFullYear();
+        return <FluxoCaixaHeatmap month={month} year={year} transacoes={filteredTransacoesV2} />;
+      case "indicadores":
+        // Passa os dados calculados para o componente IndicadoresFinanceiros
+        return <IndicadoresFinanceiros indicadores={indicadoresData} />;
+      case "tabela-consolidada":
+        return <TabelaConsolidada data={tabelaConsolidada} />;
+      case "objetivos":
+        return <ObjetivosCards objetivos={objetivos} />;
+      case "distribuicao-charts":
+        return <DistribuicaoCharts porClasse={distribuicaoPorClasse} porRisco={distribuicaoPorRisco} />;
+      case "transacoes-recentes":
+        return <TransacoesRecentes transacoes={filteredTransacoesV2} limit={8} />;
+      default:
+        return null;
+    }
+  };
+
+  const visibleSections = sections
+    .filter(s => s.visivel)
+    .sort((a, b) => a.ordem - b.ordem);
+
   return (
-    <TooltipProvider>
-      <div className="glass-card p-5 animate-fade-in-up">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-foreground">Indicadores Financeiros</h3>
+    <MainLayout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between animate-fade-in">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Dashboard Financeiro</h1>
+            <p className="text-muted-foreground mt-1">
+              Painel unificado das suas finanças pessoais
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <PeriodSelector 
+              initialRange={initialRange}
+              onDateRangeChange={handlePeriodChange} 
+            />
+            <DashboardCustomizer
+              sections={sections}
+              layout={layout}
+              onSectionsChange={setSections}
+              onLayoutChange={setLayout}
+              onReset={handleResetCustomization}
+            />
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          {indicadoresData.map((indicador) => {
-            const status = getStatus(indicador);
-            return (
-              <Tooltip key={indicador.id}>
-                <TooltipTrigger asChild>
-                  <div
-                    className={cn(
-                      "glass-card p-3 border-l-4 transition-all hover:scale-[1.02] cursor-help",
-                      statusStyles[status]
-                    )}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-muted-foreground font-medium truncate">{indicador.nome}</p>
-                        <p className={cn("text-lg font-bold mt-1", statusTextStyles[status])}>
-                          {formatValue(indicador)}
-                        </p>
-                      </div>
-                      <div className={cn(
-                        "p-2 rounded-lg",
-                        status === "success" && "bg-success/10 text-success",
-                        status === "warning" && "bg-warning/10 text-warning",
-                        status === "danger" && "bg-destructive/10 text-destructive"
-                      )}>
-                        <Info className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="text-sm">{indicador.formula}</p>
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
+        <div className={cn(
+          "space-y-6",
+          layout === "2col" && "grid grid-cols-1 lg:grid-cols-2 gap-6",
+          layout === "3col" && "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        )}>
+          {visibleSections.map((section) => (
+            <div key={section.id} className="animate-fade-in-up">
+              {renderSection(section.id)}
+            </div>
+          ))}
         </div>
       </div>
-    </TooltipProvider>
+    </MainLayout>
   );
-}
+};
+
+export default Index;
