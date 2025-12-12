@@ -66,10 +66,11 @@ export function ReportCard({
     lg: "p-6",
   };
 
+  // Reduzindo o tamanho do valor para garantir que caiba
   const valueSizes = {
-    sm: "text-xl",
-    md: "text-2xl",
-    lg: "text-4xl",
+    sm: "text-lg",
+    md: "text-xl",
+    lg: "text-2xl",
   };
   
   const iconSizes = {
@@ -92,10 +93,11 @@ export function ReportCard({
       <CardContent className={cn("p-5", sizeClasses[size])}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground truncate">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {/* Removido truncate para evitar corte de título */}
               {title}
             </p>
-            <p className={cn("font-bold mt-1", valueSizes[size], statusTextColors[status])}>
+            <p className={cn("font-bold mt-1 whitespace-nowrap", valueSizes[size], statusTextColors[status])}>
               {value}
             </p>
             {subtitle && (
@@ -103,7 +105,7 @@ export function ReportCard({
             )}
             {trend !== undefined && (
               <div className={cn(
-                "flex items-center gap-1 mt-2 text-sm font-medium",
+                "flex items-center gap-1 mt-2 text-sm font-medium whitespace-nowrap",
                 trend > 0 ? "text-success" : trend < 0 ? "text-destructive" : "text-muted-foreground"
               )}>
                 <TrendIcon className="w-4 h-4" />
