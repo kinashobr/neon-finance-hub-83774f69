@@ -1,7 +1,7 @@
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Wallet, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Wallet,
   CalendarClock,
   ArrowUpRight,
   ArrowDownRight,
@@ -105,23 +105,22 @@ export function CockpitCards({ data }: CockpitCardsProps) {
           )}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide whitespace-normal">
               {card.title}
             </span>
-            {/* Ajustado para p-3 e w-6 h-6 para padronizar */}
-            <div className={cn("p-3 rounded-xl", card.bgColor)}>
-              <card.icon className={cn("h-6 w-6", card.color)} />
+            <div className={cn("p-2 rounded-xl", card.bgColor)}>
+              <card.icon className={cn("h-5 w-5", card.color)} />
             </div>
           </div>
           
           <div className="flex flex-col">
-            <span className={cn("text-2xl font-bold", card.color)}>
+            <span className={cn("text-xl font-bold whitespace-nowrap", card.color)}>
               {card.trend === 'down' && '-'}
               {card.trend === 'up' && '+'}
               {card.value}
             </span>
             {card.subtitle && (
-              <span className={cn("text-xs font-medium mt-1", card.color)}>
+              <span className={cn("text-xs font-medium mt-1 whitespace-nowrap", card.color)}>
                 {card.subtitle}
               </span>
             )}
