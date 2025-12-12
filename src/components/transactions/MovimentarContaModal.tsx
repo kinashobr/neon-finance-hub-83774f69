@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { SeguroParcelaSelector } from "./SeguroParcelaSelector";
 
-// Interface simplificada para Empréstimo (apenas o necessário para o modal)
+// Interface simplificada para Empréstimo (agora passada via props)
 interface LoanInfo {
   id: string;
   institution: string;
@@ -38,13 +38,19 @@ interface LoanInfo {
   totalParcelas?: number;
 }
 
+// Interface simplificada para Investimento (agora passada via props)
+interface InvestmentInfo {
+  id: string;
+  name: string;
+}
+
 interface MovimentarContaModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   accounts: ContaCorrente[];
   categories: Categoria[];
-  // Removido: investments: Array<{ id: string; name: string }>;
-  // Removido: loans: LoanInfo[];
+  investments: InvestmentInfo[]; // Adicionado de volta
+  loans: LoanInfo[]; // Adicionado de volta
   selectedAccountId?: string;
   onSubmit: (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => void;
   editingTransaction?: TransacaoCompleta;
@@ -86,6 +92,8 @@ export function MovimentarContaModal({
   onOpenChange,
   accounts,
   categories,
+  investments, // Usado
+  loans, // Usado
   selectedAccountId,
   onSubmit,
   editingTransaction
@@ -180,6 +188,8 @@ export function MovimentarContaModal({
           const seguroId = parseInt(seguroIdStr);
           const parcelaNumero = parseInt(parcelaNumeroStr);
           if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
+            // Note: We don't have the full SeguroVeiculo object here, only the IDs and the amount/date from the transaction itself.
+            // We set a placeholder link object.
             setSeguroLink({ seguroId, parcelaNumero, valor: editingTransaction.amount, vencimento: editingTransaction.date });
           }
         } else {
@@ -215,7 +225,7 @@ export function MovimentarContaModal({
   useEffect(() => {
     const seguroCategory = categories.find(c => c.label.toLowerCase() === 'seguro');
 
-    if (operationType === 'despesa' && categoryId === seguroCategory?.id && !seguroLink) {
+    if (operationType === 'despesa' && categoryId === seguroCategory?.id && !seguroLink && selectedAccount?.accountType !== 'cartao_credito') {
       setShowSeguroSelector(true);
     }
 
@@ -224,38 +234,15 @@ export function MovimentarContaModal({
       setDate(seguroLink.vencimento);
       setDescription(prev => prev || `Pagamento Parcela ${seguroLink.parcelaNumero} - Seguro Veículo`);
     }
-  }, [operationType, categoryId, categories, seguroLink]);
+  }, [operationType, categoryId, categories, seguroLink, selectedAccount]);
 
   const selectedCategory = categories.find(c => c.id === categoryId);
 
   // Contas de investimento disponíveis para aplicação/resgate
-  const investmentAccounts = useMemo(() =>
-    accounts.filter(a =>
-      a.accountType === 'aplicacao_renda_fixa' ||
-      a.accountType === 'poupanca' ||
-      a.accountType === 'criptoativos' ||
-      a.accountType === 'reserva_emergencia' ||
-      a.accountType === 'objetivos_financeiros'
-    ),
-    [accounts]
-  );
+  const investmentAccounts = useMemo(() => investments, [investments]);
   
-  // Contas de empréstimo (Simulação: Apenas contas correntes para pagamento)
-  const loanAccounts = useMemo(() =>
-    accounts.filter(a => a.accountType === 'conta_corrente'),
-    [accounts]
-  );
-
-  // Simulação de Empréstimos Ativos (para seleção de pagamento)
-  const simulatedLoans: LoanInfo[] = useMemo(() => {
-    // Como as entidades V1 foram removidas, simulamos uma lista de empréstimos
-    // ativos para que o modal de pagamento funcione minimamente.
-    // Na Etapa 4, esta lógica será refeita usando as entidades V2 mantidas.
-    return [
-      { id: 'loan_1', institution: 'Banco X', numeroContrato: '1234', valorParcela: 500, totalParcelas: 12, parcelas: Array.from({ length: 12 }, (_, i) => ({ numero: i + 1, vencimento: '2025-01-01', valor: 500, pago: i < 3 })) },
-      { id: 'loan_2', institution: 'Financeira Y', numeroContrato: '5678', valorParcela: 1200, totalParcelas: 48, parcelas: Array.from({ length: 48 }, (_, i) => ({ numero: i + 1, vencimento: '2025-01-01', valor: 1200, pago: i < 10 })) },
-    ];
-  }, []);
+  // Empréstimos ativos disponíveis para pagamento
+  const simulatedLoans = useMemo(() => loans, [loans]);
   
   const selectedLoan = useMemo(() =>
     simulatedLoans.find(l => l.id === loanId),
@@ -815,6 +802,11 @@ export function MovimentarContaModal({
                           {loan.institution} {loan.numeroContrato ? `(${loan.numeroContrato})` : ''}
                         </SelectItem>
                       ))}
+                      {simulatedLoans.length === 0 && (
+                        <SelectItem value="none" disabled>
+                          Nenhum empréstimo ativo
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
