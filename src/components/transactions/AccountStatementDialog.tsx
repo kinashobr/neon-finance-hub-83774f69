@@ -61,43 +61,28 @@ export function AccountStatementDialog({
 
   // Calcular saldos do período
   const periodSummary = useMemo(() => {
-    let runningBalance = account.initialBalance;
+    // Usamos o saldo inicial e final calculados no AccountSummary (ReceitasDespesas.tsx)
+    // para garantir consistência com o card.
+    const initialBalance = accountSummary.initialBalance;
+    const finalBalance = accountSummary.currentBalance;
     
-    // Ordenar transações por data crescente para cálculo
-    const sortedTx = [...transactions].sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-    
-    sortedTx.forEach(tx => {
-      if (tx.flow === 'in' || tx.flow === 'transfer_in') {
-        runningBalance += tx.amount;
-      } else {
-        runningBalance -= tx.amount;
-      }
-    });
-
-    const totalIn = transactions
-      .filter(t => t.flow === 'in' || t.flow === 'transfer_in')
-      .reduce((acc, t) => acc + t.amount, 0);
-
-    const totalOut = transactions
-      .filter(t => t.flow === 'out' || t.flow === 'transfer_out')
-      .reduce((acc, t) => acc + t.amount, 0);
+    const totalIn = accountSummary.totalIn;
+    const totalOut = accountSummary.totalOut;
 
     const conciliatedCount = transactions.filter(t => t.conciliated).length;
     const pendingCount = transactions.length - conciliatedCount;
 
     return {
-      initialBalance: account.initialBalance,
-      finalBalance: runningBalance,
+      initialBalance,
+      finalBalance,
       totalIn,
       totalOut,
       netChange: totalIn - totalOut,
       conciliatedCount,
       pendingCount,
-      isBalanced: Math.abs(runningBalance - accountSummary.currentBalance) < 0.01
+      isBalanced: Math.abs(finalBalance - accountSummary.currentBalance) < 0.01
     };
-  }, [account, transactions, accountSummary]);
+  }, [accountSummary, transactions]);
 
   const statusColor = periodSummary.pendingCount === 0 ? 'text-success' : 'text-warning';
 
@@ -139,6 +124,7 @@ export function AccountStatementDialog({
               <Card className="glass-card">
                 <CardContent className="pt-4">
                   <div className="text-sm text-muted-foreground mb-1">Saldo Inicial</div>
+                  {/* Exibe o saldo inicial do período, formatado */}
                   <div className="text-lg font-bold">{formatCurrency(periodSummary.initialBalance)}</div>
                 </CardContent>
               </Card>

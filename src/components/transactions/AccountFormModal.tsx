@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard } from "lucide-react";
-import { ContaCorrente, AccountType, ACCOUNT_TYPE_LABELS, generateAccountId } from "@/types/finance";
+import { ContaCorrente, AccountType, ACCOUNT_TYPE_LABELS, generateAccountId, formatCurrency } from "@/types/finance";
 import { toast } from "sonner";
 
 interface AccountFormModalProps {
@@ -26,6 +26,12 @@ const ACCOUNT_TYPE_ICONS: Record<AccountType, typeof Building2> = {
   objetivos_financeiros: Target,
   cartao_credito: CreditCard, // NOVO ÍCONE
 };
+
+// Helper para formatar número para string BR
+const formatToBR = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Helper para converter string BR para float
+const parseFromBR = (value: string) => parseFloat(value.replace('.', '').replace(',', '.'));
 
 export function AccountFormModal({
   open,
@@ -49,18 +55,25 @@ export function AccountFormModal({
       setName(account.name);
       setAccountType(account.accountType || 'conta_corrente');
       setInstitution(account.institution || "");
-      setInitialBalance(account.initialBalance.toString());
+      // Formata o saldo inicial para o padrão BR
+      setInitialBalance(formatToBR(account.initialBalance));
       setCurrency(account.currency);
       setStartDate(account.startDate || new Date().toISOString().split('T')[0]); // USAR DATA EXISTENTE OU PADRÃO
     } else if (open) {
       setName("");
       setAccountType("conta_corrente");
       setInstitution("");
-      setInitialBalance("");
+      setInitialBalance(formatToBR(0)); // Inicia com 0,00
       setCurrency("BRL");
       setStartDate(new Date().toISOString().split('T')[0]); // RESET
     }
   }, [open, account]);
+
+  const handleBalanceChange = (value: string) => {
+    // Permite apenas números, vírgula e ponto (para facilitar a digitação)
+    const cleanedValue = value.replace(/[^\d,.]/g, '');
+    setInitialBalance(cleanedValue);
+  };
 
   const handleSubmit = () => {
     if (!name.trim()) {
@@ -72,7 +85,8 @@ export function AccountFormModal({
       return;
     }
 
-    const parsedBalance = parseFloat(initialBalance.replace(',', '.')) || 0;
+    // Converte a string BR para float
+    const parsedBalance = parseFromBR(initialBalance) || 0;
 
     const newAccount: ContaCorrente = {
       id: account?.id || generateAccountId(),
@@ -80,7 +94,7 @@ export function AccountFormModal({
       accountType,
       institution: institution.trim() || undefined,
       currency,
-      initialBalance: parsedBalance,
+      initialBalance: parsedBalance, // Salva o valor real para ser usado na transação sintética
       startDate, // ADICIONADO
       color: account?.color || 'hsl(var(--primary))',
       icon: account?.icon || 'building-2',
@@ -175,7 +189,7 @@ export function AccountFormModal({
                 inputMode="decimal"
                 placeholder="0,00"
                 value={initialBalance}
-                onChange={(e) => setInitialBalance(e.target.value)}
+                onChange={(e) => handleBalanceChange(e.target.value)}
               />
             </div>
             <div className="space-y-2">

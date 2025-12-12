@@ -24,7 +24,7 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit }: Ac
   const {
     accountId,
     accountName,
-    initialBalance,
+    initialBalance, // Saldo inicial do período (calculado em ReceitasDespesas.tsx)
     currentBalance,
     projectedBalance,
     totalIn,
@@ -91,8 +91,8 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit }: Ac
       <div className="space-y-2 mb-4">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Saldo Inicial (período)</span>
-          {/* Garantindo que initialBalance seja tratado como número e formatado */}
-          <span>{formatCurrency(Number(initialBalance))}</span>
+          {/* Exibe o saldo inicial do período, formatado */}
+          <span>{formatCurrency(initialBalance)}</span>
         </div>
         
         <div className="flex items-center justify-between">

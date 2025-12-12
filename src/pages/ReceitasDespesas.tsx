@@ -156,7 +156,8 @@ const ReceitasDespesas = () => {
       const periodFinalBalance = periodInitialBalance + totalIn - totalOut;
       
       // 5. Reconciliation Status (based on transactions in the period)
-      const reconciliationStatus = accountTxInPeriod.every(t => t.conciliated) ? 'ok' : 'warning' as const;
+      const conciliatedCount = accountTxInPeriod.filter(t => t.conciliated).length;
+      const reconciliationStatus = accountTxInPeriod.length === 0 || conciliatedCount === accountTxInPeriod.length ? 'ok' : 'warning' as const;
 
       return {
         accountId: account.id,
@@ -587,7 +588,8 @@ const ReceitasDespesas = () => {
         // Create a temporary account object to pass the correct initial balance value to the form
         const accountForEdit: ContaCorrente = {
             ...account,
-            initialBalance: initialBalanceValue, // Inject the actual starting balance for the form
+            // CORREÇÃO AQUI: Passar o valor real do saldo inicial para o formulário
+            initialBalance: initialBalanceValue, 
         };
         
         setEditingAccount(accountForEdit);
