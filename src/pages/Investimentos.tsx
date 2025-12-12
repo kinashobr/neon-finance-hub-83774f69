@@ -61,28 +61,15 @@ const Investimentos = () => {
     addStablecoin, 
     updateStablecoin, 
     deleteStablecoin, 
-    addObjetivo, 
-    updateObjetivo, 
-    deleteObjetivo, 
     addMovimentacaoInvestimento,
     deleteMovimentacaoInvestimento,
     calculateBalanceUpToDate, // Importado do contexto
+    dateRanges, // <-- Use context state
+    setDateRanges, // <-- Use context setter
   } = useFinance();
   
   const [activeTab, setActiveTab] = useState("carteira");
   
-  // Inicializa o range para o mês atual
-  const now = new Date();
-  const initialRange1: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
-  
-  // O range2 será calculado automaticamente pelo PeriodSelector
-  const initialRanges: ComparisonDateRanges = { 
-    range1: initialRange1, 
-    range2: { from: undefined, to: undefined } 
-  };
-  
-  const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(initialRanges);
-
   // --- ESTADOS FALTANTES ---
   const [showAddRendimento, setShowAddRendimento] = useState<string | null>(null);
   const [formRendimento, setFormRendimento] = useState({
@@ -94,7 +81,7 @@ const Investimentos = () => {
 
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
-  }, []);
+  }, [setDateRanges]);
 
   // Helper para calcular saldo atual de uma conta (usando a data final do período P1)
   const calculateAccountBalance = useCallback((accountId: string, targetDate: Date | undefined): number => {

@@ -7,23 +7,14 @@ import { IndicadoresTab } from "@/components/reports/IndicadoresTab";
 import { Scale, Receipt, Activity } from "lucide-react";
 import { PeriodSelector, DateRange, ComparisonDateRanges } from "@/components/dashboard/PeriodSelector";
 import { startOfMonth, endOfMonth, subDays } from "date-fns";
+import { useFinance } from "@/contexts/FinanceContext";
 
 const Relatorios = () => {
-  // Inicializa o range para o mês atual
-  const now = new Date();
-  const initialRange1: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
-  
-  // O range2 será calculado automaticamente pelo PeriodSelector
-  const initialRanges: ComparisonDateRanges = { 
-    range1: initialRange1, 
-    range2: { from: undefined, to: undefined } 
-  };
-  
-  const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(initialRanges);
+  const { dateRanges, setDateRanges } = useFinance();
 
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
-  }, []);
+  }, [setDateRanges]);
 
   return (
     <MainLayout>

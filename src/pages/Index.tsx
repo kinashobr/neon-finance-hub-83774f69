@@ -25,23 +25,13 @@ const Index = () => {
     getPassivosTotal,
     getSaldoDevedor,
     calculateBalanceUpToDate, // Importado do contexto
+    dateRanges, // <-- Use context state
+    setDateRanges, // <-- Use context setter
   } = useFinance();
-
-  // Inicializa o range para o mês atual
-  const now = new Date();
-  const initialRange1: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
-  
-  // O range2 será calculado automaticamente pelo PeriodSelector
-  const initialRanges: ComparisonDateRanges = { 
-    range1: initialRange1, 
-    range2: { from: undefined, to: undefined } 
-  };
-  
-  const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(initialRanges);
 
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
-  }, []);
+  }, [setDateRanges]);
 
   // Helper para filtrar transações por um range específico
   const filterTransactionsByRange = useCallback((range: DateRange) => {
@@ -207,6 +197,7 @@ const Index = () => {
   // 4. Estabilidade do fluxo (meses com saldo positivo)
   const mesesPositivos = useMemo(() => {
     const ultimos6Meses = [];
+    const now = new Date();
     for (let i = 0; i < 6; i++) {
       const data = subMonths(now, i);
       const m = data.getMonth();
@@ -278,8 +269,8 @@ const Index = () => {
             {/* Fluxo de Caixa Heatmap */}
             <section className="animate-fade-in-up" style={{ animationDelay: '200ms' }}>
               <FluxoCaixaHeatmap 
-                month={dateRanges.range1.from ? format(dateRanges.range1.from, 'MM') : format(now, 'MM')} 
-                year={dateRanges.range1.from ? dateRanges.range1.from.getFullYear() : now.getFullYear()} 
+                month={dateRanges.range1.from ? format(dateRanges.range1.from, 'MM') : format(new Date(), 'MM')} 
+                year={dateRanges.range1.from ? dateRanges.range1.from.getFullYear() : new Date().getFullYear()} 
                 transacoes={transacoesPeriodo1} 
               />
             </section>

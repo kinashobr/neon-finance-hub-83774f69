@@ -9,8 +9,57 @@ import {
   SeguroVeiculo, // V2 Entity
   ObjetivoFinanceiro, // V2 Entity
   AccountType,
+  DateRange, // Import new types
+  ComparisonDateRanges, // Import new types
 } from "@/types/finance";
-import { parseISO } from "date-fns";
+import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays } from "date-fns"; // Import date-fns helpers
+
+// ============================================
+// FUNÇÕES AUXILIARES PARA DATAS
+// ============================================
+
+const calculateDefaultRange = (): DateRange => {
+    const now = new Date();
+    return { from: startOfMonth(now), to: endOfMonth(now) };
+};
+
+const calculateComparisonRange = (range1: DateRange): DateRange => {
+    if (!range1.from || !range1.to) {
+        return { from: undefined, to: undefined };
+    }
+    const diffInDays = differenceInDays(range1.to, range1.from) + 1;
+    const prevTo = subDays(range1.from, 1);
+    const prevFrom = subDays(prevTo, diffInDays - 1);
+    return { from: prevFrom, to: prevTo };
+};
+
+const DEFAULT_RANGES: ComparisonDateRanges = {
+    range1: calculateDefaultRange(),
+    range2: calculateComparisonRange(calculateDefaultRange()),
+};
+
+function parseDateRanges(storedRanges: any): ComparisonDateRanges {
+    const parseDate = (dateStr: string | undefined): Date | undefined => {
+        if (!dateStr) return undefined;
+        try {
+            const date = new Date(dateStr);
+            return isNaN(date.getTime()) ? undefined : date;
+        } catch {
+            return undefined;
+        }
+    };
+
+    return {
+        range1: {
+            from: parseDate(storedRanges.range1?.from),
+            to: parseDate(storedRanges.range1?.to),
+        },
+        range2: {
+            from: parseDate(storedRanges.range2?.from),
+            to: parseDate(storedRanges.range2?.to),
+        },
+    };
+}
 
 // ============================================
 // INTERFACE DO CONTEXTO (Atualizada)
@@ -60,6 +109,10 @@ interface FinanceContextType {
   setTransacoesV2: (transactions: TransacaoCompleta[]) => void;
   addTransacaoV2: (transaction: TransacaoCompleta) => void;
   
+  // Data Filtering (NEW)
+  dateRanges: ComparisonDateRanges;
+  setDateRanges: (ranges: ComparisonDateRanges) => void;
+  
   // Cálculos principais
   getTotalReceitas: (mes?: string) => number;
   getTotalDespesas: (mes?: string) => number;
@@ -100,7 +153,7 @@ interface FinanceContextType {
   deleteStablecoin: (id: number) => void;
   addMovimentacaoInvestimento: (mov: any) => void;
   updateMovimentacaoInvestimento: (id: number, mov: any) => void;
-  deleteMovimentacaoInvestimento: (id: number) => void;
+  deleteMovimentacaoInvestimento: (id: number, mov: any) => void;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
@@ -120,6 +173,9 @@ const STORAGE_KEYS = {
   CONTAS_MOVIMENTO: "fin_accounts_v1",
   CATEGORIAS_V2: "fin_categories_v1",
   TRANSACOES_V2: "fin_transactions_v1",
+  
+  // Data Filtering (NEW)
+  DATE_RANGES: "fin_date_ranges_v1",
 };
 
 // ============================================
@@ -139,7 +195,14 @@ function loadFromStorage<T>(key: string, defaultValue: T): T {
   try {
     const stored = localStorage.getItem(key);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      
+      // Special handling for date ranges
+      if (key === STORAGE_KEYS.DATE_RANGES) {
+          return parseDateRanges(parsed) as unknown as T;
+      }
+      
+      return parsed;
     }
   } catch (error) {
     console.error(`Erro ao carregar ${key} do localStorage:`, error);
@@ -149,7 +212,23 @@ function loadFromStorage<T>(key: string, defaultValue: T): T {
 
 function saveToStorage<T>(key: string, data: T): void {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    // Special handling for date ranges: convert Date objects to ISO strings
+    let dataToStore = data;
+    if (key === STORAGE_KEYS.DATE_RANGES) {
+        const ranges = data as unknown as ComparisonDateRanges;
+        dataToStore = {
+            range1: {
+                from: ranges.range1.from?.toISOString(),
+                to: ranges.range1.to?.toISOString(),
+            },
+            range2: {
+                from: ranges.range2.from?.toISOString(),
+                to: ranges.range2.to?.toISOString(),
+            },
+        } as unknown as T;
+    }
+    
+    localStorage.setItem(key, JSON.stringify(dataToStore));
   } catch (error) {
     console.error(`Erro ao salvar ${key} no localStorage:`, error);
   }
@@ -184,6 +263,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [transacoesV2, setTransacoesV2] = useState<TransacaoCompleta[]>(() => 
     loadFromStorage(STORAGE_KEYS.TRANSACOES_V2, [])
   );
+  
+  // Data Filtering State (NEW)
+  const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(() => 
+    loadFromStorage(STORAGE_KEYS.DATE_RANGES, DEFAULT_RANGES)
+  );
 
   // ============================================
   // EFEITOS PARA PERSISTÊNCIA AUTOMÁTICA
@@ -197,6 +281,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); }, [categoriasV2]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); }, [transacoesV2]);
+  
+  // NEW EFFECT for dateRanges
+  useEffect(() => { saveToStorage(STORAGE_KEYS.DATE_RANGES, dateRanges); }, [dateRanges]);
 
   // ============================================
   // FUNÇÃO CENTRAL DE CÁLCULO DE SALDO POR DATA
@@ -557,6 +644,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     transacoesV2,
     setTransacoesV2,
     addTransacaoV2,
+    
+    // Data Filtering (NEW)
+    dateRanges,
+    setDateRanges,
+    
     getTotalReceitas,
     getTotalDespesas,
     getTotalDividas,

@@ -7,18 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, differenceInDays, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Label } from "@/components/ui/label";
-
-// Interface padronizada para range de data (usando Date)
-export interface DateRange {
-  from: Date | undefined;
-  to: Date | undefined;
-}
-
-// Mantendo a interface de comparação para evitar quebras em outros arquivos, mas focando apenas no range1
-export interface ComparisonDateRanges {
-  range1: DateRange;
-  range2: DateRange;
-}
+import { DateRange, ComparisonDateRanges } from "@/types/finance";
 
 interface PeriodSelectorProps {
   onDateRangeChange: (ranges: ComparisonDateRanges) => void;
@@ -99,6 +88,7 @@ export function PeriodSelector({
   }, [calculateRangeFromPreset]);
 
   useEffect(() => {
+    // Use initialRanges passed via props (from context)
     setRange(initialRanges.range1);
     setSelectedPreset(getActivePresetId(initialRanges.range1));
   }, [initialRanges, getActivePresetId]);

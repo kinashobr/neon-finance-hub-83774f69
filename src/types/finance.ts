@@ -228,6 +228,20 @@ export interface AccountSummary {
   transactionCount: number;
 }
 
+// ============================================
+// TIPOS DE DATA FILTERING (NEW)
+// ============================================
+
+export interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
+}
+
+export interface ComparisonDateRanges {
+  range1: DateRange;
+  range2: DateRange;
+}
+
 // Dados iniciais padrão - Sistema limpo, sem dados pré-preenchidos
 export const DEFAULT_ACCOUNTS: ContaCorrente[] = [];
 

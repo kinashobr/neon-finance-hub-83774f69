@@ -9,7 +9,8 @@ import { isWithinInterval, startOfMonth, endOfMonth, parseISO, subDays } from "d
 import { 
   ContaCorrente, Categoria, TransacaoCompleta, TransferGroup,
   AccountSummary, OperationType, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, 
-  generateTransactionId, formatCurrency, generateTransferGroupId
+  generateTransactionId, formatCurrency, generateTransferGroupId,
+  DateRange, ComparisonDateRanges
 } from "@/types/finance";
 
 // Components
@@ -21,7 +22,7 @@ import { AccountFormModal } from "@/components/transactions/AccountFormModal";
 import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
 import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
-import { PeriodSelector, DateRange, ComparisonDateRanges } from "@/components/dashboard/PeriodSelector";
+import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 
 // Context
 import { useFinance } from "@/contexts/FinanceContext";
@@ -42,6 +43,8 @@ const ReceitasDespesas = () => {
     veiculos,
     addVeiculo,
     calculateBalanceUpToDate, // Importado do contexto
+    dateRanges, // <-- Use context state
+    setDateRanges, // <-- Use context setter
   } = useFinance();
 
   // Local state for transfer groups
@@ -51,18 +54,6 @@ const ReceitasDespesas = () => {
   const [showMovimentarModal, setShowMovimentarModal] = useState(false);
   const [selectedAccountForModal, setSelectedAccountForModal] = useState<string>();
   const [showReconciliation, setShowReconciliation] = useState(false);
-  
-  // Inicializa o range para o mês atual
-  const now = new Date();
-  const initialRange1: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
-  
-  // O range2 será calculado automaticamente pelo PeriodSelector
-  const initialRanges: ComparisonDateRanges = { 
-    range1: initialRange1, 
-    range2: { from: undefined, to: undefined } 
-  };
-  
-  const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(initialRanges);
   
   // New modals
   const [showAccountModal, setShowAccountModal] = useState(false);
@@ -93,7 +84,7 @@ const ReceitasDespesas = () => {
 
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
-  }, []);
+  }, [setDateRanges]);
 
   // Filter transactions
   const filteredTransactions = useMemo(() => {

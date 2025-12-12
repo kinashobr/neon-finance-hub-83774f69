@@ -27,27 +27,17 @@ const Emprestimos = () => {
     getTotalDividas,
     getPendingLoans,
     getContasCorrentesTipo,
-    transacoesV2
+    transacoesV2,
+    dateRanges,
+    setDateRanges,
   } = useFinance();
   
   const [selectedLoan, setSelectedLoan] = useState<Emprestimo | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   
-  // Inicializa o range para o mês atual
-  const now = new Date();
-  const initialRange1: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
-  
-  // O range2 será calculado automaticamente pelo PeriodSelector
-  const initialRanges: ComparisonDateRanges = { 
-    range1: initialRange1, 
-    range2: { from: undefined, to: undefined } 
-  };
-  
-  const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(initialRanges);
-
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
-  }, []);
+  }, [setDateRanges]);
 
   // Helper function to calculate the next due date for a loan
   const getNextDueDate = (loan: Emprestimo): Date | null => {
