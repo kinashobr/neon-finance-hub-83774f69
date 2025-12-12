@@ -140,6 +140,30 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     invertido: false,
   });
 
+  // --- NOVOS TIPOS PARA CORREÇÃO ---
+  type LiquidezKey = 'corrente' | 'seca' | 'imediata' | 'geral';
+  type EndividamentoKey = 'total' | 'dividaPL' | 'composicao' | 'imobilizacao';
+  type RentabilidadeKey = 'margemLiquida' | 'retornoAtivos' | 'retornoPL';
+  type EficienciaKey = 'despesasFixas' | 'operacional';
+  type PessoaisKey = 'custoVida' | 'mesesSobrevivencia' | 'taxaPoupanca' | 'comprometimento';
+  type OutrosKey = 'solvencia' | 'coberturaJuros' | 'diversificacao';
+
+  type AllIndicatorKeys = LiquidezKey | EndividamentoKey | RentabilidadeKey | EficienciaKey | PessoaisKey | OutrosKey;
+  type ValidGroupKey = 'liquidez' | 'endividamento' | 'rentabilidade' | 'eficiencia' | 'pessoais' | 'outros';
+
+  type TrendResult = {
+    diff: number;
+    percent: number;
+    trend: "up" | "down" | "stable";
+  };
+
+  type DisplayTrendResult = {
+    percent: number;
+    trend: "up" | "down" | "stable";
+    status: IndicatorStatus;
+  };
+  // ---------------------------------
+
   // Salvar indicadores personalizados
   const saveCustomIndicators = (indicators: CustomIndicator[]) => {
     setCustomIndicators(indicators);
@@ -234,6 +258,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     // 2. Calcular saldos das contas (saldo final do período)
     const saldosPorConta: Record<string, number> = {};
     contasMovimento.forEach(conta => {
+      // O saldo inicial é o saldo acumulado ANTES do período
       const saldoInicialPeriodo = range.from 
         ? calculateBalanceUpToDate(conta.id, range.from, transacoesV2, contasMovimento)
         : calculateBalanceUpToDate(conta.id, undefined, transacoesV2, contasMovimento);
@@ -243,6 +268,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
     transacoesPeriodo.forEach(t => {
       if (!saldosPorConta[t.accountId]) saldosPorConta[t.accountId] = 0;
+      
       if (t.flow === 'in' || t.flow === 'transfer_in') {
         saldosPorConta[t.accountId] += t.amount;
       } else {
@@ -391,35 +417,46 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
       receitasMesAtual,
       despesasMesAtual,
     };
-  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, getJurosTotais, getAtivosTotal, getPassivosTotal, getPatrimonioLiquido]);
+  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, getJurosTotais, getAtivosTotal, getPassivosTotal, getPatrimonioLiquido, calculateFinalBalances, calculateBalanceUpToDate]);
 
   // Cálculos para Período 1 e Período 2
   const indicadores1 = useMemo(() => calculateIndicatorsForRange(range1), [calculateIndicatorsForRange, range1]);
   const indicadores2 = useMemo(() => calculateIndicatorsForRange(range2), [calculateIndicatorsForRange, range2]);
 
   // Função para calcular a variação percentual entre P1 e P2 para um indicador
-  const calculateTrend = useCallback((key: keyof typeof indicadores1.liquidez, group: keyof typeof indicadores1) => {
-    const val1 = indicadores1[group][key].valor;
-    const val2 = indicadores2[group][key].valor;
+  const calculateTrend = useCallback(<G extends ValidGroupKey, K extends AllIndicatorKeys>(key: K, group: G): TrendResult => {
+    // Usamos 'as any' para acessar as propriedades dinamicamente, pois o TypeScript não consegue mapear K para o tipo correto dentro de G
+    const val1 = (indicadores1[group] as any)[key].valor;
+    const val2 = (indicadores2[group] as any)[key].valor;
     
-    if (!range2.from || val2 === 0) return { diff: 0, percent: 0, trend: "stable" as const };
+    if (!range2.from || val2 === 0) return { diff: 0, percent: 0, trend: "stable" };
     
     const diff = val1 - val2;
     const percent = (diff / Math.abs(val2)) * 100;
-    const trend = percent >= 0 ? "up" : "down";
+    const trend: "up" | "down" | "stable" = percent >= 0 ? "up" : "down";
     
     return { diff, percent, trend };
   }, [indicadores1, indicadores2, range2.from]);
 
   // Função para determinar o status e a tendência de exibição
-  const getDisplayTrend = useCallback((key: keyof typeof indicadores1.liquidez, group: keyof typeof indicadores1) => {
+  const getDisplayTrend = useCallback(<G extends ValidGroupKey, K extends AllIndicatorKeys>(key: K, group: G): DisplayTrendResult => {
     const { percent, trend } = calculateTrend(key, group);
-    const { status } = indicadores1[group][key];
+    const { status } = (indicadores1[group] as any)[key];
     
     // Se não houver comparação, retorna a tendência baseada no status (simplificado)
     if (!range2.from) {
-      const isInverse = indicadores1[group][key].status === 'danger' || indicadores1[group][key].status === 'warning';
-      return { trend: isInverse ? "down" : "up", percent: 0, status };
+      // Lógica simplificada para tendência baseada no status (para indicadores que 'melhoram' com o aumento)
+      let defaultTrend: "up" | "down" | "stable" = "stable";
+      if (status === 'success') defaultTrend = "up";
+      else if (status === 'danger') defaultTrend = "down";
+      
+      // Inverte a tendência para indicadores onde 'menor é melhor' (ex: endividamento)
+      const isInverse = group === 'endividamento' || (group === 'eficiencia' && key !== 'despesasFixas') || (group === 'pessoais' && key === 'comprometimento');
+      if (isInverse) {
+        defaultTrend = defaultTrend === 'up' ? 'down' : defaultTrend === 'down' ? 'up' : 'stable';
+      }
+
+      return { trend: defaultTrend, percent: 0, status };
     }
 
     return { trend, percent, status };
@@ -448,8 +485,8 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     const rec2 = indicadores2.receitasMesAtual;
     const diff = rec1 - rec2;
     const percent = rec2 !== 0 ? (diff / Math.abs(rec2)) * 100 : 0;
-    const trend = percent >= 0 ? "up" : "down";
-    const status = percent > 5 ? "success" : percent >= 0 ? "warning" : "danger";
+    const trend: "up" | "down" | "stable" = percent >= 0 ? "up" : "down";
+    const status: IndicatorStatus = percent > 5 ? "success" : percent >= 0 ? "warning" : "danger";
     return { valor: percent, trend, status, formula: "((Receitas P1 - Receitas P2) / Receitas P2) × 100" };
   }, [indicadores1, indicadores2]);
 
@@ -458,8 +495,8 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     const desp2 = indicadores2.despesasMesAtual;
     const diff = desp1 - desp2;
     const percent = desp2 !== 0 ? (diff / Math.abs(desp2)) * 100 : 0;
-    const trend = percent <= 0 ? "up" : "down"; // Menor crescimento de despesas é melhor (up)
-    const status = percent < 0 ? "success" : percent < 10 ? "warning" : "danger";
+    const trend: "up" | "down" | "stable" = percent <= 0 ? "up" : "down"; // Menor crescimento de despesas é melhor (up)
+    const status: IndicatorStatus = percent < 0 ? "success" : percent < 10 ? "warning" : "danger";
     return { valor: percent, trend, status, formula: "((Despesas P1 - Despesas P2) / Despesas P2) × 100" };
   }, [indicadores1, indicadores2]);
 
@@ -660,44 +697,44 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           title="Endividamento Total"
           value={formatPercent(indicadores1.endividamento.total.valor)}
           status={indicadores1.endividamento.total.status}
-          trend={getDisplayTrend('total', 'endividamento').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('total', 'endividamento').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('total' as EndividamentoKey, 'endividamento').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('total' as EndividamentoKey, 'endividamento').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Percentual dos ativos financiados por terceiros (dívidas). Quanto menor, melhor. Ideal: abaixo de 30%"
           formula="(Passivo Total / Ativo Total) × 100"
-          sparklineData={generateSparkline(indicadores1.endividamento.total.valor, getDisplayTrend('total', 'endividamento').trend)}
+          sparklineData={generateSparkline(indicadores1.endividamento.total.valor, getDisplayTrend('total' as EndividamentoKey, 'endividamento').trend)}
           icon={<Shield className="w-4 h-4" />}
         />
         <DetailedIndicatorBadge
           title="Dívida / Patrimônio"
           value={formatPercent(indicadores1.endividamento.dividaPL.valor)}
           status={indicadores1.endividamento.dividaPL.status}
-          trend={getDisplayTrend('dividaPL', 'endividamento').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('dividaPL', 'endividamento').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('dividaPL' as EndividamentoKey, 'endividamento').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('dividaPL' as EndividamentoKey, 'endividamento').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Relação entre capital de terceiros e capital próprio. Indica alavancagem. Ideal: abaixo de 50%"
           formula="(Dívida Total / Patrimônio Líquido) × 100"
-          sparklineData={generateSparkline(indicadores1.endividamento.dividaPL.valor, getDisplayTrend('dividaPL', 'endividamento').trend)}
+          sparklineData={generateSparkline(indicadores1.endividamento.dividaPL.valor, getDisplayTrend('dividaPL' as EndividamentoKey, 'endividamento').trend)}
           icon={<Shield className="w-4 h-4" />}
         />
         <DetailedIndicatorBadge
           title="Composição do Endividamento"
           value={formatPercent(indicadores1.endividamento.composicao.valor)}
           status={indicadores1.endividamento.composicao.status}
-          trend={getDisplayTrend('composicao', 'endividamento').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('composicao', 'endividamento').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('composicao' as EndividamentoKey, 'endividamento').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('composicao' as EndividamentoKey, 'endividamento').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Percentual das dívidas que vencem no curto prazo. Menor valor indica menor pressão imediata. Ideal: abaixo de 50%"
           formula="(Passivo Circulante / Passivo Total) × 100"
-          sparklineData={generateSparkline(indicadores1.endividamento.composicao.valor, getDisplayTrend('composicao', 'endividamento').trend)}
+          sparklineData={generateSparkline(indicadores1.endividamento.composicao.valor, getDisplayTrend('composicao' as EndividamentoKey, 'endividamento').trend)}
           icon={<AlertTriangle className="w-4 h-4" />}
         />
         <DetailedIndicatorBadge
           title="Imobilização do PL"
           value={formatPercent(indicadores1.endividamento.imobilizacao.valor)}
           status={indicadores1.endividamento.imobilizacao.status}
-          trend={getDisplayTrend('imobilizacao', 'endividamento').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('imobilizacao', 'endividamento').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('imobilizacao' as EndividamentoKey, 'endividamento').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('imobilizacao' as EndividamentoKey, 'endividamento').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Quanto do patrimônio está investido em bens imobilizados (veículos). Ideal: abaixo de 30%"
           formula="(Ativo Imobilizado / Patrimônio Líquido) × 100"
-          sparklineData={generateSparkline(indicadores1.endividamento.imobilizacao.valor, getDisplayTrend('imobilizacao', 'endividamento').trend)}
+          sparklineData={generateSparkline(indicadores1.endividamento.imobilizacao.valor, getDisplayTrend('imobilizacao' as EndividamentoKey, 'endividamento').trend)}
           icon={<Car className="w-4 h-4" />}
         />
       </IndicatorGroup>
@@ -712,33 +749,33 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           title="Margem Líquida"
           value={formatPercent(indicadores1.rentabilidade.margemLiquida.valor)}
           status={indicadores1.rentabilidade.margemLiquida.status}
-          trend={getDisplayTrend('margemLiquida', 'rentabilidade').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('margemLiquida', 'rentabilidade').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('margemLiquida' as RentabilidadeKey, 'rentabilidade').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('margemLiquida' as RentabilidadeKey, 'rentabilidade').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Percentual das receitas que sobra como lucro. Mede eficiência na conversão de receita em resultado. Ideal: acima de 20%"
           formula="(Resultado Líquido / Receitas) × 100"
-          sparklineData={generateSparkline(indicadores1.rentabilidade.margemLiquida.valor, getDisplayTrend('margemLiquida', 'rentabilidade').trend)}
+          sparklineData={generateSparkline(indicadores1.rentabilidade.margemLiquida.valor, getDisplayTrend('margemLiquida' as RentabilidadeKey, 'rentabilidade').trend)}
           icon={<TrendingUp className="w-4 h-4" />}
         />
         <DetailedIndicatorBadge
           title="Retorno sobre Ativos (ROA)"
           value={formatPercent(indicadores1.rentabilidade.retornoAtivos.valor)}
           status={indicadores1.rentabilidade.retornoAtivos.status}
-          trend={getDisplayTrend('retornoAtivos', 'rentabilidade').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('retornoAtivos', 'rentabilidade').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('retornoAtivos' as RentabilidadeKey, 'rentabilidade').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('retornoAtivos' as RentabilidadeKey, 'rentabilidade').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Retorno anualizado sobre o total de ativos. Mede eficiência no uso dos recursos. Ideal: acima de 10%"
           formula="(Resultado Anualizado / Ativo Total) × 100"
-          sparklineData={generateSparkline(indicadores1.rentabilidade.retornoAtivos.valor, getDisplayTrend('retornoAtivos', 'rentabilidade').trend)}
+          sparklineData={generateSparkline(indicadores1.rentabilidade.retornoAtivos.valor, getDisplayTrend('retornoAtivos' as RentabilidadeKey, 'rentabilidade').trend)}
           icon={<Target className="w-4 h-4" />}
         />
         <DetailedIndicatorBadge
           title="Retorno sobre PL (ROE)"
           value={formatPercent(indicadores1.rentabilidade.retornoPL.valor)}
           status={indicadores1.rentabilidade.retornoPL.status}
-          trend={getDisplayTrend('retornoPL', 'rentabilidade').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('retornoPL', 'rentabilidade').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('retornoPL' as RentabilidadeKey, 'rentabilidade').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('retornoPL' as RentabilidadeKey, 'rentabilidade').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Retorno anualizado sobre o capital próprio. Indica remuneração do patrimônio. Ideal: acima de 15%"
           formula="(Resultado Anualizado / Patrimônio Líquido) × 100"
-          sparklineData={generateSparkline(indicadores1.rentabilidade.retornoPL.valor, getDisplayTrend('retornoPL', 'rentabilidade').trend)}
+          sparklineData={generateSparkline(indicadores1.rentabilidade.retornoPL.valor, getDisplayTrend('retornoPL' as RentabilidadeKey, 'rentabilidade').trend)}
           icon={<PiggyBank className="w-4 h-4" />}
         />
       </IndicatorGroup>
@@ -753,11 +790,11 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           title="Índice Despesas Fixas"
           value={formatPercent(indicadores1.eficiencia.despesasFixas.valor)}
           status={indicadores1.eficiencia.despesasFixas.status}
-          trend={getDisplayTrend('despesasFixas', 'eficiencia').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('despesasFixas', 'eficiencia').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('despesasFixas' as EficienciaKey, 'eficiencia').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('despesasFixas' as EficienciaKey, 'eficiencia').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Proporção de despesas fixas no total. Indica rigidez do orçamento. Ideal: abaixo de 50%"
           formula="(Despesas Fixas / Despesas Totais) × 100"
-          sparklineData={generateSparkline(indicadores1.eficiencia.despesasFixas.valor, getDisplayTrend('despesasFixas', 'eficiencia').trend)}
+          sparklineData={generateSparkline(indicadores1.eficiencia.despesasFixas.valor, getDisplayTrend('despesasFixas' as EficienciaKey, 'eficiencia').trend)}
           icon={<Gauge className="w-4 h-4" />}
         />
         <DetailedIndicatorBadge
@@ -786,11 +823,11 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           title="Eficiência Operacional"
           value={formatPercent(indicadores1.eficiencia.operacional.valor)}
           status={indicadores1.eficiencia.operacional.status}
-          trend={getDisplayTrend('operacional', 'eficiencia').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('operacional', 'eficiencia').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('operacional' as EficienciaKey, 'eficiencia').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('operacional' as EficienciaKey, 'eficiencia').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Percentual das receitas consumidas por despesas. Menor valor indica maior eficiência. Ideal: abaixo de 70%"
           formula="(Despesas Totais / Receitas) × 100"
-          sparklineData={generateSparkline(indicadores1.eficiencia.operacional.valor, getDisplayTrend('operacional', 'eficiencia').trend)}
+          sparklineData={generateSparkline(indicadores1.eficiencia.operacional.valor, getDisplayTrend('operacional' as EficienciaKey, 'eficiencia').trend)}
           icon={<Activity className="w-4 h-4" />}
         />
       </IndicatorGroup>
@@ -813,33 +850,33 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           title="Meses de Sobrevivência"
           value={formatMeses(indicadores1.pessoais.mesesSobrevivencia.valor)}
           status={indicadores1.pessoais.mesesSobrevivencia.status}
-          trend={getDisplayTrend('mesesSobrevivencia', 'pessoais').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('mesesSobrevivencia', 'pessoais').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('mesesSobrevivencia' as PessoaisKey, 'pessoais').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('mesesSobrevivencia' as PessoaisKey, 'pessoais').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Quantos meses você consegue manter seu padrão de vida apenas com reservas. Ideal: acima de 6 meses"
           formula="Caixa e Equivalentes / Custo de Vida Mensal"
-          sparklineData={generateSparkline(indicadores1.pessoais.mesesSobrevivencia.valor, getDisplayTrend('mesesSobrevivencia', 'pessoais').trend)}
+          sparklineData={generateSparkline(indicadores1.pessoais.mesesSobrevivencia.valor, getDisplayTrend('mesesSobrevivencia' as PessoaisKey, 'pessoais').trend)}
           icon={<Clock className="w-4 h-4" />}
         />
         <DetailedIndicatorBadge
           title="Taxa de Poupança"
           value={formatPercent(indicadores1.pessoais.taxaPoupanca.valor)}
           status={indicadores1.pessoais.taxaPoupanca.status}
-          trend={getDisplayTrend('taxaPoupanca', 'pessoais').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('taxaPoupanca', 'pessoais').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('taxaPoupanca' as PessoaisKey, 'pessoais').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('taxaPoupanca' as PessoaisKey, 'pessoais').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Percentual da renda que sobra para poupar/investir. Ideal: acima de 20%"
           formula="(Receitas - Despesas) / Receitas × 100"
-          sparklineData={generateSparkline(indicadores1.pessoais.taxaPoupanca.valor, getDisplayTrend('taxaPoupanca', 'pessoais').trend)}
+          sparklineData={generateSparkline(indicadores1.pessoais.taxaPoupanca.valor, getDisplayTrend('taxaPoupanca' as PessoaisKey, 'pessoais').trend)}
           icon={<PiggyBank className="w-4 h-4" />}
         />
         <DetailedIndicatorBadge
           title="Comprometimento da Renda"
           value={formatPercent(indicadores1.pessoais.comprometimento.valor)}
           status={indicadores1.pessoais.comprometimento.status}
-          trend={getDisplayTrend('comprometimento', 'pessoais').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('comprometimento', 'pessoais').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('comprometimento' as PessoaisKey, 'pessoais').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('comprometimento' as PessoaisKey, 'pessoais').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Percentual da renda utilizada em despesas. Quanto menor, mais folga financeira. Ideal: abaixo de 70%"
           formula="(Despesas / Receitas) × 100"
-          sparklineData={generateSparkline(indicadores1.pessoais.comprometimento.valor, getDisplayTrend('comprometimento', 'pessoais').trend)}
+          sparklineData={generateSparkline(indicadores1.pessoais.comprometimento.valor, getDisplayTrend('comprometimento' as PessoaisKey, 'pessoais').trend)}
           icon={<Percent className="w-4 h-4" />}
         />
       </IndicatorGroup>
@@ -854,33 +891,33 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           title="Índice de Solvência"
           value={formatRatio(indicadores1.outros.solvencia.valor)}
           status={indicadores1.outros.solvencia.status}
-          trend={getDisplayTrend('solvencia', 'outros').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('solvencia', 'outros').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('solvencia' as OutrosKey, 'outros').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('solvencia' as OutrosKey, 'outros').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Capacidade de pagar todas as dívidas com os ativos disponíveis. Ideal: acima de 2x"
           formula="Ativo Total / Passivo Total"
-          sparklineData={generateSparkline(indicadores1.outros.solvencia.valor, getDisplayTrend('solvencia', 'outros').trend)}
+          sparklineData={generateSparkline(indicadores1.outros.solvencia.valor, getDisplayTrend('solvencia' as OutrosKey, 'outros').trend)}
           icon={<CheckCircle2 className="w-4 h-4" />}
         />
         <DetailedIndicatorBadge
           title="Cobertura de Juros"
           value={formatRatio(indicadores1.outros.coberturaJuros.valor)}
           status={indicadores1.outros.coberturaJuros.status}
-          trend={getDisplayTrend('coberturaJuros', 'outros').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('coberturaJuros', 'outros').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('coberturaJuros' as OutrosKey, 'outros').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('coberturaJuros' as OutrosKey, 'outros').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Capacidade de pagar juros com o resultado operacional. Ideal: acima de 3x"
           formula="Resultado Operacional / Despesas com Juros"
-          sparklineData={generateSparkline(indicadores1.outros.coberturaJuros.valor, getDisplayTrend('coberturaJuros', 'outros').trend)}
+          sparklineData={generateSparkline(indicadores1.outros.coberturaJuros.valor, getDisplayTrend('coberturaJuros' as OutrosKey, 'outros').trend)}
           icon={<Shield className="w-4 h-4" />}
         />
         <DetailedIndicatorBadge
           title="Diversificação Patrimonial"
           value={formatPercent(indicadores1.outros.diversificacao.valor)}
           status={indicadores1.outros.diversificacao.status}
-          trend={getDisplayTrend('diversificacao', 'outros').trend}
-          trendLabel={range2.from ? `${getDisplayTrend('diversificacao', 'outros').percent.toFixed(1)}% vs P2` : undefined}
+          trend={getDisplayTrend('diversificacao' as OutrosKey, 'outros').trend}
+          trendLabel={range2.from ? `${getDisplayTrend('diversificacao' as OutrosKey, 'outros').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Nível de distribuição dos ativos entre diferentes classes. Maior valor indica menor concentração. Ideal: acima de 40%"
           formula="100 - Max(% Caixa, % Investimentos, % Imobilizado)"
-          sparklineData={generateSparkline(indicadores1.outros.diversificacao.valor, getDisplayTrend('diversificacao', 'outros').trend)}
+          sparklineData={generateSparkline(indicadores1.outros.diversificacao.valor, getDisplayTrend('diversificacao' as OutrosKey, 'outros').trend)}
           icon={<Activity className="w-4 h-4" />}
         />
       </IndicatorGroup>
