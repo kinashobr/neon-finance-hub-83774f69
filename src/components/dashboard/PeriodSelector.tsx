@@ -69,22 +69,18 @@ export function PeriodSelector({
     const today = new Date();
     
     if (baseRange && (presetId === 'previousPeriod' || presetId === 'previousYear')) {
-      // Garante que as datas base existam antes de tentar acessar getTime()
       if (!baseRange.from || !baseRange.to) return { from: undefined, to: undefined };
       
-      const fromDate = baseRange.from;
-      const toDate = baseRange.to;
-      
       if (presetId === 'previousPeriod') {
-        const diffInDays = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
-        const prevTo = subDays(fromDate, 1);
+        const diffInDays = Math.ceil((baseRange.to.getTime() - baseRange.from.getTime()) / (1000 * 60 * 60 * 24));
+        const prevTo = subDays(baseRange.from, 1);
         const prevFrom = subDays(prevTo, diffInDays);
         return { from: startOfDay(prevFrom), to: endOfDay(prevTo) };
       }
       
       if (presetId === 'previousYear') {
-        const prevFrom = subMonths(fromDate, 12);
-        const prevTo = subMonths(toDate, 12);
+        const prevFrom = subMonths(baseRange.from, 12);
+        const prevTo = subMonths(baseRange.to, 12);
         return { from: startOfDay(prevFrom), to: endOfDay(prevTo) };
       }
     }
@@ -215,7 +211,7 @@ export function PeriodSelector({
     handleApply({ range1: ranges.range1, range2: newRange2 });
   };
   
-  // Função para alternar o modo de comparação
+  // Função para alternar o modo de comparação (CORRIGIDO: Mover para o escopo principal)
   const handleComparisonToggle = (checked: boolean) => {
     setIsComparisonEnabled(checked);
     
@@ -224,7 +220,7 @@ export function PeriodSelector({
 
     if (checked) {
       // Se ativando, define o padrão como 'Período Anterior' se não houver um range 2 válido
-      if (!newRange2.from || newPreset2 === 'none') {
+      if (!newRange2.from || newPreset2 === 'none' || newPreset2 === 'custom') {
         newRange2 = calculateRangeFromPreset('previousPeriod', ranges.range1);
         newPreset2 = 'previousPeriod';
       }
@@ -318,18 +314,64 @@ export function PeriodSelector({
     return comparisonPresets.find(p => p.id === selectedPreset2)?.label || 'Nenhuma Comparação';
   }, [selectedPreset2]);
 
+  const getPresetLabel = (presetId: string, isRange1: boolean) => {
+    if (presetId === 'custom') return 'Personalizado';
+    if (presetId === 'none') return 'Nenhuma Comparação';
+    
+    const list = isRange1 ? presets : comparisonPresets;
+    return list.find(p => p.id === presetId)?.label || 'Personalizado';
+  };
+
+  const renderPresetButtons = (isRange1: boolean) => {
+    const list = isRange1 ? presets : comparisonPresets;
+    const selected = isRange1 ? selectedPreset1 : selectedPreset2;
+    const handleSelect = isRange1 ? handleSelectPreset1 : handleSelectPreset2;
+    
+    return (
+      <div className="flex flex-col gap-2">
+        {list.map((preset) => (
+          <Button
+            key={preset.id}
+            variant={selected === preset.id ? "default" : "outline"}
+            size="sm"
+            className={cn(
+              "w-full justify-start text-sm h-9",
+              selected === preset.id && "bg-primary text-primary-foreground hover:bg-primary/90"
+            )}
+            onClick={() => handleSelect(preset.id)}
+          >
+            {preset.label}
+          </Button>
+        ))}
+        {isRange1 && (
+          <Button
+            variant={selected === 'custom' ? "default" : "outline"}
+            size="sm"
+            className={cn(
+              "w-full justify-start text-sm h-9",
+              selected === 'custom' && "bg-primary text-primary-foreground hover:bg-primary/90"
+            )}
+            onClick={() => handleSelect('custom')}
+          >
+            Personalizado
+          </Button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           className={cn(
-            "w-[320px] justify-start text-left font-normal bg-muted border-border h-12",
+            "w-[320px] justify-start text-left font-normal h-10 border-border shadow-sm hover:bg-muted/50 transition-colors",
             (!ranges.range1.from && !ranges.range1.to) && "text-muted-foreground",
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-primary" />
           <div className="flex flex-col items-start text-xs flex-1 min-w-0">
             <span className="font-medium text-foreground truncate w-full">
               {displayRange1}
@@ -348,37 +390,59 @@ export function PeriodSelector({
       <PopoverContent className={cn("w-full p-4 bg-card border-border", isCustomMode ? "max-w-[650px]" : "max-w-[350px]")} align="end">
         <div className="space-y-6">
           
-          {/* 1) Período Principal - Select */}
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold text-foreground">Período Principal</Label>
-            <Select value={selectedPreset1} onValueChange={handleSelectPreset1}>
-              <SelectTrigger className="w-full h-10 bg-muted border-border">
-                <SelectValue placeholder={displayPreset1} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Opções Rápidas</SelectLabel>
-                  {presets.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id}>
-                      {preset.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-                <SelectGroup>
-                  <SelectLabel>Avançado</SelectLabel>
-                  <SelectItem value="custom">Personalizado...</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+          {/* 1) Período Principal */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <CalendarIcon className="w-4 h-4 text-primary" />
+              Período Principal: {getPresetLabel(selectedPreset1, true)}
+            </h3>
+            
+            {/* Layout de duas colunas para seleção rápida e calendário */}
+            <div className={cn("grid gap-4", isCustomMode ? "grid-cols-2" : "grid-cols-1")}>
+              
+              {/* Coluna 1: Calendário (apenas se Personalizado) */}
+              {isCustomMode && (
+                <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {editingRange === 'range1' ? 'Selecione o intervalo' : 'Selecione o intervalo de comparação'}
+                  </p>
+                  <div className="flex justify-center overflow-x-auto">
+                    <Calendar
+                      mode="range"
+                      selected={{ from: tempRange.from, to: tempRange.to }}
+                      onSelect={(range) => setTempRange(range as DateRange)}
+                      numberOfMonths={1} // Reduzido para 1 mês para caber melhor
+                      locale={ptBR}
+                      initialFocus
+                      className="max-w-full" 
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleCalendarApply} 
+                    className="w-full h-9 gap-2"
+                    disabled={!tempRange.from || !tempRange.to}
+                  >
+                    <Check className="w-4 h-4" />
+                    Aplicar Seleção
+                  </Button>
+                </div>
+              )}
+              
+              {/* Coluna 2: Presets de Seleção Rápida */}
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">Seleção Rápida</Label>
+                {renderPresetButtons(true)}
+              </div>
+            </div>
           </div>
           
           {/* 2) Período de Comparação (Opcional) */}
-          <div className="space-y-3 pt-4 border-t border-border/50">
+          <div className="space-y-4 pt-4 border-t border-border/50">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Equal className="w-4 h-4 text-accent" />
-                Comparar Período
-              </Label>
+                Comparar Período: {getPresetLabel(selectedPreset2, false)}
+              </h3>
               <Switch
                 checked={isComparisonEnabled}
                 onCheckedChange={handleComparisonToggle}
@@ -386,58 +450,84 @@ export function PeriodSelector({
             </div>
             
             {isComparisonEnabled && (
-              <div className="space-y-2">
-                <Select value={selectedPreset2} onValueChange={handleSelectPreset2}>
-                  <SelectTrigger className="w-full h-10 bg-muted border-border">
-                    <SelectValue placeholder={displayPreset2} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>Comparação Automática</SelectLabel>
+              <div className="space-y-4">
+                {/* Layout de duas colunas para comparação */}
+                <div className={cn("grid gap-4", isRange2Custom ? "grid-cols-2" : "grid-cols-1")}>
+                  
+                  {/* Coluna 1: Calendário (apenas se Personalizado) */}
+                  {isRange2Custom && (
+                    <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border/50">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Selecione o intervalo de comparação
+                      </p>
+                      <div className="flex justify-center overflow-x-auto">
+                        <Calendar
+                          mode="range"
+                          selected={{ from: tempRange.from, to: tempRange.to }}
+                          onSelect={(range) => setTempRange(range as DateRange)}
+                          numberOfMonths={1} // Reduzido para 1 mês para caber melhor
+                          locale={ptBR}
+                          initialFocus
+                          className="max-w-full" 
+                        />
+                      </div>
+                      <Button 
+                        onClick={handleCalendarApply} 
+                        className="w-full h-9 gap-2"
+                        disabled={!tempRange.from || !tempRange.to}
+                      >
+                        <Check className="w-4 h-4" />
+                        Aplicar Comparação
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Coluna 2: Presets de Seleção Rápida */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-muted-foreground">Opções de Comparação</Label>
+                    <div className="flex flex-col gap-2">
                       {comparisonPresets.map((preset) => (
-                        <SelectItem key={preset.id} value={preset.id}>
+                        <Button
+                          key={preset.id}
+                          variant={selectedPreset2 === preset.id ? "default" : "outline"}
+                          size="sm"
+                          className={cn(
+                            "w-full justify-start text-sm h-9",
+                            selectedPreset2 === preset.id && "bg-primary text-primary-foreground hover:bg-primary/90"
+                          )}
+                          onClick={() => handleSelectPreset2(preset.id)}
+                        >
                           {preset.label}
-                        </SelectItem>
+                        </Button>
                       ))}
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Opções</SelectLabel>
-                      <SelectItem value="custom">Personalizado...</SelectItem>
-                      <SelectItem value="none">Nenhuma Comparação</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                      <Button
+                        variant={selectedPreset2 === 'custom' ? "default" : "outline"}
+                        size="sm"
+                        className={cn(
+                          "w-full justify-start text-sm h-9",
+                          selectedPreset2 === 'custom' && "bg-primary text-primary-foreground hover:bg-primary/90"
+                        )}
+                        onClick={() => handleSelectPreset2('custom')}
+                      >
+                        Personalizado
+                      </Button>
+                      <Button
+                        variant={selectedPreset2 === 'none' ? "default" : "outline"}
+                        size="sm"
+                        className={cn(
+                          "w-full justify-start text-sm h-9",
+                          selectedPreset2 === 'none' && "bg-primary text-primary-foreground hover:bg-primary/90"
+                        )}
+                        onClick={() => handleSelectPreset2('none')}
+                      >
+                        Nenhuma Comparação
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
-          
-          {/* Calendário para Personalizado (Aparece se P1 ou P2 for 'custom') */}
-          {isCustomMode && (
-            <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border/50">
-              <p className="text-xs font-medium text-muted-foreground">
-                {editingRange === 'range1' ? 'Selecione o Período Principal' : 'Selecione o Período de Comparação'}
-              </p>
-              <div className="flex justify-center overflow-x-auto">
-                <Calendar
-                  mode="range"
-                  selected={{ from: tempRange.from, to: tempRange.to }}
-                  onSelect={(range) => setTempRange(range as DateRange)}
-                  numberOfMonths={2}
-                  locale={ptBR}
-                  initialFocus
-                  className="max-w-full" 
-                />
-              </div>
-              <Button 
-                onClick={handleCalendarApply} 
-                className="w-full h-10 gap-2"
-                disabled={!tempRange.from || !tempRange.to}
-              >
-                <Check className="w-4 h-4" />
-                Aplicar Seleção
-              </Button>
-            </div>
-          )}
           
           {/* Ações Finais */}
           <div className="flex justify-end pt-4 border-t border-border/50">
