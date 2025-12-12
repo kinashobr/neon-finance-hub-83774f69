@@ -670,18 +670,19 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
             <ResponsiveContainer width="100%" height="100%">
               <RechartsPie>
                 <Pie
-                  data={composicaoAtivos}
+                  data={composicaoAtivos.filter(d => d.value > 0)}
+                  dataKey="value"
+                  nameKey="name"
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
                   outerRadius={100}
                   paddingAngle={2}
-                  dataKey="value"
                   label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                  labelLine={{ stroke: COLORS.muted, strokeWidth: 1 }}
+                  labelLine={false}
                 >
-                  {composicaoAtivos.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  {composicaoAtivos.filter(d => d.value > 0).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -734,7 +735,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                 <Legend />
                 <Bar yAxisId="left" dataKey="ativos" name="Ativos" fill={COLORS.success} opacity={0.7} radius={[4, 4, 0, 0]} />
                 <Bar yAxisId="left" dataKey="passivos" name="Passivos" fill={COLORS.danger} opacity={0.7} radius={[4, 4, 0, 0]} />
-                <Line type="monotone" dataKey="pl" name="Patrimônio Líquido" stroke={COLORS.primary} strokeWidth={3} dot={false} />
+                <Line yAxisId="left" type="monotone" dataKey="pl" name="Patrimônio Líquido" stroke={COLORS.primary} strokeWidth={3} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
