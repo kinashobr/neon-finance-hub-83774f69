@@ -31,7 +31,7 @@ const ReceitasDespesas = () => {
   const { 
     contasMovimento, 
     setContasMovimento,
-    categoriasV2, 
+    categoriasV2: categories, // Renomeado aqui
     setCategoriasV2,
     transacoesV2, 
     setTransacoesV2,
@@ -80,7 +80,6 @@ const ReceitasDespesas = () => {
   // Alias for context data
   const accounts = contasMovimento;
   const transactions = transacoesV2;
-  categories = categoriasV2;
 
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
