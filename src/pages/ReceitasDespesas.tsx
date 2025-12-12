@@ -129,10 +129,10 @@ const ReceitasDespesas = () => {
         
         const transactionDate = parseISO(t.date);
         
-        // Se não há período definido, inclua todas as transações (exceto initial_balance)
+        // If no period is defined, include all transactions (excluding initial_balance)
         if (!periodStart || !periodEnd) return true;
         
-        // Inclua transações entre periodStart e periodEnd (inclusivo)
+        // We include transactions from periodStart (startOfDay) up to periodEnd (endOfDay)
         return isWithinInterval(transactionDate, { start: periodStart, end: periodEnd });
       });
 
@@ -196,8 +196,7 @@ const ReceitasDespesas = () => {
   };
 
   const handleTransactionSubmit = (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => {
-    // Clone para não mutar o objeto recebido e garantir links
-    // 1. Garantir que a transação base tenha links completos (Correção de Tipagem)
+    // Ensure links are properly initialized for safety
     const baseTx: TransacaoCompleta = {
       ...transaction,
       links: {
@@ -210,29 +209,33 @@ const ReceitasDespesas = () => {
     };
 
     if (editingTransaction) {
-      // Quando editar, atualiza transação e possíveis transações vinculadas pelo grupo
+      // === Edição de transações ===
       const linkedGroupId = editingTransaction.links?.transferGroupId;
+      
       if (linkedGroupId) {
+        // Edição de transação vinculada (transferência ou investimento de partida dobrada)
         setTransacoesV2(prev => prev.map(t => {
           if (t.id === baseTx.id) {
-            // Se estamos editando, o objeto 'baseTx' já é o objeto completo retornado pelo modal.
-            return baseTx;
+            return baseTx; // Atualiza a transação principal
           }
+          
           if (t.links?.transferGroupId === linkedGroupId && t.id !== baseTx.id) {
+            // Atualiza a transação secundária (oposta)
             const otherAccount = accounts.find(a => a.id === t.accountId);
             const isCreditCard = otherAccount?.accountType === 'cartao_credito';
 
             let newFlow: 'in' | 'out' | 'transfer_in' | 'transfer_out';
-
-            // Se transferGroup foi passado (edição com mudança de transferGroup), respeitamos.
-            // Caso contrário, inferimos flows com base em from/to do grupo vinculado (se existir)
-            if (isCreditCard) {
-              newFlow = t.accountId === transferGroup?.fromAccountId ? 'transfer_out' : 'transfer_in';
+            
+            // Determine flow based on the transfer group (if provided) or original flow logic
+            if (transferGroup) {
+               // If transfer group changed, recalculate flow based on new group
+               newFlow = t.accountId === transferGroup.fromAccountId ? 'transfer_out' : 'transfer_in';
             } else {
-              newFlow = t.accountId === transferGroup?.fromAccountId ? 'transfer_out' : 'transfer_in';
+               // If no new group, maintain original flow logic (e.g., for investment flows)
+               newFlow = t.flow;
             }
 
-            // CRITICAL FIX 1 & 2: Ensure all links properties are explicitly set to string | null
+            // Ensure all links properties are explicitly set to string | null
             const updatedLinks: TransactionLinks = {
               investmentId: t.links.investmentId || null,
               loanId: t.links.loanId || null,
@@ -247,7 +250,7 @@ const ReceitasDespesas = () => {
               date: baseTx.date,
               description: baseTx.description,
               flow: newFlow,
-              links: updatedLinks, // Use the explicitly defined links
+              links: updatedLinks,
             } as TransacaoCompleta;
           }
           return t;
@@ -256,6 +259,7 @@ const ReceitasDespesas = () => {
         // Edição de transação simples
         setTransacoesV2(transacoesV2.map(t => t.id === baseTx.id ? baseTx : t));
       }
+      
       setEditingTransaction(undefined);
       setShowMovimentarModal(false);
       return;
@@ -263,6 +267,13 @@ const ReceitasDespesas = () => {
 
     // === Criação de transações (não edição) ===
     const newTransactions: TransacaoCompleta[] = [];
+    
+    // Transação base para clonagem
+    const initialTx: TransacaoCompleta = { 
+      ...baseTx, 
+      id: baseTx.id || generateTransactionId(),
+    };
+    newTransactions.push(initialTx);
 
     // 1. Transferência / pagamento CC
     if (transferGroup) {
@@ -271,93 +282,68 @@ const ReceitasDespesas = () => {
       const toAccount = accounts.find(a => a.id === tg.toAccountId);
       const isToCreditCard = toAccount?.accountType === 'cartao_credito';
 
-      // Transação original (clone)
-      const originalTx: TransacaoCompleta = {
-        ...baseTx,
-        id: generateTransactionId(),
-        links: {
-          ...baseTx.links,
-          transferGroupId: tg.id,
-        },
-      };
+      // Remove a transação inicial simples, pois será substituída por duas transações de transferência
+      newTransactions.pop(); 
 
       if (isToCreditCard) {
-        // Transação original (entrada no CC)
+        // Transação de entrada no CC (destino)
         const ccTx: TransacaoCompleta = {
-          ...originalTx,
+          ...initialTx,
+          id: generateTransactionId(),
           accountId: tg.toAccountId,
           flow: 'in' as const,
           operationType: 'transferencia' as const,
           description: tg.description || `Pagamento de fatura CC ${toAccount?.name}`,
-          links: {
-            ...originalTx.links,
-            transferGroupId: tg.id,
-          }
+          links: { ...initialTx.links, transferGroupId: tg.id },
         };
 
-        // Transação de saída da conta corrente
+        // Transação de saída da conta corrente (origem)
         const fromTx: TransacaoCompleta = {
-          ...originalTx,
+          ...initialTx,
           id: generateTransactionId(),
           accountId: tg.fromAccountId,
           flow: 'transfer_out' as const,
           operationType: 'transferencia' as const,
           description: tg.description || `Pagamento fatura ${toAccount?.name}`,
-          links: {
-            ...originalTx.links,
-            transferGroupId: tg.id,
-          }
+          links: { ...initialTx.links, transferGroupId: tg.id },
         };
 
         newTransactions.push(fromTx, ccTx);
       } else {
         // Transferência normal (origem -> destino)
         const outTx: TransacaoCompleta = {
-          ...originalTx,
+          ...initialTx,
           id: generateTransactionId(),
           accountId: tg.fromAccountId,
           flow: 'transfer_out' as const,
           operationType: 'transferencia' as const,
           description: tg.description || `Transferência para ${toAccount?.name}`,
-          links: {
-            ...originalTx.links,
-            transferGroupId: tg.id,
-          }
+          links: { ...initialTx.links, transferGroupId: tg.id },
         };
 
         const inTx: TransacaoCompleta = {
-          ...originalTx,
+          ...initialTx,
           id: generateTransactionId(),
           accountId: tg.toAccountId,
           flow: 'transfer_in' as const,
           operationType: 'transferencia' as const,
           description: tg.description || `Transferência recebida de ${fromAccount?.name}`,
-          links: {
-            ...originalTx.links,
-            transferGroupId: tg.id,
-          }
+          links: { ...initialTx.links, transferGroupId: tg.id },
         };
 
         newTransactions.push(outTx, inTx);
       }
-    } else {
-      // Sem transferGroup: adiciona apenas a transação original (garantindo id única)
-      const simpleTx: TransacaoCompleta = { 
-        ...baseTx, 
-        id: baseTx.id || generateTransactionId(),
-      };
-      newTransactions.push(simpleTx);
     }
 
     // 2. Aplicação / Resgate (Partida dobrada entre contas)
-    const isInvestmentFlow = (baseTx.operationType === 'aplicacao' || baseTx.operationType === 'resgate') && baseTx.links?.investmentId;
+    const isInvestmentFlow = (initialTx.operationType === 'aplicacao' || initialTx.operationType === 'resgate') && initialTx.links?.investmentId;
 
     if (isInvestmentFlow) {
-      const isAplicacao = baseTx.operationType === 'aplicacao';
+      const isAplicacao = initialTx.operationType === 'aplicacao';
       const groupId = isAplicacao ? `app_${Date.now()}` : `res_${Date.now()}`;
       
       // Transação 1 (Conta Corrente) - Já está em newTransactions[0] se não for transferência, ou é a baseTx
-      const primaryTx = newTransactions.find(t => t.id === baseTx.id) || newTransactions[0];
+      const primaryTx = newTransactions.find(t => t.id === initialTx.id) || initialTx;
       
       // Atualiza links e flow da transação primária
       primaryTx.links.transferGroupId = groupId;
@@ -369,11 +355,11 @@ const ReceitasDespesas = () => {
       const secondaryTx: TransacaoCompleta = {
         ...primaryTx,
         id: generateTransactionId(),
-        accountId: baseTx.links.investmentId!,
+        accountId: initialTx.links.investmentId!,
         flow: isAplicacao ? 'in' : 'out',
         operationType: isAplicacao ? 'aplicacao' : 'resgate',
         domain: 'investment',
-        description: isAplicacao ? (baseTx.description || `Aplicação recebida de conta corrente`) : (baseTx.description || `Resgate enviado para conta corrente`),
+        description: isAplicacao ? (initialTx.description || `Aplicação recebida de conta corrente`) : (initialTx.description || `Resgate enviado para conta corrente`),
         links: {
           ...primaryTx.links,
           investmentId: primaryTx.accountId, // Referência à conta oposta
@@ -385,14 +371,12 @@ const ReceitasDespesas = () => {
         }
       };
       
-      // Adiciona a transação secundária se ainda não estiver lá
-      if (!newTransactions.some(t => t.id === secondaryTx.id)) {
-        newTransactions.push(secondaryTx);
-      }
+      // Adiciona a transação secundária
+      newTransactions.push(secondaryTx);
     }
 
     // 3. Handle special operation types (Loan/Vehicle)
-    const finalTx = newTransactions.find(t => t.id === baseTx.id) || newTransactions[0];
+    const finalTx = newTransactions.find(t => t.id === initialTx.id) || initialTx;
 
     if (finalTx.operationType === 'liberacao_emprestimo' && finalTx.meta?.numeroContrato) {
       addEmprestimo({
@@ -429,6 +413,12 @@ const ReceitasDespesas = () => {
     
     // Adiciona todas as transações criadas
     newTransactions.forEach(t => addTransacaoV2(t));
+    
+    toast.success("Movimentação registrada! Pronto para o próximo lançamento.");
+    // Reset form state after successful creation
+    setSelectedAccountForModal(finalTx.accountId);
+    setEditingTransaction(undefined);
+    setShowMovimentarModal(false); // Close modal after creation
   };
 
   const handleEditTransaction = (transaction: TransacaoCompleta) => {

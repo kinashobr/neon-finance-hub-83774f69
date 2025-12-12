@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,8 @@ import { FipeConsultaDialog } from "@/components/vehicles/FipeConsultaDialog";
 import { TransacaoCompleta, generateTransactionId, OperationType, getFlowTypeFromOperation, getDomainFromOperation } from "@/types/finance";
 import { useNavigate } from "react-router-dom";
 import { differenceInMonths, addMonths, parseISO } from "date-fns";
+import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
+import { DateRange, ComparisonDateRanges } from "@/types/finance";
 
 const Veiculos = () => {
   const navigate = useNavigate();
@@ -56,6 +58,8 @@ const Veiculos = () => {
     setTransacoesV2, // <-- ADDED
     getValorFipeTotal,
     transacoesV2,
+    dateRanges, // <-- ADDED
+    setDateRanges, // <-- ADDED
   } = useFinance();
   
   const [activeTab, setActiveTab] = useState("veiculos");
@@ -88,6 +92,10 @@ const Veiculos = () => {
     numeroParcelas: "",
     // Removidos: diaVencimentoParcela, meiaParcela
   });
+
+  const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => { // <-- ADDED
+    setDateRanges(ranges);
+  }, [setDateRanges]);
 
   const handleOpenFipeConsulta = (veiculo?: Veiculo) => {
     setSelectedVeiculoFipe(veiculo);
@@ -290,6 +298,10 @@ const Veiculos = () => {
           </div>
           {/* Botões de Ação */}
           <div className="flex items-center gap-2">
+            <PeriodSelector 
+              initialRanges={dateRanges}
+              onDateRangeChange={handlePeriodChange} 
+            />
             {/* Botão Novo Seguro (RESTAURADO) */}
             <Dialog open={showAddSeguro} onOpenChange={setShowAddSeguro}>
               <DialogTrigger asChild>
@@ -461,7 +473,7 @@ const Veiculos = () => {
         )}
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="glass-card stat-card-neutral animate-fade-in-up">
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
