@@ -123,17 +123,15 @@ export interface TransferGroup {
   description?: string;
 }
 
-// Schema de Exportação v1.1
-export interface FinanceExportV1 {
-  schemaVersion: '1.1';
+// Schema de Exportação V2 (Simplificado)
+export interface FinanceExportV2 {
+  schemaVersion: '2.0';
   exportedAt: string;
   data: {
     accounts: ContaCorrente[];
     categories: Categoria[];
-    investments: Array<{ id: string; name: string; status: string; meta: Record<string, unknown> }>;
-    loans: Array<{ id: string; institution: string; currentBalance: number; meta: Record<string, unknown> }>;
-    transferGroups: TransferGroup[];
     transactions: TransacaoCompleta[];
+    transferGroups: TransferGroup[];
   };
 }
 
@@ -148,40 +146,6 @@ export interface AccountReconciliation {
   actualFinalBalance: number;
   status: 'pending' | 'reconciled' | 'divergent';
   divergenceAmount: number;
-}
-
-// Tipos de eventos para integração
-export type FinanceEventType = 
-  | 'transaction.created'
-  | 'transaction.updated'
-  | 'transaction.deleted'
-  | 'transfer.created'
-  | 'investment.linked'
-  | 'loan.payment'
-  | 'vehicle.transaction';
-
-export interface FinanceEvent {
-  type: FinanceEventType;
-  payload: {
-    transactionId?: string;
-    transferGroupId?: string;
-    investmentId?: string;
-    loanId?: string;
-    parcelaId?: string;
-    vehicleTransactionId?: string;
-    links?: TransactionLinks;
-  };
-  timestamp: string;
-}
-
-// Projeção de saldo
-export interface BalanceProjection {
-  date: string;
-  accountId: string;
-  projectedBalance: number;
-  confirmedBalance: number;
-  pendingIn: number;
-  pendingOut: number;
 }
 
 // Resumo de conta
