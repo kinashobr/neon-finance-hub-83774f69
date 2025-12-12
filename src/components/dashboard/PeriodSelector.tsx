@@ -73,7 +73,7 @@ export function PeriodSelector({
   const [selectedPreset1, setSelectedPreset1] = useState<string>('custom');
   const [selectedPreset2, setSelectedPreset2] = useState<string>('none');
 
-  // Sincroniza o estado interno com o prop inicialRanges
+  // Sincroniza o estado interno com o prop initialRanges
   useEffect(() => {
     setRanges(initialRanges);
     // Determinar presets iniciais (simplificado)
@@ -310,17 +310,17 @@ export function PeriodSelector({
         <Button
           variant="outline"
           className={cn(
-            "w-[320px] justify-start text-left font-normal bg-muted border-border h-9",
+            "w-[320px] justify-start text-left font-normal bg-muted border-border h-12", // Aumentado h-9 para h-12
             (!ranges.range1.from && !ranges.range1.to) && "text-muted-foreground",
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          <div className="flex flex-col items-start text-xs">
-            <span className="font-medium text-foreground">P1: {displayRange1}</span>
-            <span className="text-muted-foreground">P2: {displayRange2}</span>
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+          <div className="flex flex-col items-start text-xs flex-1 min-w-0">
+            <span className="font-medium text-foreground truncate w-full">P1: {displayRange1}</span>
+            <span className="text-muted-foreground truncate w-full">P2: {displayRange2}</span>
           </div>
-          <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
+          <ChevronDown className="ml-auto h-4 w-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[650px] p-0 bg-card border-border" align="end">
