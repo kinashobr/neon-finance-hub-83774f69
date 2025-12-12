@@ -69,18 +69,22 @@ export function PeriodSelector({
     const today = new Date();
     
     if (baseRange && (presetId === 'previousPeriod' || presetId === 'previousYear')) {
+      // Garante que as datas base existam antes de tentar acessar getTime()
       if (!baseRange.from || !baseRange.to) return { from: undefined, to: undefined };
       
+      const fromDate = baseRange.from;
+      const toDate = baseRange.to;
+      
       if (presetId === 'previousPeriod') {
-        const diffInDays = Math.ceil((baseRange.to.getTime() - baseRange.from.getTime()) / (1000 * 60 * 60 * 24));
-        const prevTo = subDays(baseRange.from, 1);
+        const diffInDays = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+        const prevTo = subDays(fromDate, 1);
         const prevFrom = subDays(prevTo, diffInDays);
         return { from: startOfDay(prevFrom), to: endOfDay(prevTo) };
       }
       
       if (presetId === 'previousYear') {
-        const prevFrom = subMonths(baseRange.from, 12);
-        const prevTo = subMonths(baseRange.to, 12);
+        const prevFrom = subMonths(fromDate, 12);
+        const prevTo = subMonths(toDate, 12);
         return { from: startOfDay(prevFrom), to: endOfDay(prevTo) };
       }
     }
