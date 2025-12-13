@@ -13,7 +13,7 @@ import {
   ComparisonDateRanges, // Import new types
   generateAccountId,
 } from "@/types/finance";
-import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays } from "date-fns"; // Import date-fns helpers
+import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths } from "date-fns"; // Import date-fns helpers
 import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
 
 // ============================================
@@ -133,6 +133,10 @@ interface FinanceContextType {
   getPatrimonioLiquido: (targetDate?: Date) => number;
   getAtivosTotal: (targetDate?: Date) => number;
   getPassivosTotal: (targetDate?: Date) => number;
+  
+  // Seguros Accrual (NEW)
+  getSegurosAApropriar: (targetDate?: Date) => number;
+  getSegurosAPagar: (targetDate?: Date) => number;
   
   // Nova função de cálculo de saldo por data
   calculateBalanceUpToDate: (accountId: string, date: Date | undefined, allTransactions: TransacaoCompleta[], accounts: ContaCorrente[]) => number;
@@ -422,6 +426,79 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     };
   }, [emprestimos]);
 
+  // ============================================
+  // FUNÇÕES DE CÁLCULO DE SEGUROS (ACCRUAL)
+  // ============================================
+
+  const getSegurosAApropriar = useCallback((targetDate?: Date) => {
+    const date = targetDate || new Date();
+    
+    return segurosVeiculo.reduce((acc, seguro) => {
+        try {
+            const vigenciaInicio = parseDateLocal(seguro.vigenciaInicio);
+            const vigenciaFim = parseDateLocal(seguro.vigenciaFim);
+            
+            // Only consider policies that started before the target date
+            if (vigenciaInicio > date) return acc;
+            
+            // Calculate total months of vigency
+            const totalMonths = differenceInMonths(vigenciaFim, vigenciaInicio) + 1;
+            if (totalMonths <= 0) return acc;
+            
+            const monthlyAccrual = seguro.valorTotal / totalMonths;
+            
+            // Calculate months consumed (from vigenciaInicio up to targetDate)
+            // We use the start of the month for accrual calculation simplicity
+            const monthsConsumed = differenceInMonths(date, vigenciaInicio) + 1;
+            
+            // Accrued Expense (Expense recognized)
+            const accruedExpense = Math.min(seguro.valorTotal, monthlyAccrual * monthsConsumed);
+            
+            // Prepaid Asset = Total Premium - Accrued Expense
+            const segurosAApropriar = Math.max(0, seguro.valorTotal - accruedExpense);
+            
+            return acc + segurosAApropriar;
+        } catch (e) {
+            console.error("Error calculating Seguros a Apropriar:", e);
+            return acc;
+        }
+    }, 0);
+  }, [segurosVeiculo]);
+
+  const getSegurosAPagar = useCallback((targetDate?: Date) => {
+    const date = targetDate || new Date();
+    
+    return segurosVeiculo.reduce((acc, seguro) => {
+        // Only consider policies that are active or started before the target date
+        try {
+            const vigenciaInicio = parseDateLocal(seguro.vigenciaInicio);
+            if (vigenciaInicio > date) return acc;
+            
+            let totalPaid = 0;
+            
+            seguro.parcelas.forEach(parcela => {
+                if (parcela.paga && parcela.transactionId) {
+                    const paymentTx = transacoesV2.find(t => t.id === parcela.transactionId);
+                    // Use the transaction date if available, otherwise assume due date
+                    const paymentDate = paymentTx ? parseDateLocal(paymentTx.date) : parseDateLocal(parcela.vencimento);
+                    
+                    if (paymentDate <= date) {
+                        // Use the expected parcela.valor for liability tracking
+                        totalPaid += parcela.valor; 
+                    }
+                }
+            });
+            
+            // Insurance Payable = Total Contracted - Total Paid (up to date)
+            const segurosAPagar = Math.max(0, seguro.valorTotal - totalPaid);
+            
+            return acc + segurosAPagar;
+        } catch (e) {
+            console.error("Error calculating Seguros a Pagar:", e);
+            return acc;
+        }
+    }, 0);
+  }, [segurosVeiculo, transacoesV2]);
 
   // ============================================
   // OPERAÇÕES DE ENTIDADES V2 (Empréstimos, Veículos, etc.)
@@ -667,13 +744,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       
     // 2. Valor FIPE de veículos ativos na data
     const valorVeiculos = getValorFipeTotal(date);
+    
+    // 3. Seguros a Apropriar (Prepaid Insurance Asset)
+    const segurosAApropriar = getSegurosAApropriar(date); // <-- ADDED
                           
-    return saldoContasAtivas + valorVeiculos;
-  }, [contasMovimento, transacoesV2, getValorFipeTotal, calculateBalanceUpToDate]);
+    return saldoContasAtivas + valorVeiculos + segurosAApropriar; // <-- ADDED segurosAApropriar
+  }, [contasMovimento, transacoesV2, getValorFipeTotal, calculateBalanceUpToDate, getSegurosAApropriar]); // <-- ADDED getSegurosAApropriar dependency
 
   const getPassivosTotal = useCallback((targetDate?: Date) => {
-    return getSaldoDevedor(targetDate);
-  }, [getSaldoDevedor]);
+    const saldoDevedor = getSaldoDevedor(targetDate);
+    
+    // 2. Seguros a Pagar (Insurance Payable Liability)
+    const segurosAPagar = getSegurosAPagar(targetDate); // <-- ADDED
+    
+    return saldoDevedor + segurosAPagar; // <-- ADDED segurosAPagar
+  }, [getSaldoDevedor, getSegurosAPagar]); // <-- ADDED getSegurosAPagar dependency
 
   const getPatrimonioLiquido = useCallback((targetDate?: Date) => {
     return getAtivosTotal(targetDate) - getPassivosTotal(targetDate);
@@ -791,6 +876,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getPatrimonioLiquido,
     getAtivosTotal,
     getPassivosTotal,
+    getSegurosAApropriar, // <-- NEW
+    getSegurosAPagar, // <-- NEW
     calculateBalanceUpToDate, // Exportando a função central
     calculateTotalInvestmentBalanceAtDate,
     calculatePaidInstallmentsUpToDate, // Exporting the new function

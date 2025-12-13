@@ -63,7 +63,7 @@ const COLORS = {
   warning: "hsl(38, 92%, 50%)",
   danger: "hsl(0, 72%, 51%)",
   primary: "hsl(199, 89%, 48%)",
-  accent: "hsl(270, 80%, 60%)",
+  accent: "hsl(270, 80% 60%)",
   muted: "hsl(215, 20% 55%)",
   gold: "hsl(45, 93%, 47%)",
   cyan: "hsl(180, 70%, 50%)",
@@ -100,6 +100,8 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     calculateBalanceUpToDate, // Importado do contexto
     calculatePaidInstallmentsUpToDate, // Importado do contexto
     getValorFipeTotal, // <-- ADDED
+    getSegurosAApropriar, // <-- NEW
+    getSegurosAPagar, // <-- NEW
   } = useFinance();
 
   const { range1, range2 } = dateRanges;
@@ -218,6 +220,9 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     );
     const caixaEquivalentes = contasCirculantes.reduce((acc, c) => acc + Math.max(0, saldosPorConta[c.id] || 0), 0);
     
+    // Seguros a Apropriar (Prêmio de Seguros)
+    const segurosAApropriar = getSegurosAApropriar(finalDate); // <-- NEW CALCULATION
+    
     // Investimentos (Ativo Não Circulante) - Apenas Cripto e Objetivos
     const contasInvestimentoNaoCirculante = contasMovimento.filter(c => 
       ['criptoativos', 'objetivos_financeiros'].includes(c.accountType)
@@ -250,7 +255,11 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     // NOVO: Parcelas de Seguro que vencem DENTRO do período selecionado
     const passivoCurtoPrazoSeguros = calculateSeguroInstallmentsInPeriod(range);
     
-    const passivoCurtoPrazo = passivoCurtoPrazoEmprestimos + saldoDevedorCartoes + passivoCurtoPrazoSeguros;
+    // Seguros a Pagar (Liability)
+    const segurosAPagar = getSegurosAPagar(finalDate); // <-- NEW CALCULATION
+    
+    // Passivo Curto Prazo (Total)
+    const passivoCurtoPrazo = passivoCurtoPrazoEmprestimos + saldoDevedorCartoes + passivoCurtoPrazoSeguros + segurosAPagar; // <-- ADDED segurosAPagar
     
     // Passivo Longo Prazo (Passivo Total - Passivo Curto Prazo)
     const passivoLongoPrazo = Math.max(0, totalPassivos - passivoCurtoPrazo);
@@ -278,6 +287,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
         circulantes: { 
             caixa: caixaEquivalentes, 
             rendaFixa: caixaEquivalentes, // Simplificado
+            segurosAApropriar: segurosAApropriar, // <-- NEW DETAIL
         },
         naoCirculantes: { 
             investimentos: investimentosNaoCirculantes, 
@@ -296,11 +306,12 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
         saldoDevedorCartoes, // Detalhe
         passivoCurtoPrazoEmprestimos, // Detalhe
         passivoCurtoPrazoSeguros, // NOVO DETALHE
+        segurosAPagar, // <-- NEW DETAIL
       },
       patrimonioLiquido,
       resultadoPeriodo,
     };
-  }, [contasMovimento, emprestimos, veiculos, transacoesV2, segurosVeiculo, calculateFinalBalances, getAtivosTotal, getPassivosTotal, getValorFipeTotal, calculateLoanInstallmentsInPeriod, calculateSeguroInstallmentsInPeriod, filterTransactionsByRange]);
+  }, [contasMovimento, emprestimos, veiculos, transacoesV2, segurosVeiculo, calculateFinalBalances, getAtivosTotal, getPassivosTotal, getValorFipeTotal, calculateLoanInstallmentsInPeriod, calculateSeguroInstallmentsInPeriod, filterTransactionsByRange, getSegurosAApropriar, getSegurosAPagar]); // <-- ADDED dependencies
 
   // Balanço para o Período 1 (Principal)
   const balanco1 = useMemo(() => calculateBalanco(range1), [calculateBalanco, range1]);
@@ -367,6 +378,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
   const composicaoAtivos = useMemo(() => {
     const items = [
       { name: "Caixa e Renda Fixa", value: balanco1.ativos.circulantes.caixa, color: COLORS.primary },
+      { name: "Seguros a Apropriar", value: balanco1.ativos.circulantes.segurosAApropriar, color: COLORS.cyan }, // <-- ADDED
       { name: "Criptoativos", value: balanco1.ativos.naoCirculantes.criptoativos, color: COLORS.gold },
       { name: "Stablecoins", value: balanco1.ativos.naoCirculantes.stablecoins, color: COLORS.cyan },
       { name: "Objetivos", value: balanco1.ativos.naoCirculantes.objetivos, color: COLORS.accent },
@@ -420,10 +432,10 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
         />
         <ReportCard
           title="Ativos Circulantes"
-          value={formatCurrency(balanco1.ativos.circulantes.caixa)}
+          value={formatCurrency(balanco1.ativos.circulantes.caixa + balanco1.ativos.circulantes.segurosAApropriar)}
           status="success"
           icon={<Banknote className="w-5 h-5" />}
-          tooltip="Recursos de alta liquidez: contas correntes, poupança, reserva e renda fixa"
+          tooltip="Recursos de alta liquidez: contas correntes, poupança, reserva, renda fixa e seguros a apropriar"
           delay={50}
           trend={variacoes.circulantes}
           trendLabel={range2.from ? "Período 2" : undefined}
@@ -526,11 +538,26 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                     </TableCell>
                   </TableRow>
                 ))}
+                {/* NOVO: Seguros a Apropriar */}
+                {balanco1.ativos.circulantes.segurosAApropriar > 0 && (
+                  <TableRow className="border-border hover:bg-muted/20">
+                    <TableCell className="pl-6 flex items-center gap-2">
+                      <Shield className="w-3 h-3 text-primary" />
+                      Seguros a Apropriar (Prêmio)
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-success">
+                      {formatCurrency(balanco1.ativos.circulantes.segurosAApropriar)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {balanco1.ativos.total > 0 ? formatPercent((balanco1.ativos.circulantes.segurosAApropriar / balanco1.ativos.total) * 100) : "0%"}
+                    </TableCell>
+                  </TableRow>
+                )}
                 <TableRow className="border-border bg-muted/20">
                   <TableCell className="font-medium text-foreground pl-4">Subtotal Circulante</TableCell>
-                  <TableCell className="text-right font-semibold text-success">{formatCurrency(balanco1.ativos.circulantes.caixa)}</TableCell>
+                  <TableCell className="text-right font-semibold text-success">{formatCurrency(balanco1.ativos.circulantes.caixa + balanco1.ativos.circulantes.segurosAApropriar)}</TableCell>
                   <TableCell className="text-right text-muted-foreground">
-                    {balanco1.ativos.total > 0 ? formatPercent((balanco1.ativos.circulantes.caixa / balanco1.ativos.total) * 100) : "0%"}
+                    {balanco1.ativos.total > 0 ? formatPercent(((balanco1.ativos.circulantes.caixa + balanco1.ativos.circulantes.segurosAApropriar) / balanco1.ativos.total) * 100) : "0%"}
                   </TableCell>
                 </TableRow>
 
@@ -684,6 +711,22 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {balanco1.ativos.total > 0 ? formatPercent((balanco1.passivos.passivoCurtoPrazoSeguros / balanco1.ativos.total) * 100) : "0%"}
+                    </TableCell>
+                  </TableRow>
+                )}
+                
+                {/* NOVO: Seguros a Pagar */}
+                {balanco1.passivos.segurosAPagar > 0 && (
+                  <TableRow className="border-border hover:bg-muted/20">
+                    <TableCell className="pl-6 flex items-center gap-2">
+                      <Shield className="w-3 h-3 text-warning" />
+                      Seguros a Pagar (Prêmio Não Pago)
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-warning">
+                      {formatCurrency(balanco1.passivos.segurosAPagar)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {balanco1.ativos.total > 0 ? formatPercent((balanco1.passivos.segurosAPagar / balanco1.ativos.total) * 100) : "0%"}
                     </TableCell>
                   </TableRow>
                 )}

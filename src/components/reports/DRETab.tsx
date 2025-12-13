@@ -40,7 +40,7 @@ import { ExpandablePanel } from "./ExpandablePanel";
 import { IndicatorBadge } from "./IndicatorBadge";
 import { DetailedIndicatorBadge } from "./DetailedIndicatorBadge";
 import { cn, parseDateLocal } from "@/lib/utils";
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay, endOfDay, differenceInMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,7 +51,7 @@ const COLORS = {
   warning: "hsl(38, 92%, 50%)",
   danger: "hsl(0, 72%, 51%)",
   primary: "hsl(199, 89%, 48%)",
-  accent: "hsl(270, 80%, 60%)",
+  accent: "hsl(270, 80% 60%)",
   muted: "hsl(215, 20% 55%)",
   gold: "hsl(45, 93%, 47%)",
   cyan: "hsl(180, 70%, 50%)",
@@ -67,72 +67,6 @@ const PIE_COLORS = [
   COLORS.danger,
 ];
 
-interface DREItemProps {
-  label: string;
-  value: number;
-  type: "receita" | "despesa" | "resultado" | "subtotal";
-  level?: number;
-  icon?: React.ReactNode;
-  subItems?: { label: string; value: number }[];
-}
-
-function DREItem({ label, value, type, level = 0, icon, subItems }: DREItemProps) {
-  const formatCurrency = (v: number) => `R$ ${Math.abs(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-
-  const styles = {
-    receita: "text-success",
-    despesa: "text-destructive",
-    resultado: value >= 0 ? "text-success font-bold" : "text-destructive font-bold",
-    subtotal: value >= 0 ? "text-primary font-semibold" : "text-warning font-semibold",
-  };
-
-  const bgStyles = {
-    receita: "",
-    despesa: "",
-    resultado: "bg-muted/30 rounded-lg",
-    subtotal: "bg-muted/20 rounded-lg",
-  };
-
-  const prefix = type === "despesa" ? "(-) " : type === "resultado" && value < 0 ? "(-) " : "";
-
-  return (
-    <>
-      <div
-        className={cn(
-          "flex items-center justify-between py-2.5 px-3 border-b border-border/30 last:border-0",
-          bgStyles[type]
-        )}
-        style={{ paddingLeft: `${12 + level * 16}px` }}
-      >
-        <div className="flex items-center gap-2">
-          {icon}
-          <span className={cn(
-            "text-sm",
-            type === "resultado" || type === "subtotal" ? "font-semibold" : "text-muted-foreground"
-          )}>
-            {prefix}{label}
-          </span>
-        </div>
-        <span className={cn("text-sm tabular-nums", styles[type])}>
-          {value < 0 ? "-" : ""}{formatCurrency(value)}
-        </span>
-      </div>
-      {subItems && subItems.map((item, idx) => (
-        <div
-          key={idx}
-          className="flex items-center justify-between py-1.5 px-3 border-b border-border/20"
-          style={{ paddingLeft: `${28 + level * 16}px` }}
-        >
-          <span className="text-xs text-muted-foreground">{item.label}</span>
-          <span className={cn("text-xs tabular-nums", type === "receita" ? "text-success/80" : "text-destructive/80")}>
-            {formatCurrency(item.value)}
-          </span>
-        </div>
-      ))}
-    </>
-  );
-}
-
 // Define o tipo de status esperado pelos componentes ReportCard e IndicatorBadge
 type KPIStatus = "success" | "warning" | "danger" | "neutral";
 
@@ -145,6 +79,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
     transacoesV2,
     categoriasV2,
     emprestimos,
+    segurosVeiculo, // <-- ADDED
     getJurosTotais,
     calculateLoanAmortizationAndInterest, // <-- NEW
   } = useFinance();
@@ -175,8 +110,9 @@ export function DRETab({ dateRanges }: DRETabProps) {
   const transacoesPeriodo2 = useMemo(() => filterTransactionsByRange(range2), [filterTransactionsByRange, range2]);
 
   // Função para calcular a DRE de um conjunto de transações
-  const calculateDRE = useCallback((transactions: TransacaoCompleta[]) => {
+  const calculateDRE = useCallback((transactions: TransacaoCompleta[], range: DateRange) => {
     const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
+    const seguroCategory = categoriasV2.find(c => c.label.toLowerCase() === 'seguro');
 
     // 1. RECEITAS: Apenas operações de 'receita' e 'rendimento'
     const transacoesReceita = transactions.filter(t => 
@@ -196,13 +132,45 @@ export function DRETab({ dateRanges }: DRETabProps) {
     });
     receitasPorCategoria.sort((a, b) => b.valor - a.valor);
 
-    // 2. DESPESAS OPERACIONAIS: Todas as saídas que NÃO são transferências, aplicações, resgates ou pagamentos de empréstimo
+    // 2. DESPESAS OPERACIONAIS:
     const despesasFixas: { categoria: string; valor: number }[] = [];
     const despesasVariaveis: { categoria: string; valor: number }[] = [];
     
+    // --- 2a. Calculate Accrued Insurance Expense (Accrual Basis) ---
+    let accruedInsuranceExpense = 0;
+    
+    if (seguroCategory && range.from && range.to) {
+        segurosVeiculo.forEach(seguro => {
+            try {
+                const vigenciaInicio = parseDateLocal(seguro.vigenciaInicio);
+                const vigenciaFim = parseDateLocal(seguro.vigenciaFim);
+                
+                const totalMonths = differenceInMonths(vigenciaFim, vigenciaInicio) + 1;
+                if (totalMonths <= 0) return;
+                
+                const monthlyAccrual = seguro.valorTotal / totalMonths;
+                
+                // Determine the intersection of the insurance vigency and the reporting period (range)
+                const accrualStart = vigenciaInicio > range.from ? vigenciaInicio : range.from;
+                const accrualEnd = vigenciaFim < range.to ? vigenciaFim : range.to;
+                
+                if (accrualStart <= accrualEnd) {
+                    // Calculate months to accrue based on the intersection
+                    const monthsToAccrue = differenceInMonths(accrualEnd, accrualStart) + 1;
+                    accruedInsuranceExpense += monthlyAccrual * monthsToAccrue;
+                }
+            } catch (e) {
+                // Ignore calculation errors
+            }
+        });
+    }
+    
+    // --- 2b. Filter transactions (Exclude cash insurance payments) ---
     const transacoesDespesaOperacional = transactions.filter(t => 
       (t.operationType === 'despesa' || t.operationType === 'veiculo') &&
-      t.flow === 'out'
+      t.flow === 'out' &&
+      // EXCLUDE cash payments for insurance if they are linked to the 'Seguro' category
+      (t.categoryId !== seguroCategory?.id)
     );
 
     const despesasFixasMap = new Map<string, number>();
@@ -216,10 +184,15 @@ export function DRETab({ dateRanges }: DRETabProps) {
       if (nature === 'despesa_fixa') {
         despesasFixasMap.set(catLabel, (despesasFixasMap.get(catLabel) || 0) + t.amount);
       } else {
-        // Inclui despesa_variavel e outros (fallback)
         despesasVariaveisMap.set(catLabel, (despesasVariaveisMap.get(catLabel) || 0) + t.amount);
       }
     });
+    
+    // --- 2c. Inject Accrued Insurance Expense into Fixed Expenses ---
+    if (accruedInsuranceExpense > 0) {
+        const seguroLabel = seguroCategory?.label || 'Despesas com Seguros (Apropriação)';
+        despesasFixasMap.set(seguroLabel, (despesasFixasMap.get(seguroLabel) || 0) + accruedInsuranceExpense);
+    }
 
     despesasFixasMap.forEach((valor, categoria) => {
       despesasFixas.push({ categoria, valor });
@@ -298,13 +271,13 @@ export function DRETab({ dateRanges }: DRETabProps) {
       totalDespesasFixas: despesasOperacionaisFixas,
       totalDespesasVariaveis: despesasOperacionaisVariaveis,
     };
-  }, [categoriasV2, calculateLoanAmortizationAndInterest]);
+  }, [categoriasV2, calculateLoanAmortizationAndInterest, segurosVeiculo]);
 
   // DRE para o Período 1 (Principal)
-  const dre1 = useMemo(() => calculateDRE(transacoesPeriodo1), [calculateDRE, transacoesPeriodo1]);
+  const dre1 = useMemo(() => calculateDRE(transacoesPeriodo1, range1), [calculateDRE, transacoesPeriodo1, range1]);
 
   // DRE para o Período 2 (Comparação)
-  const dre2 = useMemo(() => calculateDRE(transacoesPeriodo2), [calculateDRE, transacoesPeriodo2]);
+  const dre2 = useMemo(() => calculateDRE(transacoesPeriodo2, range2), [calculateDRE, transacoesPeriodo2, range2]);
 
   // Variação do Resultado Líquido (RL) entre P1 e P2
   const variacaoRL = useMemo(() => {
