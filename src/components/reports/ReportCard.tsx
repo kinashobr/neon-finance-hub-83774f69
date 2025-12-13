@@ -41,7 +41,7 @@ export function ReportCard({
     warning: "stat-card-warning",
     danger: "stat-card-negative",
     neutral: "stat-card-neutral",
-    info: "stat-card-info", // Assumindo que 'info' usa a mesma cor de 'neutral' ou uma cor específica
+    info: "stat-card-info",
   };
 
   const statusTextColors = {
@@ -84,8 +84,8 @@ export function ReportCard({
   const content = (
     <Card 
       className={cn(
-        "glass-card border-l-4 animate-fade-in-up transition-all hover:scale-[1.02]",
-        statusClasses[status as keyof typeof statusClasses], // Aplica a classe de borda
+        "glass-card animate-fade-in-up transition-all hover:scale-[1.02]",
+        statusClasses[status as keyof typeof statusClasses], // Aplica a classe de borda (que já define border-left: 4px)
         className
       )}
       style={{ animationDelay: `${delay}ms` }}

@@ -35,12 +35,12 @@ export function LoanCard({
   delay = 0,
   size = "md",
 }: LoanCardProps) {
-  const statusColors = {
-    success: "border-l-success bg-success/5",
-    warning: "border-l-warning bg-warning/5",
-    danger: "border-l-destructive bg-destructive/5",
-    neutral: "border-l-primary bg-primary/5",
-    info: "border-l-neon-cyan bg-neon-cyan/5",
+  const statusClasses = {
+    success: "stat-card-positive",
+    warning: "stat-card-warning",
+    danger: "stat-card-negative",
+    neutral: "stat-card-neutral",
+    info: "stat-card-info",
   };
 
   const statusTextColors = {
@@ -68,8 +68,8 @@ export function LoanCard({
   const content = (
     <div
       className={cn(
-        "glass-card border-l-4 animate-fade-in-up transition-all hover:scale-[1.02]",
-        statusColors[status],
+        "glass-card animate-fade-in-up transition-all hover:scale-[1.02]",
+        statusClasses[status as keyof typeof statusClasses], // Aplica a classe de borda (que já define border-left: 4px)
         sizeClasses[size],
         className
       )}
@@ -92,7 +92,7 @@ export function LoanCard({
               trend > 0 ? "text-success" : trend < 0 ? "text-destructive" : "text-muted-foreground"
             )}>
               <TrendIcon className="w-3 h-3" />
-              <span>{trend > 0 ? "+" : ""}{trend.toFixed(1)}%</span>
+              <span>{trend > 0 ? '+' : ''}{trend.toFixed(1)}%</span>
               {trendLabel && <span className="text-muted-foreground">vs {trendLabel}</span>}
             </div>
           )}
