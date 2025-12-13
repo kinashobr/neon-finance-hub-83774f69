@@ -18,5 +18,6 @@ export function parseDateLocal(dateString: string): Date {
   }
   const [year, month, day] = dateString.split('-').map(Number);
   // Cria a data usando componentes, forçando a interpretação local
+  // Nota: month - 1 é necessário porque o mês é 0-indexado
   return new Date(year, month - 1, day);
 }
