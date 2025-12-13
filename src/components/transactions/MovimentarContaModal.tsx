@@ -17,11 +17,12 @@ import {
   OperationType, ContaCorrente, Categoria, AccountType,
   TransacaoCompleta, formatCurrency, generateTransactionId,
   generateTransferGroupId, getDomainFromOperation,
-  TransferGroup, FlowType // <-- FIXED: FlowType is now exported
+  TransferGroup, FlowType
 } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { SeguroParcelaSelector } from "./SeguroParcelaSelector";
+import { parseDateLocal } from "@/lib/utils"; // Importado para corrigir o bug de data
 
 // Interface simplificada para Empréstimo (agora passada via props)
 interface LoanInfo {
@@ -263,6 +264,38 @@ export function MovimentarContaModal({
     simulatedLoans.find(l => l.id === loanId),
     [simulatedLoans, loanId]
   );
+
+  // --- NEW/UPDATED: Auto-fill for Loan Payment ---
+  useEffect(() => {
+    if (operationType === 'pagamento_emprestimo' && selectedLoan) {
+      // 1. Auto-fill amount with expected installment value if not editing and amount is empty
+      if (selectedLoan.valorParcela && !isEditing && !amount) {
+        setAmount(selectedLoan.valorParcela.toFixed(2));
+      }
+      
+      // 2. Auto-fill description based on selected installment
+      if (parcelaId && selectedLoan.parcelas) {
+          const parcela = selectedLoan.parcelas.find(p => p.numero.toString() === parcelaId);
+          if (parcela) {
+              setDescription(`Pagamento Parcela ${parcela.numero}/${selectedLoan.totalParcelas} - ${selectedLoan.institution}`);
+              // If amount was not set, set it now based on the specific installment value
+              if (!amount || Number(amount) === 0) {
+                  setAmount(parcela.valor.toFixed(2));
+              }
+          }
+      } else if (!parcelaId && !isEditing) {
+          // If no specific installment is selected yet, use a generic description
+          setDescription(`Pagamento Empréstimo ${selectedLoan.institution}`);
+      }
+      
+    } else if (operationType === 'pagamento_emprestimo' && !selectedLoan) {
+        // Clear fields if loan is deselected
+        setAmount('');
+        setDescription('');
+        setParcelaId('');
+    }
+  }, [operationType, selectedLoan, isEditing, parcelaId, amount]);
+  // ---------------------------------------------
 
   // Calculate current balance including all transactions
   const currentBalance = useMemo(() => {
@@ -841,7 +874,7 @@ export function MovimentarContaModal({
                             .filter(p => !p.pago)
                             .map(parcela => (
                               <SelectItem key={parcela.numero.toString()} value={parcela.numero.toString()}>
-                                Parcela {parcela.numero} - Venc: {new Date(parcela.vencimento).toLocaleDateString('pt-BR')} - {formatCurrency(parcela.valor)}
+                                Parcela {parcela.numero} - Venc: {parseDateLocal(parcela.vencimento).toLocaleDateString('pt-BR')} - {formatCurrency(parcela.valor)}
                               </SelectItem>
                             ))}
                         </SelectContent>
