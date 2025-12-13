@@ -16,7 +16,7 @@ import {
 // Components
 import { AccountsCarousel } from "@/components/transactions/AccountsCarousel";
 import { MovimentarContaModal } from "@/components/transactions/MovimentarContaModal";
-import { KPISidebar } from "@/components/transactions/KPISibar";
+import { KPISidebar } from "@/components/transactions/KPISidebar";
 import { ReconciliationPanel } from "@/components/transactions/ReconciliationPanel";
 import { AccountFormModal } from "@/components/transactions/AccountFormModal";
 import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
