@@ -398,7 +398,8 @@
   }
   
   .stat-card-info {
-    @apply border-l-4 border-l-info;
+    /* Corrigido para usar a cor customizada diretamente */
+    border-left: 4px solid hsl(var(--info));
   }
 
   /* ==================== SIDEBAR STYLES ==================== */
