@@ -110,7 +110,8 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
     // Merge saved config with new defaults
     return DEFAULT_CONFIG.map(defaultAlert => {
         if (configMap.has(defaultAlert.id)) {
-            return { ...defaultAlert, ...configMap.get(defaultAlert.id) };
+            // FIX: Use non-null assertion '!' since we checked 'has'
+            return { ...defaultAlert, ...configMap.get(defaultAlert.id)! };
         }
         return defaultAlert;
     });
