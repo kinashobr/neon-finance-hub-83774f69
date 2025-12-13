@@ -396,6 +396,10 @@
   .stat-card-neutral {
     @apply border-l-4 border-l-primary;
   }
+  
+  .stat-card-info {
+    @apply border-l-4 border-l-info;
+  }
 
   /* ==================== SIDEBAR STYLES ==================== */
   

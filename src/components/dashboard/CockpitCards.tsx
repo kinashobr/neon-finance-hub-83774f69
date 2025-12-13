@@ -62,7 +62,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
       value: formatCurrency(data.liquidezImediata),
       icon: Droplets,
       color: 'text-info',
-      bgColor: 'bg-info', // Aumentado para 50% de opacidade
+      bgColor: 'bg-info/10', // Ajustado para consistência
       status: data.liquidezImediata > 0 ? 'info' : 'danger',
     },
     {
@@ -91,7 +91,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
     warning: "border-l-warning",
     danger: "border-l-destructive",
     neutral: "border-l-primary",
-    info: "border-l-neon-cyan",
+    info: "border-l-info", // Corrigido para usar border-l-info
   };
 
   return (
