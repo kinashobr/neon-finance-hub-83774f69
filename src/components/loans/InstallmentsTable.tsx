@@ -230,7 +230,7 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
 
       <div className="rounded-lg border border-border overflow-x-auto">
         <div className="max-h-[50vh] overflow-y-auto scrollbar-thin">
-          <Table className="min-w-[1300px]">
+          <Table className="min-w-[1000px]"> {/* Aumentado min-width para 1000px */}
             <TableHeader className="sticky top-0 bg-card z-10">
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="text-muted-foreground w-16">Nº</TableHead>
