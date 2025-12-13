@@ -10,7 +10,7 @@ import { Emprestimo } from "@/types/finance";
 import { EditableCell } from "@/components/EditableCell";
 import { LoanCard } from "@/components/loans/LoanCard";
 import { LoanForm } from "@/components/loans/LoanForm";
-import { LoanAlerts } => "@/components/loans/LoanAlerts";
+import { LoanAlerts } from "@/components/loans/LoanAlerts";
 import { LoanCharts } from "@/components/loans/LoanCharts";
 import { LoanDetailDialog } from "@/components/loans/LoanDetailDialog";
 import { LoanSimulator } from "@/components/loans/LoanSimulator";
