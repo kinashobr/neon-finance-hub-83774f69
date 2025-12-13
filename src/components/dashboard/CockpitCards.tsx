@@ -1,11 +1,11 @@
 import {
   TrendingUp,
   TrendingDown,
-  Wallet,
   CalendarClock,
   ArrowUpRight,
   ArrowDownRight,
-  Target
+  Target,
+  Droplets
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -60,9 +60,9 @@ export function CockpitCards({ data }: CockpitCardsProps) {
       id: 'liquidez',
       title: 'Liquidez Imediata',
       value: formatCurrency(data.liquidezImediata),
-      icon: Wallet,
+      icon: Droplets,
       color: 'text-info',
-      bgColor: 'bg-info/30', // Aumentado para 30% para garantir visibilidade
+      bgColor: 'bg-info/20',
       status: data.liquidezImediata > 0 ? 'info' : 'danger',
     },
     {
