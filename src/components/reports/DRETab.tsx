@@ -51,7 +51,7 @@ const COLORS = {
   warning: "hsl(38, 92%, 50%)",
   danger: "hsl(0, 72%, 51%)",
   primary: "hsl(199, 89%, 48%)",
-  accent: "hsl(270, 80% 60%)",
+  accent: "hsl(270, 80%, 60%)",
   muted: "hsl(215, 20% 55%)",
   gold: "hsl(45, 93%, 47%)",
   cyan: "hsl(180, 70%, 50%)",
@@ -248,23 +248,18 @@ export function DRETab({ dateRanges }: DRETabProps) {
             
             if (!isNaN(loanId) && !isNaN(parcelaNumber)) {
                 const calc = calculateLoanAmortizationAndInterest(loanId, parcelaNumber);
+                
                 if (calc) {
-                    // Juros calculados
-                    jurosEmprestimos += calc.juros;
+                    // O custo financeiro (juros) é o valor pago menos a amortização do principal.
+                    // A amortização é determinada pelo cronograma (calc.amortization).
+                    const amortization = calc.amortization;
+                    const interestComponent = t.amount - amortization;
                     
-                    // Se houver diferença entre o valor pago e a parcela original,
-                    // essa diferença é considerada juros/multa ou desconto.
-                    const diferenca = t.amount - (calc.juros + calc.amortizacao);
-                    if (diferenca > 0) {
-                        jurosEmprestimos += diferenca; // Juros/multa extra
-                    } else if (diferenca < 0) {
-                        // Desconto por adiantamento (reduz o custo de juros)
-                        jurosEmprestimos += diferenca;
-                    }
+                    jurosEmprestimos += interestComponent;
                 } else {
-                    // Fallback: Se não for possível calcular (ex: empréstimo não configurado),
-                    // usamos o valor total da transação como juros (conservador, mas impreciso)
-                    jurosEmprestimos += t.amount;
+                    // Se não for possível calcular (ex: empréstimo não configurado ou dados inválidos),
+                    // pulamos a transação para evitar distorção no DRE.
+                    console.warn(`Transação de empréstimo ${t.id} não pôde ser calculada para DRE (loanId: ${loanId}, parcela: ${parcelaNumber}).`);
                 }
             }
         }
