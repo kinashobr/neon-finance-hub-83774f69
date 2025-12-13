@@ -77,6 +77,7 @@ interface FinanceContextType {
   getPendingLoans: () => Emprestimo[];
   markLoanParcelPaid: (loanId: number, valorPago: number, dataPagamento: string, parcelaNumero?: number) => void;
   unmarkLoanParcelPaid: (loanId: number) => void;
+  calculateLoanAmortizationAndInterest: (loanId: number, parcelaNumber: number) => { juros: number; amortizacao: number; saldoDevedor: number } | null; // <-- NEW
   
   // Veículos
   veiculos: Veiculo[];
@@ -386,6 +387,37 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return paymentsUpToDate.length;
 
   }, [emprestimos, transacoesV2]);
+  
+  // ============================================
+  // NOVO: CÁLCULO DE JUROS E AMORTIZAÇÃO (MÉTODO PRICE)
+  // ============================================
+  
+  const calculateLoanAmortizationAndInterest = useCallback((loanId: number, parcelaNumber: number) => {
+    const loan = emprestimos.find(e => e.id === loanId);
+    if (!loan || loan.meses === 0 || loan.taxaMensal === 0) return null;
+
+    const taxa = loan.taxaMensal / 100;
+    let saldoDevedor = loan.valorTotal;
+    
+    // Simular o saldo devedor até a parcela anterior
+    for (let i = 1; i < parcelaNumber; i++) {
+      const juros = saldoDevedor * taxa;
+      const amortizacao = loan.parcela - juros;
+      saldoDevedor = Math.max(0, saldoDevedor - amortizacao);
+    }
+    
+    // Calcular a parcela atual
+    const juros = saldoDevedor * taxa;
+    const amortizacao = loan.parcela - juros;
+    const novoSaldoDevedor = Math.max(0, saldoDevedor - amortizacao);
+
+    return {
+      juros: Math.max(0, juros),
+      amortizacao: Math.max(0, amortizacao),
+      saldoDevedor: novoSaldoDevedor,
+    };
+  }, [emprestimos]);
+
 
   // ============================================
   // OPERAÇÕES DE ENTIDADES V2 (Empréstimos, Veículos, etc.)
@@ -714,6 +746,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getPendingLoans,
     markLoanParcelPaid,
     unmarkLoanParcelPaid,
+    calculateLoanAmortizationAndInterest, // <-- EXPORTED
     veiculos,
     addVeiculo,
     updateVeiculo,

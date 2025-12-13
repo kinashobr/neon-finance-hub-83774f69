@@ -51,7 +51,7 @@ const COLORS = {
   warning: "hsl(38, 92%, 50%)",
   danger: "hsl(0, 72%, 51%)",
   primary: "hsl(199, 89%, 48%)",
-  accent: "hsl(270, 80%, 60%)",
+  accent: "hsl(270, 80% 60%)",
   muted: "hsl(215, 20% 55%)",
   gold: "hsl(45, 93%, 47%)",
   cyan: "hsl(180, 70%, 50%)",
@@ -146,6 +146,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
     categoriasV2,
     emprestimos,
     getJurosTotais,
+    calculateLoanAmortizationAndInterest, // <-- NEW
   } = useFinance();
 
   const { range1, range2 } = dateRanges;
@@ -233,10 +234,41 @@ export function DRETab({ dateRanges }: DRETabProps) {
     const despesasOperacionaisFixas = despesasFixas.reduce((acc, d) => acc + d.valor, 0);
     const despesasOperacionaisVariaveis = despesasVariaveis.reduce((acc, d) => acc + d.valor, 0);
     
-    // Juros e Encargos (Pagamentos de Empréstimo)
-    const jurosEmprestimos = transactions
-      .filter(t => t.operationType === 'pagamento_emprestimo')
-      .reduce((acc, t) => acc + t.amount, 0);
+    // 3. Juros e Encargos (Apenas a componente de JUROS dos pagamentos de Empréstimo)
+    let jurosEmprestimos = 0;
+    const pagamentosEmprestimo = transactions.filter(t => t.operationType === 'pagamento_emprestimo');
+    
+    pagamentosEmprestimo.forEach(t => {
+        const loanIdStr = t.links?.loanId?.replace('loan_', '');
+        const parcelaIdStr = t.links?.parcelaId;
+        
+        if (loanIdStr && parcelaIdStr) {
+            const loanId = parseInt(loanIdStr);
+            const parcelaNumber = parseInt(parcelaIdStr);
+            
+            if (!isNaN(loanId) && !isNaN(parcelaNumber)) {
+                const calc = calculateLoanAmortizationAndInterest(loanId, parcelaNumber);
+                if (calc) {
+                    // Juros calculados
+                    jurosEmprestimos += calc.juros;
+                    
+                    // Se houver diferença entre o valor pago e a parcela original,
+                    // essa diferença é considerada juros/multa ou desconto.
+                    const diferenca = t.amount - (calc.juros + calc.amortizacao);
+                    if (diferenca > 0) {
+                        jurosEmprestimos += diferenca; // Juros/multa extra
+                    } else if (diferenca < 0) {
+                        // Desconto por adiantamento (reduz o custo de juros)
+                        jurosEmprestimos += diferenca;
+                    }
+                } else {
+                    // Fallback: Se não for possível calcular (ex: empréstimo não configurado),
+                    // usamos o valor total da transação como juros (conservador, mas impreciso)
+                    jurosEmprestimos += t.amount;
+                }
+            }
+        }
+    });
       
     const totalDespesasOperacionais = despesasOperacionaisFixas + despesasOperacionaisVariaveis;
 
@@ -271,7 +303,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
       totalDespesasFixas: despesasOperacionaisFixas,
       totalDespesasVariaveis: despesasOperacionaisVariaveis,
     };
-  }, [categoriasV2]);
+  }, [categoriasV2, calculateLoanAmortizationAndInterest]);
 
   // DRE para o Período 1 (Principal)
   const dre1 = useMemo(() => calculateDRE(transacoesPeriodo1), [calculateDRE, transacoesPeriodo1]);
@@ -313,6 +345,8 @@ export function DRETab({ dateRanges }: DRETabProps) {
       const receitasMes = transacoesMes
         .filter(t => t.operationType === 'receita' || t.operationType === 'rendimento')
         .reduce((acc, t) => acc + t.amount, 0);
+      
+      // Despesas aqui incluem despesas operacionais e pagamentos de empréstimo (valor total da parcela)
       const despesasMes = transacoesMes
         .filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo')
         .reduce((acc, t) => acc + t.amount, 0);
@@ -352,7 +386,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
           value={formatCurrency(dre1.totalDespesas)}
           status="danger"
           icon={<TrendingDown className="w-5 h-5" />}
-          tooltip="Soma de todas as saídas operacionais e pagamentos de empréstimo"
+          tooltip="Soma de todas as saídas operacionais e Juros/Encargos"
           delay={50}
         />
         <ReportCard
@@ -412,7 +446,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
             <DREItem label="RESULTADO OPERACIONAL" value={dre1.resultadoOperacional} type="subtotal" icon={<Equal className="w-4 h-4" />} />
 
             {/* Juros e Encargos */}
-            <DREItem label="(-) JUROS E ENCARGOS (Pagamentos de Empréstimo)" value={dre1.jurosEmprestimos} type="despesa" icon={<CreditCard className="w-4 h-4" />} />
+            <DREItem label="(-) JUROS E ENCARGOS (Custo Financeiro)" value={dre1.jurosEmprestimos} type="despesa" icon={<CreditCard className="w-4 h-4" />} />
 
             {/* Resultado Líquido */}
             <DREItem label="RESULTADO LÍQUIDO" value={dre1.resultadoLiquido} type="resultado" icon={<DollarSign className="w-4 h-4" />} />

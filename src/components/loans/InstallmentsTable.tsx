@@ -47,7 +47,7 @@ const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
 };
 
 export function InstallmentsTable({ emprestimo, className }: InstallmentsTableProps) {
-  const { transacoesV2, calculatePaidInstallmentsUpToDate } = useFinance();
+  const { transacoesV2, calculateLoanAmortizationAndInterest } = useFinance();
   
   // Buscar transações de pagamento vinculadas a este empréstimo
   const payments = useMemo(() => {
@@ -60,7 +60,6 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
   const parcelas = useMemo<Parcela[]>(() => {
     if (!emprestimo.dataInicio || emprestimo.meses === 0) return [];
 
-    const taxa = emprestimo.taxaMensal / 100;
     const hoje = new Date();
     
     let saldoDevedor = emprestimo.valorTotal;
@@ -86,8 +85,10 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
     for (let i = 1; i <= emprestimo.meses; i++) {
       const dataVencimento = getDueDate(emprestimo.dataInicio, i);
       
-      const juros = saldoCorrigido * taxa;
-      const amortizacao = emprestimo.parcela - juros;
+      // Usar a função do contexto para obter juros e amortização
+      const calc = calculateLoanAmortizationAndInterest(emprestimo.id, i);
+      const juros = calc?.juros || 0;
+      const amortizacao = calc?.amortizacao || 0;
       
       const payment = paymentsMap.get(i);
       const isLegadoPaid = paidCountLegacy > 0 && i <= paidCountLegacy;
@@ -134,15 +135,20 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
         numero: i,
         dataVencimento,
         valorTotal: emprestimo.parcela,
-        juros: Math.max(0, juros),
-        amortizacao: Math.max(0, amortizacao),
-        saldoDevedor: saldoDevedorExibido,
+        juros: juros,
+        amortizacao: amortizacao,
+        saldoDevedor: saldoCorrigido, // Saldo após o pagamento desta parcela
         status,
         dataPagamento,
         valorPago,
         diferencaJuros,
         diasDiferenca,
       });
+      
+      // Se a parcela não foi paga, o saldo corrigido não muda para a próxima iteração
+      if (!payment && !isLegadoPaid) {
+          saldoCorrigido = saldoDevedorExibido;
+      }
     }
     
     // Ajuste final para garantir que a última parcela paga tenha saldo devedor 0
@@ -151,7 +157,7 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
     }
 
     return result;
-  }, [emprestimo, payments]);
+  }, [emprestimo, payments, calculateLoanAmortizationAndInterest]);
 
   const formatCurrency = (value: number) =>
     `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
@@ -164,6 +170,9 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
 
   const totalPago = payments.reduce((acc, p) => acc + p.amount, 0);
   const totalParcelasPagas = parcelas.filter(p => p.status === 'pago').length;
+  
+  // Saldo Devedor Real (último saldo calculado)
+  const saldoDevedorReal = parcelas.length > 0 ? parcelas[parcelas.length - 1].saldoDevedor : emprestimo.valorTotal;
 
   return (
     <div className={cn("glass-card p-5", className)}>
@@ -255,9 +264,9 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
           </p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-muted-foreground">Total Restante</p>
+          <p className="text-xs text-muted-foreground">Saldo Devedor</p>
           <p className="text-lg font-bold text-destructive">
-            {formatCurrency(emprestimo.valorTotal - totalPago)}
+            {formatCurrency(saldoDevedorReal)}
           </p>
         </div>
         <div className="text-center">
