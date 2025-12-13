@@ -38,7 +38,11 @@ const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
   // Usa parseDateLocal para garantir que a data de início seja interpretada localmente
   const startDate = parseDateLocal(startDateStr);
   const dueDate = new Date(startDate);
-  dueDate.setMonth(dueDate.getMonth() + installmentNumber);
+  
+  // Ajuste: Se installmentNumber = 1, adicionamos 0 meses.
+  // Isso assume que dataInicio é a data de vencimento da primeira parcela.
+  dueDate.setMonth(dueDate.getMonth() + installmentNumber - 1);
+  
   return dueDate;
 };
 
@@ -209,7 +213,7 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
   const totalParcelasPagas = parcelas.filter(p => p.status === 'pago').length;
 
   return (
-    <div className={cn("glass-card p-5 overflow-hidden", className)}>
+    <div className={cn("glass-card p-5", className)}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-foreground">Controle de Parcelas</h3>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -224,9 +228,9 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
         </div>
       </div>
 
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div className="rounded-lg border border-border overflow-x-auto">
         <div className="max-h-[50vh] overflow-y-auto scrollbar-thin">
-          <Table>
+          <Table className="min-w-max">
             <TableHeader className="sticky top-0 bg-card z-10">
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="text-muted-foreground w-16">Nº</TableHead>

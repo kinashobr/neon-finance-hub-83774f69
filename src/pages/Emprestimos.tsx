@@ -10,13 +10,13 @@ import { Emprestimo } from "@/types/finance";
 import { EditableCell } from "@/components/EditableCell";
 import { LoanCard } from "@/components/loans/LoanCard";
 import { LoanForm } from "@/components/loans/LoanForm";
-import { LoanAlerts } from "@/components/loans/LoanAlerts";
+import { LoanAlerts } => "@/components/loans/LoanAlerts";
 import { LoanCharts } from "@/components/loans/LoanCharts";
 import { LoanDetailDialog } from "@/components/loans/LoanDetailDialog";
 import { LoanSimulator } from "@/components/loans/LoanSimulator";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { DateRange, ComparisonDateRanges } from "@/types/finance";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal } from "@/lib/utils";
 import { startOfMonth, endOfMonth, isWithinInterval, format, subDays } from "date-fns";
 
 const Emprestimos = () => {
@@ -47,9 +47,12 @@ const Emprestimos = () => {
     const nextParcela = (loan.parcelasPagas || 0) + 1;
     if (nextParcela > loan.meses) return null;
 
-    const startDate = new Date(loan.dataInicio + "T00:00:00");
+    // Usa parseDateLocal para garantir que a data de início seja interpretada localmente
+    const startDate = parseDateLocal(loan.dataInicio);
     const dueDate = new Date(startDate);
-    dueDate.setMonth(dueDate.getMonth() + nextParcela);
+    
+    // Ajuste: Se nextParcela = 1, offset é 0 meses.
+    dueDate.setMonth(dueDate.getMonth() + nextParcela - 1);
     
     return dueDate;
   };
