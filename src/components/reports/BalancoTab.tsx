@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   ChevronRight,
   Droplets,
+  Shield, // Importado Shield
 } from "lucide-react";
 import {
   AreaChart,
@@ -51,7 +52,7 @@ import {
 } from "@/components/ui/table";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { ACCOUNT_TYPE_LABELS } from "@/types/finance";
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, subDays, startOfDay, endOfDay, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
@@ -92,6 +93,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     emprestimos,
     veiculos,
     categoriasV2,
+    segurosVeiculo, // <-- ADDED
     getAtivosTotal,
     getPassivosTotal,
     getPatrimonioLiquido,
@@ -168,6 +170,29 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
       return acc + totalParcelasNoPeriodo;
     }, 0);
   }, [emprestimos]);
+  
+  // NOVO: Função para calcular a soma das parcelas de seguro que vencem DENTRO de um range
+  const calculateSeguroInstallmentsInPeriod = useCallback((range: DateRange) => {
+    if (!range.from || !range.to) return 0;
+    
+    const start = startOfDay(range.from);
+    const end = endOfDay(range.to);
+    
+    return segurosVeiculo.reduce((acc, seguro) => {
+      const totalSeguroNoPeriodo = seguro.parcelas.reduce((seguroAcc, parcela) => {
+        // Usar parseDateLocal para garantir a interpretação correta
+        const dueDate = parseDateLocal(parcela.vencimento);
+        
+        // Apenas parcelas não pagas e que vencem no período
+        if (!parcela.paga && isWithinInterval(dueDate, { start, end })) {
+          return seguroAcc + parcela.valor;
+        }
+        return seguroAcc;
+      }, 0);
+      
+      return acc + totalSeguroNoPeriodo;
+    }, 0);
+  }, [segurosVeiculo]);
 
   // Cálculos do Balanço Patrimonial para um período
   const calculateBalanco = useCallback((range: DateRange) => {
@@ -216,13 +241,16 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
       .filter(c => c.accountType === 'cartao_credito')
       .reduce((acc, c) => {
         const balance = saldosPorConta[c.id] || 0;
-        return acc + Math.abs(Math.min(0, balance));
+        return acc + Math.abs(Math.min(0, balance)); // Only negative balance is liability
       }, 0);
       
     // Passivo Curto Prazo (Parcelas de Empréstimo que vencem DENTRO do período selecionado + Saldo CC)
     const passivoCurtoPrazoEmprestimos = calculateLoanInstallmentsInPeriod(range);
     
-    const passivoCurtoPrazo = passivoCurtoPrazoEmprestimos + saldoDevedorCartoes;
+    // NOVO: Parcelas de Seguro que vencem DENTRO do período selecionado
+    const passivoCurtoPrazoSeguros = calculateSeguroInstallmentsInPeriod(range);
+    
+    const passivoCurtoPrazo = passivoCurtoPrazoEmprestimos + saldoDevedorCartoes + passivoCurtoPrazoSeguros;
     
     // Passivo Longo Prazo (Passivo Total - Passivo Curto Prazo)
     const passivoLongoPrazo = Math.max(0, totalPassivos - passivoCurtoPrazo);
@@ -267,11 +295,12 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
         emprestimos: emprestimos.filter(e => e.status !== 'quitado'),
         saldoDevedorCartoes, // Detalhe
         passivoCurtoPrazoEmprestimos, // Detalhe
+        passivoCurtoPrazoSeguros, // NOVO DETALHE
       },
       patrimonioLiquido,
       resultadoPeriodo,
     };
-  }, [contasMovimento, emprestimos, veiculos, transacoesV2, calculateFinalBalances, getAtivosTotal, getPassivosTotal, getValorFipeTotal, calculateLoanInstallmentsInPeriod, filterTransactionsByRange]);
+  }, [contasMovimento, emprestimos, veiculos, transacoesV2, segurosVeiculo, calculateFinalBalances, getAtivosTotal, getPassivosTotal, getValorFipeTotal, calculateLoanInstallmentsInPeriod, calculateSeguroInstallmentsInPeriod, filterTransactionsByRange]);
 
   // Balanço para o Período 1 (Principal)
   const balanco1 = useMemo(() => calculateBalanco(range1), [calculateBalanco, range1]);
@@ -632,6 +661,22 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                   </TableRow>
                 )}
                 
+                {/* NOVO DETALHE: Parcelas de Seguro Curto Prazo */}
+                {balanco1.passivos.passivoCurtoPrazoSeguros > 0 && (
+                  <TableRow className="border-border hover:bg-muted/20">
+                    <TableCell className="pl-6 flex items-center gap-2">
+                      <Shield className="w-3 h-3 text-warning" />
+                      Parcelas de Seguro (no Período)
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-warning">
+                      {formatCurrency(balanco1.passivos.passivoCurtoPrazoSeguros)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {balanco1.ativos.total > 0 ? formatPercent((balanco1.passivos.passivoCurtoPrazoSeguros / balanco1.ativos.total) * 100) : "0%"}
+                    </TableCell>
+                  </TableRow>
+                )}
+                
                 <TableRow className="border-border bg-muted/20">
                   <TableCell className="font-medium text-foreground pl-4">Subtotal Curto Prazo</TableCell>
                   <TableCell className="text-right font-semibold text-warning">{formatCurrency(balanco1.passivos.curtoPrazo)}</TableCell>
@@ -823,7 +868,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
             status={metricas.imobilizacao.status}
             trend={getTrend(variacoes.patrimonioLiquido || 0, true)}
             trendLabel={range2.from ? `${(variacoes.patrimonioLiquido || 0).toFixed(1)}% vs P2` : undefined}
-            descricao="Quanto do PL está em bens imobilizados (veículos). Ideal: abaixo de 30%"
+            descricao="Quanto do patrimônio está investido em bens imobilizados (veículos). Ideal: abaixo de 30%"
             formula="(Ativo Imobilizado / Patrimônio Líquido) × 100"
             sparklineData={generateSparkline(metricas.imobilizacao.valor, getTrend(variacoes.patrimonioLiquido || 0, true))}
             icon={<Car className="w-4 h-4" />}
