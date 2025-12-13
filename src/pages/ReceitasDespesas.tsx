@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Tags, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { isWithinInterval, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay } from "date-fns";
+import { isWithinInterval, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, addMonths } from "date-fns";
 
 // Types
 import { 
@@ -725,15 +725,13 @@ const ReceitasDespesas = () => {
     return emprestimos
       .filter(e => e.status !== 'pendente_config')
       .map(e => {
+        // Usa parseDateLocal para garantir que a data de início seja interpretada localmente
+        const startDate = parseDateLocal(e.dataInicio || new Date().toISOString().split('T')[0]);
+        
         // Simulação de parcelas (Método Price simplificado)
         const parcelas = e.meses > 0 ? Array.from({ length: e.meses }, (_, i) => {
-          // Usa parseDateLocal para garantir que a data de início seja interpretada localmente
-          const vencimento = parseDateLocal(e.dataInicio || new Date().toISOString().split('T')[0]);
-          // A primeira parcela vence 1 mês após a data de início (i=0 -> 1 mês)
-          vencimento.setMonth(vencimento.getMonth() + i + 1); 
-          
-          // Verifica se a parcela já foi paga (usando o contador de parcelas pagas)
-          const isPaid = i < (e.parcelasPagas || 0);
+          // A parcela N (índice i) vence i + 1 meses após a data de início.
+          const vencimento = addMonths(startDate, i + 1);
           
           // Tenta encontrar a transação de pagamento real
           const paymentTx = transactions.find(t => 
@@ -746,7 +744,7 @@ const ReceitasDespesas = () => {
             numero: i + 1,
             vencimento: vencimento.toISOString().split('T')[0],
             valor: e.parcela,
-            pago: isPaid || !!paymentTx, // Considera pago se for pago no legado OU se houver transação
+            pago: !!paymentTx, // Considera pago se houver transação
             transactionId: paymentTx?.id,
           };
         }) : [];
