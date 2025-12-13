@@ -251,8 +251,8 @@ export function DRETab({ dateRanges }: DRETabProps) {
                 
                 if (calc) {
                     // O custo financeiro (juros) é o valor pago menos a amortização do principal.
-                    // A amortização é determinada pelo cronograma (calc.amortization).
-                    const amortization = calc.amortization;
+                    // A amortização é determinada pelo cronograma (calc.amortizacao).
+                    const amortization = calc.amortizacao; // FIX: Changed to amortizacao
                     const interestComponent = t.amount - amortization;
                     
                     jurosEmprestimos += interestComponent;
