@@ -174,6 +174,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
   }, [emprestimos]);
   
   // NOVO: Função para calcular a soma das parcelas de seguro que vencem DENTRO de um range
+  // MANTIDA, mas não será usada no cálculo do Passivo Circulante final
   const calculateSeguroInstallmentsInPeriod = useCallback((range: DateRange) => {
     if (!range.from || !range.to) return 0;
     
@@ -249,17 +250,18 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
         return acc + Math.abs(Math.min(0, balance)); // Only negative balance is liability
       }, 0);
       
-    // Passivo Curto Prazo (Parcelas de Empréstimo que vencem DENTRO do período selecionado + Saldo CC)
+    // Passivo Curto Prazo (Parcelas de Empréstimo que vencem DENTRO do período selecionado)
     const passivoCurtoPrazoEmprestimos = calculateLoanInstallmentsInPeriod(range);
     
-    // NOVO: Parcelas de Seguro que vencem DENTRO do período selecionado
-    const passivoCurtoPrazoSeguros = calculateSeguroInstallmentsInPeriod(range);
-    
-    // Seguros a Pagar (Liability)
+    // Seguros a Pagar (Liability) - Prêmio Total Não Pago
     const segurosAPagar = getSegurosAPagar(finalDate); // <-- NEW CALCULATION
     
     // Passivo Curto Prazo (Total)
-    const passivoCurtoPrazo = passivoCurtoPrazoEmprestimos + saldoDevedorCartoes + passivoCurtoPrazoSeguros + segurosAPagar; // <-- ADDED segurosAPagar
+    // CORREÇÃO: Removemos passivoCurtoPrazoSeguros e segurosAPagar daqui.
+    // passivoCurtoPrazoEmprestimos já é a porção de curto prazo dos empréstimos.
+    // O Passivo Circulante de Seguros será tratado como parte do Passivo Total de Seguros (segurosAPagar)
+    // e não será detalhado separadamente no cálculo do Passivo Circulante.
+    const passivoCurtoPrazo = passivoCurtoPrazoEmprestimos + saldoDevedorCartoes; 
     
     // Passivo Longo Prazo (Passivo Total - Passivo Curto Prazo)
     const passivoLongoPrazo = Math.max(0, totalPassivos - passivoCurtoPrazo);
@@ -305,13 +307,12 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
         emprestimos: emprestimos.filter(e => e.status !== 'quitado'),
         saldoDevedorCartoes, // Detalhe
         passivoCurtoPrazoEmprestimos, // Detalhe
-        passivoCurtoPrazoSeguros, // NOVO DETALHE
-        segurosAPagar, // <-- NEW DETAIL
+        segurosAPagar, // <-- NEW DETAIL (Prêmio Total Não Pago)
       },
       patrimonioLiquido,
       resultadoPeriodo,
     };
-  }, [contasMovimento, emprestimos, veiculos, transacoesV2, segurosVeiculo, calculateFinalBalances, getAtivosTotal, getPassivosTotal, getValorFipeTotal, calculateLoanInstallmentsInPeriod, calculateSeguroInstallmentsInPeriod, filterTransactionsByRange, getSegurosAApropriar, getSegurosAPagar]); // <-- ADDED dependencies
+  }, [contasMovimento, emprestimos, veiculos, transacoesV2, segurosVeiculo, calculateFinalBalances, getAtivosTotal, getPassivosTotal, getValorFipeTotal, calculateLoanInstallmentsInPeriod, filterTransactionsByRange, getSegurosAApropriar, getSegurosAPagar]); // <-- ADDED dependencies
 
   // Balanço para o Período 1 (Principal)
   const balanco1 = useMemo(() => calculateBalanco(range1), [calculateBalanco, range1]);
@@ -688,38 +689,6 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                   </TableRow>
                 )}
                 
-                {/* NOVO DETALHE: Parcelas de Seguro Curto Prazo */}
-                {balanco1.passivos.passivoCurtoPrazoSeguros > 0 && (
-                  <TableRow className="border-border hover:bg-muted/20">
-                    <TableCell className="pl-6 flex items-center gap-2">
-                      <Shield className="w-3 h-3 text-warning" />
-                      Parcelas de Seguro (no Período)
-                    </TableCell>
-                    <TableCell className="text-right font-medium text-warning">
-                      {formatCurrency(balanco1.passivos.passivoCurtoPrazoSeguros)}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {balanco1.ativos.total > 0 ? formatPercent((balanco1.passivos.passivoCurtoPrazoSeguros / balanco1.ativos.total) * 100) : "0%"}
-                    </TableCell>
-                  </TableRow>
-                )}
-                
-                {/* NOVO: Seguros a Pagar */}
-                {balanco1.passivos.segurosAPagar > 0 && (
-                  <TableRow className="border-border hover:bg-muted/20">
-                    <TableCell className="pl-6 flex items-center gap-2">
-                      <Shield className="w-3 h-3 text-warning" />
-                      Seguros a Pagar (Prêmio Não Pago)
-                    </TableCell>
-                    <TableCell className="text-right font-medium text-warning">
-                      {formatCurrency(balanco1.passivos.segurosAPagar)}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {balanco1.ativos.total > 0 ? formatPercent((balanco1.passivos.segurosAPagar / balanco1.ativos.total) * 100) : "0%"}
-                    </TableCell>
-                  </TableRow>
-                )}
-                
                 <TableRow className="border-border bg-muted/20">
                   <TableCell className="font-medium text-foreground pl-4">Subtotal Curto Prazo</TableCell>
                   <TableCell className="text-right font-semibold text-warning">{formatCurrency(balanco1.passivos.curtoPrazo)}</TableCell>
@@ -749,6 +718,32 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                       </TableCell>
                     </TableRow>
                   </>
+                )}
+                
+                {/* NOVO: Seguros a Pagar (Prêmio Total Não Pago) - Mantido no Passivo Total */}
+                {balanco1.passivos.segurosAPagar > 0 && (
+                  <TableRow className="border-border bg-destructive/5">
+                    <TableCell colSpan={3} className="font-semibold text-destructive text-sm">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4" />
+                        OUTROS PASSIVOS
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+                {balanco1.passivos.segurosAPagar > 0 && (
+                  <TableRow className="border-border hover:bg-muted/20">
+                    <TableCell className="pl-6 flex items-center gap-2">
+                      <Shield className="w-3 h-3 text-destructive" />
+                      Seguros a Pagar (Prêmio Não Pago)
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-destructive">
+                      {formatCurrency(balanco1.passivos.segurosAPagar)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {balanco1.ativos.total > 0 ? formatPercent((balanco1.passivos.segurosAPagar / balanco1.ativos.total) * 100) : "0%"}
+                    </TableCell>
+                  </TableRow>
                 )}
 
                 {/* TOTAL PASSIVO */}
