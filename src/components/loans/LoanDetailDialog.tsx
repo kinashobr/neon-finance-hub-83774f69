@@ -47,7 +47,7 @@ interface LoanDetailDialogProps {
 }
 
 export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailDialogProps) {
-  const { updateEmprestimo, getContasCorrentesTipo } = useFinance();
+  const { updateEmprestimo, getContasCorrentesTipo, calculateLoanAmortizationAndInterest } = useFinance();
   const [isEditing, setIsEditing] = useState(false);
   const contasCorrentes = getContasCorrentesTipo();
   const colors = useChartColors(); // Use o hook para cores dinâmicas
@@ -59,7 +59,24 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
 
     const parcelasPagas = emprestimo.parcelasPagas || 0;
     const parcelasRestantes = emprestimo.meses - parcelasPagas;
-    const saldoDevedor = Math.max(0, emprestimo.valorTotal - (parcelasPagas * emprestimo.parcela));
+    
+    // --- CORREÇÃO: Calcular Saldo Devedor usando a amortização correta ---
+    let saldoDevedor = emprestimo.valorTotal;
+    if (parcelasPagas > 0) {
+        // O saldo devedor após a última parcela paga é o saldoDevedor daquela parcela
+        // Para obter o saldo após a parcela N, precisamos calcular a parcela N+1 e pegar o saldoDevedor dela.
+        // No entanto, a função calculateLoanAmortizationAndInterest retorna o saldo DEPOIS da parcela 'parcelaNumber'.
+        const calc = calculateLoanAmortizationAndInterest(emprestimo.id, parcelasPagas);
+        
+        if (calc) {
+            saldoDevedor = calc.saldoDevedor;
+        } else {
+            // Fallback (embora o cálculo deva funcionar se o empréstimo estiver configurado)
+            saldoDevedor = Math.max(0, emprestimo.valorTotal - (parcelasPagas * emprestimo.parcela));
+        }
+    }
+    // ---------------------------------------------------------------------
+    
     const custoTotal = emprestimo.parcela * emprestimo.meses;
     const jurosTotal = custoTotal - emprestimo.valorTotal;
     const jurosPagos = emprestimo.meses > 0 ? jurosTotal * (parcelasPagas / emprestimo.meses) : 0;
@@ -92,7 +109,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
       proximaParcela,
       economiaQuitacao,
     };
-  }, [emprestimo]);
+  }, [emprestimo, calculateLoanAmortizationAndInterest]);
 
   const evolucaoData = useMemo(() => {
     if (!emprestimo || emprestimo.meses === 0) return [];

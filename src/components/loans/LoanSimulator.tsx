@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Emprestimo } from "@/types/finance";
 import { cn } from "@/lib/utils";
+import { useFinance } from "@/contexts/FinanceContext"; // Import useFinance
 
 interface LoanSimulatorProps {
   emprestimos: Emprestimo[];
@@ -13,16 +14,35 @@ interface LoanSimulatorProps {
 }
 
 export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
+  const { calculateLoanAmortizationAndInterest } = useFinance(); // Destructure the necessary function
+  
   const [aumentoParcela, setAumentoParcela] = useState("");
   const [valorQuitacao, setValorQuitacao] = useState("");
   const [novaTaxa, setNovaTaxa] = useState("");
 
   const totalSaldoDevedor = useMemo(() => {
     return emprestimos.reduce((acc, e) => {
-      const parcelasPagas = Math.floor(e.meses * 0.3);
-      return acc + Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
+      if (e.status === 'quitado' || e.status === 'pendente_config') return acc;
+      
+      // Use the actual paid installments count from the loan object
+      const parcelasPagas = e.parcelasPagas || 0; 
+      
+      let saldoDevedor = e.valorTotal;
+      
+      if (parcelasPagas > 0) {
+          // Calculate the amortization schedule up to the last paid installment
+          const calc = calculateLoanAmortizationAndInterest(e.id, parcelasPagas);
+          if (calc) {
+              saldoDevedor = calc.saldoDevedor;
+          } else {
+              // Fallback (should not happen for configured loans)
+              saldoDevedor = Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
+          }
+      }
+      
+      return acc + saldoDevedor;
     }, 0);
-  }, [emprestimos]);
+  }, [emprestimos, calculateLoanAmortizationAndInterest]);
 
   const parcelaTotal = useMemo(() => {
     return emprestimos.reduce((acc, e) => acc + e.parcela, 0);
@@ -39,14 +59,52 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
     if (aumento <= 0 || totalSaldoDevedor <= 0) return null;
 
     const novaParcela = parcelaTotal + aumento;
-    const mesesRestantes = totalSaldoDevedor / parcelaTotal;
-    const novosMesesRestantes = totalSaldoDevedor / novaParcela;
-    const jurosEconomizados = (mesesRestantes - novosMesesRestantes) * totalSaldoDevedor * (taxaMedia / 100);
+    
+    // Simplificação: Assumindo que a taxa média se aplica ao saldo devedor total
+    // Para calcular meses restantes, precisamos da taxa média efetiva (i)
+    const i = taxaMedia / 100;
+    
+    // Fórmula para calcular N (número de períodos) dado P, PMT e i:
+    // N = -log(1 - (P * i) / PMT) / log(1 + i)
+    
+    let mesesRestantes = 0;
+    let novosMesesRestantes = 0;
+    
+    if (i > 0 && parcelaTotal > 0 && novaParcela > 0) {
+        // Meses restantes com parcela atual
+        const term1 = (totalSaldoDevedor * i) / parcelaTotal;
+        if (term1 < 1) {
+            mesesRestantes = -Math.log(1 - term1) / Math.log(1 + i);
+        } else {
+            mesesRestantes = 999; // Parcela insuficiente
+        }
+
+        // Meses restantes com nova parcela
+        const term2 = (totalSaldoDevedor * i) / novaParcela;
+        if (term2 < 1) {
+            novosMesesRestantes = -Math.log(1 - term2) / Math.log(1 + i);
+        } else {
+            novosMesesRestantes = 999; // Parcela insuficiente
+        }
+    } else if (i === 0) {
+        // Sem juros
+        mesesRestantes = totalSaldoDevedor / parcelaTotal;
+        novosMesesRestantes = totalSaldoDevedor / novaParcela;
+    } else {
+        return null;
+    }
+    
+    const mesesEconomizados = Math.max(0, mesesRestantes - novosMesesRestantes);
+    
+    // Juros economizados: (Parcela Atual * Meses Restantes) - (Nova Parcela * Novos Meses Restantes)
+    // Esta é uma simplificação, mas reflete o custo total economizado.
+    const jurosEconomizadosFinal = Math.max(0, (parcelaTotal * mesesRestantes) - (novaParcela * novosMesesRestantes));
+
 
     return {
       novaParcela,
-      mesesEconomizados: Math.max(0, mesesRestantes - novosMesesRestantes),
-      jurosEconomizados: Math.max(0, jurosEconomizados),
+      mesesEconomizados: mesesEconomizados,
+      jurosEconomizados: jurosEconomizadosFinal,
     };
   }, [aumentoParcela, parcelaTotal, totalSaldoDevedor, taxaMedia]);
 
@@ -57,8 +115,14 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
 
     const percentualQuitacao = Math.min(100, (valor / totalSaldoDevedor) * 100);
     const saldoRestante = Math.max(0, totalSaldoDevedor - valor);
-    const mesesRestantes = saldoRestante / parcelaTotal;
-    const jurosEconomizados = valor * (taxaMedia / 100) * mesesRestantes * 0.3;
+    
+    // Simplificação: Juros economizados é o juros restante do saldo quitado
+    // Juros restantes = (Parcela Total * Meses Restantes) - Saldo Devedor
+    // Se quitamos X do saldo, economizamos os juros que seriam pagos sobre X.
+    
+    // Estimativa de juros restantes sobre o valor quitado (simplificado)
+    const mesesRestantesEstimados = totalSaldoDevedor / parcelaTotal;
+    const jurosEconomizados = valor * (taxaMedia / 100) * mesesRestantesEstimados * 0.5; // Fator de 0.5 para simular a média
 
     return {
       percentualQuitacao,
@@ -73,14 +137,32 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
     if (taxa <= 0 || taxa >= taxaMedia || totalSaldoDevedor <= 0) return null;
 
     const diferencaTaxa = taxaMedia - taxa;
+    
+    // Economia Anual: Saldo Devedor * Diferença de Taxa * 12 meses
     const economiaAnual = totalSaldoDevedor * (diferencaTaxa / 100) * 12;
-    const novaParcela = parcelaTotal * (taxa / taxaMedia);
+    
+    // Nova Parcela (Simplificação: Mantém o mesmo prazo, recalcula a parcela)
+    const mesesRestantes = totalSaldoDevedor / parcelaTotal; // Prazo restante estimado
+    
+    const i = taxa / 100;
+    let novaParcela = 0;
+    
+    if (i > 0 && mesesRestantes > 0) {
+        // PMT = P * [ i / (1 - (1 + i)^-n) ]
+        novaParcela = (totalSaldoDevedor * i) / (1 - Math.pow(1 + i, -mesesRestantes));
+    } else if (i === 0) {
+        novaParcela = totalSaldoDevedor / mesesRestantes;
+    } else {
+        return null;
+    }
+
+    const reducaoParcela = parcelaTotal - novaParcela;
 
     return {
       novaTaxa: taxa,
       economiaAnual,
       novaParcela,
-      reducaoParcela: parcelaTotal - novaParcela,
+      reducaoParcela,
     };
   }, [novaTaxa, taxaMedia, totalSaldoDevedor, parcelaTotal]);
 

@@ -19,6 +19,7 @@ import { ExpandablePanel } from "@/components/reports/ExpandablePanel";
 import { TrendingDown, BarChart3, Calendar, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChartColors } from "@/hooks/useChartColors";
+import { useFinance } from "@/contexts/FinanceContext"; // Import useFinance
 
 interface LoanChartsProps {
   emprestimos: Emprestimo[];
@@ -27,58 +28,118 @@ interface LoanChartsProps {
 
 export function LoanCharts({ emprestimos, className }: LoanChartsProps) {
   const colors = useChartColors(); // Use o hook para cores dinâmicas
+  const { calculateLoanAmortizationAndInterest } = useFinance(); // Destructure the necessary function
   
   // Evolução do saldo devedor
   const evolucaoSaldo = useMemo(() => {
-    const totalSaldo = emprestimos.reduce((acc, e) => {
-      const parcelasPagas = Math.floor(e.meses * 0.3);
-      return acc + Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
+    // 1. Calculate the starting total outstanding principal balance (P)
+    const totalSaldoInicial = emprestimos.reduce((acc, e) => {
+      if (e.status === 'quitado' || e.status === 'pendente_config') return acc;
+      
+      // Use the actual paid installments count from the loan object
+      const parcelasPagas = e.parcelasPagas || 0; 
+      
+      let saldoDevedor = e.valorTotal;
+      
+      if (parcelasPagas > 0) {
+          // Calculate the amortization schedule up to the last paid installment
+          const calc = calculateLoanAmortizationAndInterest(e.id, parcelasPagas);
+          if (calc) {
+              saldoDevedor = calc.saldoDevedor;
+          }
+      }
+      
+      return acc + saldoDevedor;
     }, 0);
-
+    
+    // 2. Calculate the total monthly payment (PMT) and average interest rate (i)
+    const parcelaMensalTotal = emprestimos.reduce((acc, e) => acc + e.parcela, 0);
+    const taxaMedia = emprestimos.reduce((acc, e) => acc + e.taxaMensal, 0) / Math.max(1, emprestimos.length);
+    const i = taxaMedia / 100;
+    
     const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    return meses.map((mes, i) => ({
-      mes,
-      saldo: totalSaldo * (1 - (i * 0.05)),
-      juros: totalSaldo * 0.02 * (1 - i * 0.03),
-      amortizacao: totalSaldo * 0.03 * (1 + i * 0.01),
-    }));
-  }, [emprestimos]);
+    
+    let currentSaldo = totalSaldoInicial;
+    const result = [];
+    
+    // Project the next 12 months using the average rate (simplified projection)
+    for (let k = 0; k < 12; k++) {
+        if (currentSaldo <= 0) {
+            result.push({ mes: meses[k], saldo: 0, juros: 0, amortizacao: 0 });
+            continue;
+        }
+        
+        // Calculate interest and amortization based on the average rate (Price method)
+        const juros = currentSaldo * i;
+        const amortizacao = parcelaMensalTotal - juros;
+        
+        currentSaldo = Math.max(0, currentSaldo - amortizacao);
+        
+        result.push({
+            mes: meses[k],
+            saldo: currentSaldo,
+            juros: Math.max(0, juros),
+            amortizacao: Math.max(0, amortizacao),
+        });
+    }
+    
+    return result;
+  }, [emprestimos, calculateLoanAmortizationAndInterest]);
 
-  // Juros x Amortização por parcela
+  // Juros x Amortização por parcela (mantido o cálculo simplificado, mas ajustado para usar a parcela total)
   const jurosAmortizacao = useMemo(() => {
-    return Array.from({ length: 12 }, (_, i) => {
-      const parcela = i + 1;
-      const taxaMedia = emprestimos.reduce((acc, e) => acc + e.taxaMensal, 0) / Math.max(1, emprestimos.length);
-      const valorTotal = emprestimos.reduce((acc, e) => acc + e.parcela, 0);
-      const juros = valorTotal * (taxaMedia / 100) * (1 - parcela * 0.02);
-      const amortizacao = valorTotal - juros;
+    const taxaMedia = emprestimos.reduce((acc, e) => acc + e.taxaMensal, 0) / Math.max(1, emprestimos.length);
+    const valorParcelaMedia = emprestimos.reduce((acc, e) => acc + e.parcela, 0) / Math.max(1, emprestimos.length);
+    const totalSaldoInicial = emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
+    
+    const i = taxaMedia / 100;
+    let saldoSimulado = totalSaldoInicial;
+    
+    return Array.from({ length: 12 }, (_, k) => {
+      if (saldoSimulado <= 0) {
+          saldoSimulado = 0;
+          return { parcela: `${k + 1}ª`, juros: 0, amortizacao: 0 };
+      }
+      
+      const juros = saldoSimulado * i;
+      const amortizacao = valorParcelaMedia - juros;
+      saldoSimulado = Math.max(0, saldoSimulado - amortizacao);
+      
       return {
-        parcela: `${parcela}ª`,
+        parcela: `${k + 1}ª`,
         juros: Math.max(0, juros),
         amortizacao: Math.max(0, amortizacao),
       };
     });
   }, [emprestimos]);
 
-  // Comparativo entre empréstimos
+  // Comparativo entre empréstimos (ajustado para usar a amortização correta)
   const comparativo = useMemo(() => {
     return emprestimos.map((e) => {
-      const parcelasPagas = Math.floor(e.meses * 0.3);
-      const saldoDevedor = Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
+      const parcelasPagas = e.parcelasPagas || 0;
+      
+      let saldoDevedor = e.valorTotal;
+      if (parcelasPagas > 0) {
+          const calc = calculateLoanAmortizationAndInterest(e.id, parcelasPagas);
+          if (calc) {
+              saldoDevedor = calc.saldoDevedor;
+          }
+      }
+      
       const custoTotal = e.parcela * e.meses;
       const jurosTotal = custoTotal - e.valorTotal;
       
       return {
         nome: e.contrato.split(" - ")[0].substring(0, 10),
         valorOriginal: e.valorTotal,
-        saldoDevedor,
+        saldoDevedor: Math.max(0, saldoDevedor),
         jurosTotal,
         taxa: e.taxaMensal,
       };
     });
-  }, [emprestimos]);
+  }, [emprestimos, calculateLoanAmortizationAndInterest]);
 
-  // Timeline
+  // Timeline (mantido como estava, usa parcelasPagas)
   const timeline = useMemo(() => {
     const hoje = new Date();
     return emprestimos.map((e) => {

@@ -31,6 +31,7 @@ const Emprestimos = () => {
     transacoesV2,
     dateRanges,
     setDateRanges,
+    getSaldoDevedor, // <-- Importado para cálculo correto
   } = useFinance();
   
   const [selectedLoan, setSelectedLoan] = useState<Emprestimo | null>(null);
@@ -59,23 +60,23 @@ const Emprestimos = () => {
 
   // Cálculos principais
   const calculos = useMemo(() => {
+    // Usar getSaldoDevedor do contexto para obter o saldo devedor total (inclui CC e amortização correta)
+    const saldoDevedor = getSaldoDevedor(dateRanges.range1.to); 
+    
     const totalContratado = emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
     const totalPago = emprestimos.reduce((acc, e) => acc + (e.parcelasPagas || 0) * e.parcela, 0);
-    const saldoDevedor = emprestimos.reduce((acc, e) => {
-      const parcelasPagas = e.parcelasPagas || 0;
-      return acc + Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
-    }, 0);
+    
     const parcelaMensalTotal = emprestimos.reduce((acc, e) => acc + e.parcela, 0);
     const jurosTotais = emprestimos.reduce((acc, e) => acc + (e.parcela * e.meses - e.valorTotal), 0);
     
     return {
       totalContratado,
       totalPago,
-      saldoDevedor,
+      saldoDevedor, // Agora usa o cálculo correto do contexto
       parcelaMensalTotal,
       jurosTotais,
     };
-  }, [emprestimos]);
+  }, [emprestimos, getSaldoDevedor, dateRanges.range1.to]);
 
   // Filtra empréstimos ativos
   const emprestimosAtivos = useMemo(() => {
@@ -127,7 +128,7 @@ const Emprestimos = () => {
             value={formatCurrency(calculos.saldoDevedor)}
             icon={<TrendingDown className="w-5 h-5" />}
             status="danger"
-            tooltip="Valor total que resta a pagar em todos os empréstimos ativos."
+            tooltip="Valor total que resta a pagar em todos os empréstimos ativos (inclui CC e amortização correta)."
             delay={0}
           />
           <LoanCard
