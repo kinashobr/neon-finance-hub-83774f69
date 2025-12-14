@@ -516,6 +516,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
                 <RechartsPie>
                   <Pie
                     data={dre1.composicaoDespesas}
+                    dataKey="value"
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
