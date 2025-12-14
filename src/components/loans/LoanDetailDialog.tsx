@@ -43,7 +43,7 @@ import { useChartColors } from "@/hooks/useChartColors";
 interface LoanDetailDialogProps {
   emprestimo: Emprestimo | null;
   open: boolean;
-  onOpenChange: (open: (boolean) => void) => void;
+  onOpenChange: (open: boolean) => void; // CORRIGIDO: Tipagem para (open: boolean) => void
 }
 
 export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailDialogProps) {
@@ -59,6 +59,29 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   const colors = useChartColors(); 
   
   const targetDate = dateRanges.range1.to; // Use the end of the selected period
+
+  const evolucaoData = useMemo(() => {
+    if (!emprestimo) return [];
+    const schedule = calculateLoanSchedule(emprestimo.id);
+    
+    // Adiciona o ponto inicial (parcela 0)
+    const initialPoint = {
+      parcela: 0,
+      saldo: emprestimo.valorTotal,
+      juros: 0,
+      amortizacao: 0,
+    };
+    
+    // Mapeia o cronograma para o formato do gráfico
+    const chartData = schedule.map(item => ({
+      parcela: item.parcela,
+      saldo: item.saldoDevedor,
+      juros: item.juros,
+      amortizacao: item.amortizacao,
+    }));
+    
+    return [initialPoint, ...chartData];
+  }, [emprestimo, calculateLoanSchedule]);
 
   const calculos = useMemo(() => {
     if (!emprestimo) return null;
