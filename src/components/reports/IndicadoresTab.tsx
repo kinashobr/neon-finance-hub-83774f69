@@ -52,7 +52,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn, parseDateLocal } from "@/lib/utils";
-import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays, startOfDay, endOfDay, addMonths } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays, startOfDay, endOfDay, addMonths, isBefore, isAfter, isSameDay } from "date-fns";
 import { toast } from "sonner";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
@@ -119,6 +119,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     getValorFipeTotal,
     getSegurosAPagar,
     calculateLoanPrincipalDueInNextMonths,
+    segurosVeiculo, // Adicionado para uso no cálculo de segurosAPagarShortTerm
   } = useFinance();
 
   const { range1, range2 } = dateRanges;
@@ -468,7 +469,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
       receitasMesAtual,
       despesasMesAtual,
     };
-  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, getJurosTotais, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal, getValorFipeTotal, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths]);
+  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, getJurosTotais, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal, getValorFipeTotal, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, segurosVeiculo]);
 
   // Cálculos para Período 1 e Período 2
   const indicadores1 = useMemo(() => calculateIndicatorsForRange(range1), [calculateIndicatorsForRange, range1]);

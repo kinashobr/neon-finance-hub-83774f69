@@ -337,7 +337,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
         saldoDevedorCartoes, // Detalhe
         loanPrincipalShortTerm, // NEW DETAIL
         loanPrincipalLongTerm, // NEW DETAIL
-        segurosAPagar, // Total premium payable
+        segurosAPagar: segurosAPagarTotal, // Total premium payable
         segurosAPagarShortTerm, // NEW DETAIL
         segurosAPagarLongoPrazo, // NEW DETAIL
       },
@@ -750,7 +750,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                   <TableCell colSpan={3} className="font-semibold text-destructive text-sm">
                     <div className="flex items-center gap-2">
                       <CreditCard className="w-4 h-4" />
-                      PASSIVO NÃO CIRCULANTE (Vencimento > 12 meses)
+                      PASSIVO NÃO CIRCULANTE (Vencimento &gt; 12 meses)
                     </div>
                   </TableCell>
                 </TableRow>
