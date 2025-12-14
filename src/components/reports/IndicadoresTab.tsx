@@ -489,7 +489,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
   const formatRatio = (value: number) => value >= 999 ? "∞" : `${value.toFixed(2)}x`;
-  const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatMeses = (value: number) => value >= 999 ? "∞" : `${value.toFixed(1)} meses`;
 
   // Indicadores de Crescimento (Calculados separadamente para usar P1 vs P2)

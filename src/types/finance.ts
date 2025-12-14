@@ -274,7 +274,9 @@ export function generateCategoryId(): string {
 export function formatCurrency(value: number, currency = 'BRL'): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
-    currency
+    currency,
+    minimumFractionDigits: 2, // Garante 2 casas
+    maximumFractionDigits: 2, // Limita a 2 casas
   }).format(value);
 }
 

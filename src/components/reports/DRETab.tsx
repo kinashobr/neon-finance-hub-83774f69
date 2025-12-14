@@ -75,7 +75,7 @@ interface DRETabProps {
 }
 
 // Define formatCurrency outside DRETab so DREItem can use it
-const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface DREItemProps {
   label: string;
@@ -521,7 +521,6 @@ export function DRETab({ dateRanges }: DRETabProps) {
                     innerRadius={60}
                     outerRadius={100}
                     paddingAngle={2}
-                    dataKey="value"
                     label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                     labelLine={{ stroke: COLORS.muted, strokeWidth: 1 }}
                   >
