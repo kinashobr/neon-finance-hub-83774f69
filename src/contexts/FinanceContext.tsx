@@ -134,7 +134,7 @@ interface FinanceContextType {
   
   // Categorias V2 (with nature)
   categoriasV2: Categoria[];
-  setCategoriasV2: Dispatch<SetSetStateAction<Categoria[]>>;
+  setCategoriasV2: Dispatch<SetStateAction<Categoria[]>>;
   
   // Transações V2 (integrated)
   transacoesV2: TransacaoCompleta[];
@@ -182,13 +182,13 @@ interface FinanceContextType {
   movimentacoesInvestimento: any[];
   addInvestimentoRF: (inv: any) => void;
   updateInvestimentoRF: (id: number, inv: any) => void;
-  deleteInvestimentoRF: (id: number) => void;
+  deleteInvestimentoRF: (id: number, inv: any) => void;
   addCriptomoeda: (cripto: any) => void;
   updateCriptomoeda: (id: number, cripto: any) => void;
-  deleteCriptomoeda: (id: number) => void;
+  deleteCriptomoeda: (id: number, cripto: any) => void;
   addStablecoin: (stable: any) => void;
   updateStablecoin: (id: number, stable: any) => void;
-  deleteStablecoin: (id: number) => void;
+  deleteStablecoin: (id: number, stable: any) => void;
   addMovimentacaoInvestimento: (mov: any) => void;
   updateMovimentacaoInvestimento: (id: number, mov: any) => void;
   deleteMovimentacaoInvestimento: (id: number, mov: any) => void;
@@ -288,7 +288,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     loadFromStorage(STORAGE_KEYS.VEICULOS, initialVeiculos)
   );
   const [segurosVeiculo, setSegurosVeiculo] = useState<SeguroVeiculo[]>(() => 
-    loadFromStorage(STORAGE_KEYS.SEGUROS_VEICULOS, initialSegurosVeiculo)
+    loadFromStorage(STORAGE_KEYS.SEGURO_VEICULO, initialSegurosVeiculo)
   );
   const [objetivos, setObjetivos] = useState<ObjetivoFinanceiro[]>(() => 
     loadFromStorage(STORAGE_KEYS.OBJETIVOS, initialObjetivos)
@@ -316,7 +316,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos); }, [emprestimos]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.VEICULOS, veiculos); }, [veiculos]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); }, [segurosVeiculo]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.SEGURO_VEICULO, segurosVeiculo); }, [segurosVeiculo]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos); }, [objetivos]);
   
   useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
