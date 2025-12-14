@@ -52,7 +52,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn, parseDateLocal } from "@/lib/utils";
-import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays, startOfDay, endOfDay, addMonths, isBefore, isAfter, isSameDay } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays, startOfDay, endOfDay, addMonths, isBefore, isAfter, isSameDay, differenceInMonths, differenceInDays } from "date-fns";
 import { toast } from "sonner";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
@@ -110,6 +110,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     emprestimos,
     veiculos,
     categoriasV2,
+    segurosVeiculo,
     getAtivosTotal,
     getPassivosTotal,
     getPatrimonioLiquido,
@@ -119,7 +120,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     getValorFipeTotal,
     getSegurosAPagar,
     calculateLoanPrincipalDueInNextMonths,
-    segurosVeiculo, // Adicionado para uso no cálculo de segurosAPagarShortTerm
+    calculateLoanAmortizationAndInterest,
   } = useFinance();
 
   const { range1, range2 } = dateRanges;
@@ -278,7 +279,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     // Se não houver data final, usamos o saldo atual (fim do histórico)
     const finalDate = range.to || new Date(9999, 11, 31);
     
-    // 1. Filtrar transações para o período
+    // 1. Filtrar transações para o período (para receitas/despesas)
     const transacoesPeriodo = transacoesV2.filter(t => {
       if (!range.from || !range.to) return true;
       try {
@@ -352,34 +353,115 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     // Passivo Curto Prazo (Total)
     const passivoCurtoPrazo = saldoDevedorCartoes + loanPrincipalShortTerm + segurosAPagarShortTerm; 
     
-    // Receitas e Despesas do período
+    // Receitas do período (Accrual/Cash basis is the same for Revenue)
     const calcReceitas = (trans: typeof transacoesV2) => trans
       .filter(t => t.operationType === 'receita' || t.operationType === 'rendimento')
       .reduce((acc, t) => acc + t.amount, 0);
-    const calcDespesas = (trans: typeof transacoesV2) => trans
-      .filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo')
-      .reduce((acc, t) => acc + t.amount, 0);
-
+      
     const receitasMesAtual = calcReceitas(transacoesPeriodo);
-    const despesasMesAtual = calcDespesas(transacoesPeriodo);
-    const resultadoMesAtual = receitasMesAtual - despesasMesAtual;
-
-    // Despesas fixas e variáveis
-    const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
-    let despesasFixasMes = 0;
     
-    transacoesPeriodo.filter(t => t.flow === 'out' && t.operationType !== 'transferencia' && t.operationType !== 'aplicacao').forEach(t => {
-      const cat = categoriasMap.get(t.categoryId || '');
-      if (cat?.nature === 'despesa_fixa') {
-        despesasFixasMes += t.amount;
-      }
-    });
+    // --- ACCRUAL BASIS CALCULATIONS FOR DRE-BASED INDICATORS ---
+    
+    const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
+    const seguroCategory = categoriasV2.find(c => c.label.toLowerCase() === 'seguro');
+    
+    // 1. Accrued Insurance Expense (from DRE logic)
+    let accruedInsuranceExpense = 0;
+    if (seguroCategory && range.from && range.to) {
+        segurosVeiculo.forEach(seguro => {
+            try {
+                const vigenciaInicio = parseDateLocal(seguro.vigenciaInicio);
+                const vigenciaFim = parseDateLocal(seguro.vigenciaFim);
+                
+                const totalMonths = differenceInMonths(vigenciaFim, vigenciaInicio) + 1;
+                if (totalMonths <= 0) return;
+                
+                const monthlyAccrual = seguro.valorTotal / totalMonths;
+                
+                const accrualStart = vigenciaInicio > range.from ? vigenciaInicio : range.from;
+                const accrualEnd = vigenciaFim < range.to ? vigenciaFim : range.to;
+                
+                if (accrualStart <= accrualEnd) {
+                    const monthsToAccrue = differenceInMonths(accrualEnd, accrualStart) + 1;
+                    accruedInsuranceExpense += monthlyAccrual * monthsToAccrue;
+                }
+            } catch (e) {
+                // Ignore calculation errors
+            }
+        });
+    }
+    
+    // 2. Operating Expenses (Accrual Basis)
+    let despesasFixasMesAccrual = 0;
+    let despesasVariaveisMesAccrual = 0;
+    
+    // Despesas Cash Basis (used for personal indicators)
+    let despesasMesAtualCash = 0;
+    
+    const transacoesDespesaOperacional = transacoesPeriodo.filter(t => 
+      (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo') &&
+      t.flow === 'out'
+    );
+    
+    transacoesDespesaOperacional.forEach(t => {
+        despesasMesAtualCash += t.amount; // Total cash outflow for expenses/payments
+        
+        const cat = categoriasMap.get(t.categoryId || '');
+        const nature = cat?.nature || 'despesa_variavel';
+        
+        // Exclude cash insurance payments from accrual calculation if they are linked to the 'Seguro' category
+        const isCashInsurancePayment = t.categoryId === seguroCategory?.id;
 
-    // Juros
-    const jurosTotais = getJurosTotais();
+        if (!isCashInsurancePayment && t.operationType !== 'pagamento_emprestimo') {
+            if (nature === 'despesa_fixa') {
+                despesasFixasMesAccrual += t.amount;
+            } else {
+                despesasVariaveisMesAccrual += t.amount;
+            }
+        }
+    });
+    
+    // Inject Accrued Insurance Expense
+    despesasFixasMesAccrual += accruedInsuranceExpense;
+    
+    const totalDespesasOperacionaisAccrual = despesasFixasMesAccrual + despesasVariaveisMesAccrual;
+    
+    // 3. Interest Expense (Juros Empréstimos)
+    let jurosEmprestimosPeriodo = 0;
+    const pagamentosEmprestimo = transacoesPeriodo.filter(t => t.operationType === 'pagamento_emprestimo');
+    
+    pagamentosEmprestimo.forEach(t => {
+        const loanIdStr = t.links?.loanId?.replace('loan_', '');
+        const parcelaIdStr = t.links?.parcelaId;
+        
+        if (loanIdStr && parcelaIdStr) {
+            const loanId = parseInt(loanIdStr);
+            const parcelaNumber = parseInt(parcelaIdStr);
+            
+            if (!isNaN(loanId) && !isNaN(parcelaNumber)) {
+                const calc = calculateLoanAmortizationAndInterest(loanId, parcelaNumber);
+                
+                if (calc) {
+                    const amortization = calc.amortizacao;
+                    const interestComponent = t.amount - amortization;
+                    jurosEmprestimosPeriodo += interestComponent;
+                }
+            }
+        }
+    });
+    
+    // 4. Resultado Líquido (Accrual Basis)
+    const resultadoOperacionalAccrual = receitasMesAtual - totalDespesasOperacionaisAccrual;
+    const resultadoLiquidoAccrual = resultadoOperacionalAccrual - jurosEmprestimosPeriodo;
+
+    // Annualized result factor
+    const numDays = range.from && range.to ? differenceInDays(range.to, range.from) + 1 : 30;
+    const annualizedFactor = 365 / numDays;
+    const resultadoAnualizado = resultadoLiquidoAccrual * annualizedFactor;
+
+    // --- INDICATORS CALCULATION ---
 
     // === INDICADORES DE LIQUIDEZ ===
-    // Use caixaTotal (Ativo Circulante) e passivoCurtoPrazo (Passivo Circulante - 12 meses lookahead)
     const liquidezCorrente = passivoCurtoPrazo > 0 ? caixaTotal / passivoCurtoPrazo : caixaTotal > 0 ? 999 : 0;
     const liquidezSeca = passivoCurtoPrazo > 0 ? (caixaTotal * 0.8) / passivoCurtoPrazo : caixaTotal > 0 ? 999 : 0;
     const liquidezImediata = passivoCurtoPrazo > 0 ? (caixaTotal * 0.5) / passivoCurtoPrazo : caixaTotal > 0 ? 999 : 0;
@@ -389,28 +471,27 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     const endividamentoTotal = totalAtivos > 0 ? (totalPassivos / totalAtivos) * 100 : 0;
     const patrimonioLiquido = totalAtivos - totalPassivos;
     const dividaPL = patrimonioLiquido > 0 ? (saldoDevedor / patrimonioLiquido) * 100 : 0;
-    // Composição Endividamento: Passivo Curto Prazo / Passivo Total
     const composicaoEndividamento = totalPassivos > 0 ? (passivoCurtoPrazo / totalPassivos) * 100 : 0;
     const imobilizacaoPL = patrimonioLiquido > 0 ? (valorVeiculos / patrimonioLiquido) * 100 : 0;
 
     // === INDICADORES DE RENTABILIDADE ===
-    const margemLiquida = receitasMesAtual > 0 ? (resultadoMesAtual / receitasMesAtual) * 100 : 0;
-    const retornoAtivos = totalAtivos > 0 ? ((resultadoMesAtual * 12) / totalAtivos) * 100 : 0;
-    const retornoPL = patrimonioLiquido > 0 ? ((resultadoMesAtual * 12) / patrimonioLiquido) * 100 : 0;
+    const margemLiquida = receitasMesAtual > 0 ? (resultadoLiquidoAccrual / receitasMesAtual) * 100 : 0;
+    const retornoAtivos = totalAtivos > 0 ? (resultadoAnualizado / totalAtivos) * 100 : 0;
+    const retornoPL = patrimonioLiquido > 0 ? (resultadoAnualizado / patrimonioLiquido) * 100 : 0;
 
     // === INDICADORES DE EFICIÊNCIA ===
-    const indiceDespesasFixas = despesasMesAtual > 0 ? (despesasFixasMes / despesasMesAtual) * 100 : 0;
-    const eficienciaOperacional = receitasMesAtual > 0 ? (despesasMesAtual / receitasMesAtual) * 100 : 0;
+    const indiceDespesasFixas = totalDespesasOperacionaisAccrual > 0 ? (despesasFixasMesAccrual / totalDespesasOperacionaisAccrual) * 100 : 0;
+    const eficienciaOperacional = receitasMesAtual > 0 ? (totalDespesasOperacionaisAccrual / receitasMesAtual) * 100 : 0;
 
     // === INDICADORES PESSOAIS ===
-    const custoVidaMensal = despesasMesAtual;
+    const custoVidaMensal = despesasMesAtualCash;
     const mesesSobrevivencia = custoVidaMensal > 0 ? caixaTotal / custoVidaMensal : 999;
-    const taxaPoupanca = receitasMesAtual > 0 ? (resultadoMesAtual / receitasMesAtual) * 100 : 0;
-    const comprometimentoRenda = receitasMesAtual > 0 ? (despesasMesAtual / receitasMesAtual) * 100 : 0;
+    const taxaPoupanca = receitasMesAtual > 0 ? (resultadoLiquidoAccrual / receitasMesAtual) * 100 : 0;
+    const comprometimentoRenda = receitasMesAtual > 0 ? (despesasMesAtualCash / receitasMesAtual) * 100 : 0;
 
     // === INDICADORES DIVERSOS ===
     const solvencia = totalPassivos > 0 ? totalAtivos / totalPassivos : totalAtivos > 0 ? 999 : 0;
-    const coberturaJuros = jurosTotais > 0 ? resultadoMesAtual / jurosTotais : resultadoMesAtual > 0 ? 999 : 0;
+    const coberturaJuros = jurosEmprestimosPeriodo > 0 ? resultadoOperacionalAccrual / jurosEmprestimosPeriodo : resultadoOperacionalAccrual > 0 ? 999 : 0;
     const diversificacao = totalAtivos > 0 
       ? 100 - Math.max(
           (caixaTotal / totalAtivos) * 100,
@@ -460,16 +541,15 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
         totalPassivos,
         patrimonioLiquido,
         receitasMesAtual,
-        despesasMesAtual,
-        resultadoMesAtual,
+        despesasMesAtual: totalDespesasOperacionaisAccrual,
+        resultadoMesAtual: resultadoLiquidoAccrual,
         saldoDevedor,
         passivoCurtoPrazo,
       },
-      // Adicionado para cálculo de variação
       receitasMesAtual,
-      despesasMesAtual,
+      despesasMesAtual: totalDespesasOperacionaisAccrual,
     };
-  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, getJurosTotais, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal, getValorFipeTotal, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, segurosVeiculo]);
+  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal, getValorFipeTotal, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, segurosVeiculo, calculateLoanAmortizationAndInterest, calculatePercentChange]);
 
   // Cálculos para Período 1 e Período 2
   const indicadores1 = useMemo(() => calculateIndicatorsForRange(range1), [calculateIndicatorsForRange, range1]);
@@ -908,7 +988,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           trend={getDisplayTrend('taxaPoupanca' as PessoaisKey, 'pessoais').trend}
           trendLabel={range2.from ? `${getDisplayTrend('taxaPoupanca' as PessoaisKey, 'pessoais').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Percentual da renda que sobra para poupar/investir. Ideal: acima de 20%"
-          formula="(Receitas - Despesas) / Receitas × 100 (no período)"
+          formula="(Resultado Líquido / Receitas) × 100 (no período)"
           sparklineData={generateSparkline(indicadores1.pessoais.taxaPoupanca.valor, getDisplayTrend('taxaPoupanca' as PessoaisKey, 'pessoais').trend)}
           icon={<PiggyBank className="w-4 h-4" />}
         />
