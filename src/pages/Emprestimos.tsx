@@ -31,7 +31,8 @@ const Emprestimos = () => {
     transacoesV2,
     dateRanges,
     setDateRanges,
-    getSaldoDevedor, // <-- Importado para cálculo correto
+    getSaldoDevedor,
+    calculatePaidInstallmentsUpToDate, // <-- ADDED
   } = useFinance();
   
   const [selectedLoan, setSelectedLoan] = useState<Emprestimo | null>(null);
@@ -45,7 +46,10 @@ const Emprestimos = () => {
   const getNextDueDate = (loan: Emprestimo): Date | null => {
     if (!loan.dataInicio || loan.meses === 0) return null;
     
-    const nextParcela = (loan.parcelasPagas || 0) + 1;
+    // Use the dynamically calculated paid installments up to the end of the period
+    const paidUpToDate = calculatePaidInstallmentsUpToDate(loan.id, dateRanges.range1.to || new Date());
+    
+    const nextParcela = paidUpToDate + 1;
     if (nextParcela > loan.meses) return null;
 
     // Usa parseDateLocal para garantir que a data de início seja interpretada localmente
@@ -64,19 +68,26 @@ const Emprestimos = () => {
     const saldoDevedor = getSaldoDevedor(dateRanges.range1.to); 
     
     const totalContratado = emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
-    const totalPago = emprestimos.reduce((acc, e) => acc + (e.parcelasPagas || 0) * e.parcela, 0);
+    
+    // Calculate total paid based on transactions up to the period end date
+    const totalPaid = emprestimos.reduce((acc, e) => {
+        if (e.status === 'quitado' || e.status === 'pendente_config') return acc;
+        
+        const paidCount = calculatePaidInstallmentsUpToDate(e.id, dateRanges.range1.to || new Date());
+        return acc + (paidCount * e.parcela);
+    }, 0);
     
     const parcelaMensalTotal = emprestimos.reduce((acc, e) => acc + e.parcela, 0);
     const jurosTotais = emprestimos.reduce((acc, e) => acc + (e.parcela * e.meses - e.valorTotal), 0);
     
     return {
       totalContratado,
-      totalPago,
-      saldoDevedor, // Agora usa o cálculo correto do contexto
+      totalPago: totalPaid, // Use calculated total paid
+      saldoDevedor, 
       parcelaMensalTotal,
       jurosTotais,
     };
-  }, [emprestimos, getSaldoDevedor, dateRanges.range1.to]);
+  }, [emprestimos, getSaldoDevedor, dateRanges.range1.to, calculatePaidInstallmentsUpToDate]);
 
   // Filtra empréstimos ativos
   const emprestimosAtivos = useMemo(() => {
@@ -186,8 +197,12 @@ const Emprestimos = () => {
             </TableHeader>
             <TableBody>
               {emprestimos.map((loan) => {
-                const percentual = loan.meses > 0 ? ((loan.parcelasPagas || 0) / loan.meses) * 100 : 0;
-                const nextDueDate = getNextDueDate(loan);
+                // Calculate paid installments dynamically based on transactions
+                const paidCount = calculatePaidInstallmentsUpToDate(loan.id, dateRanges.range1.to || new Date());
+                const percentual = loan.meses > 0 ? (paidCount / loan.meses) * 100 : 0;
+                
+                // Use paidCount for next due date calculation
+                const nextDueDate = getNextDueDate({ ...loan, parcelasPagas: paidCount });
                 const isPending = loan.status === 'pendente_config';
                 
                 return (
@@ -203,7 +218,7 @@ const Emprestimos = () => {
                     <TableCell>{loan.taxaMensal.toFixed(2)}%</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn(percentual >= 100 && "border-success text-success")}>
-                        {percentual.toFixed(0)}% ({loan.parcelasPagas || 0}/{loan.meses})
+                        {percentual.toFixed(0)}% ({paidCount}/{loan.meses})
                       </Badge>
                     </TableCell>
                     <TableCell>

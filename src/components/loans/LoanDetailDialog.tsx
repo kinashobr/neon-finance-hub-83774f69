@@ -43,27 +43,38 @@ import { useChartColors } from "@/hooks/useChartColors";
 interface LoanDetailDialogProps {
   emprestimo: Emprestimo | null;
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange: (open: (boolean) => void) => void;
 }
 
 export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailDialogProps) {
-  const { updateEmprestimo, getContasCorrentesTipo, calculateLoanSchedule } = useFinance();
+  const { 
+    updateEmprestimo, 
+    getContasCorrentesTipo, 
+    calculateLoanSchedule, 
+    calculatePaidInstallmentsUpToDate, // <-- ADDED
+    dateRanges, // <-- ADDED
+  } = useFinance();
   const [isEditing, setIsEditing] = useState(false);
   const contasCorrentes = getContasCorrentesTipo();
-  const colors = useChartColors(); // Use o hook para cores dinâmicos
+  const colors = useChartColors(); 
   
-  // Hooks must be called unconditionally before any conditional return
-  
+  const targetDate = dateRanges.range1.to; // Use the end of the selected period
+
   const calculos = useMemo(() => {
     if (!emprestimo) return null;
 
+    // Calculate paid installments based on transactions up to the target date
+    const parcelasPagas = calculatePaidInstallmentsUpToDate(emprestimo.id, targetDate || new Date());
+    
     const schedule = calculateLoanSchedule(emprestimo.id);
-    const parcelasPagas = emprestimo.parcelasPagas || 0;
     const parcelasRestantes = emprestimo.meses - parcelasPagas;
     
     // 1. Saldo Devedor (Saldo após a última parcela paga)
-    // Se parcelasPagas for 0, o saldo é o valor total. Se for > 0, é o saldoDevedor da última parcela paga.
+    // If parcelasPagas = N, we look for the schedule item N.
     const ultimaParcelaPaga = schedule.find(item => item.parcela === parcelasPagas);
+    
+    // If no payments made (parcelasPagas=0), saldoDevedor is valorTotal.
+    // If payments made, saldoDevedor is the balance after the last paid installment.
     const saldoDevedor = ultimaParcelaPaga ? ultimaParcelaPaga.saldoDevedor : emprestimo.valorTotal;
     
     // 2. Juros Pagos e Restantes
@@ -101,7 +112,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
     }
 
     return {
-      parcelasPagas,
+      parcelasPagas, // Calculated based on transactions
       parcelasRestantes,
       saldoDevedor,
       custoTotal,
@@ -115,29 +126,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
       proximaParcela,
       economiaQuitacao,
     };
-  }, [emprestimo, calculateLoanSchedule]);
-
-  const evolucaoData = useMemo(() => {
-    if (!emprestimo || emprestimo.meses === 0) return [];
-    
-    // Usa o cronograma de amortização completo
-    const schedule = calculateLoanSchedule(emprestimo.id);
-    
-    // Adiciona o ponto inicial (parcela 0)
-    const initialPoint = {
-        parcela: 0,
-        saldo: emprestimo.valorTotal,
-        juros: 0,
-        amortizacao: 0,
-    };
-    
-    return [initialPoint, ...schedule.map(item => ({
-        parcela: item.parcela,
-        saldo: item.saldoDevedor,
-        juros: item.juros,
-        amortizacao: item.amortizacao,
-    }))];
-  }, [emprestimo, calculateLoanSchedule]);
+  }, [emprestimo, calculateLoanSchedule, calculatePaidInstallmentsUpToDate, targetDate, dateRanges]);
   
   // Conditional return must be after all hooks
   if (!emprestimo || !calculos) return null;
