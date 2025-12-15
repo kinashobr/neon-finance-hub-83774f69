@@ -89,7 +89,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="border-b pb-3 pt-4 px-6 shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-3 text-xl">
@@ -161,7 +161,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 pt-4">
+        {/* Bills Tracker List - Flex-1 para ocupar o espaço restante */}
+        <div className="flex-1 overflow-y-auto px-6 pt-4 pb-2">
           <BillsTrackerList
             bills={billsForPeriod}
             onUpdateBill={handleUpdateBill}
@@ -171,7 +172,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           />
         </div>
         
-        <DialogFooter className="px-6 py-4 border-t">
+        <DialogFooter className="px-6 py-4 border-t shrink-0">
             <Button onClick={handleSaveAndClose} className="w-full">
                 Salvar e Fechar
             </Button>
