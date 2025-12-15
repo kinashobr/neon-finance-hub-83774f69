@@ -155,6 +155,8 @@ interface FinanceContextType {
   // Cálculos avançados para relatórios (AGORA PERIOD-AWARE)
   getValorFipeTotal: (targetDate?: Date) => number;
   getSaldoDevedor: (targetDate?: Date) => number;
+  getLoanPrincipalRemaining: (targetDate?: Date) => number; // NEW
+  getCreditCardDebt: (targetDate?: Date) => number; // NEW
   getJurosTotais: () => number;
   getDespesasFixas: () => number;
   getPatrimonioLiquido: (targetDate?: Date) => number;
@@ -771,23 +773,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         .reduce((acc, v) => acc + v.valorFipe, 0);
   }, [veiculos]);
 
-  // Cálculos avançados
-  const getSaldoDevedor = useCallback((targetDate?: Date) => {
-    const date = targetDate || new Date(9999, 11, 31); // Use end of time if no date provided
+  // NEW: Calculates the remaining principal on all active loans
+  const getLoanPrincipalRemaining = useCallback((targetDate?: Date) => {
+    const date = targetDate || new Date(9999, 11, 31);
 
-    // 1. Saldo devedor de Empréstimos (Principal restante)
-    const saldoEmprestimos = emprestimos.reduce((acc, e) => {
+    return emprestimos.reduce((acc, e) => {
       if (e.status === 'quitado' || e.status === 'pendente_config') return acc;
       
-      // Calculate paid installments up to the target date
       const paidUpToDate = calculatePaidInstallmentsUpToDate(e.id, date);
-      
-      // Simular o saldo devedor após a última parcela paga
       let currentSaldo = e.valorTotal;
       
       if (paidUpToDate > 0) {
           const schedule = calculateLoanSchedule(e.id);
-          // O saldo devedor é o saldo após a última parcela paga (paidUpToDate)
           const lastPaidItem = schedule.find(item => item.parcela === paidUpToDate);
           if (lastPaidItem) {
               currentSaldo = lastPaidItem.saldoDevedor;
@@ -796,18 +793,26 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       
       return acc + Math.max(0, currentSaldo);
     }, 0);
-    
-    // 2. Saldo devedor de Cartões de Crédito
-    const saldoCartoes = contasMovimento
+  }, [emprestimos, calculatePaidInstallmentsUpToDate, calculateLoanSchedule]);
+
+  // NEW: Calculates the total negative balance on all credit card accounts
+  const getCreditCardDebt = useCallback((targetDate?: Date) => {
+    const date = targetDate || new Date(9999, 11, 31);
+
+    return contasMovimento
       .filter(c => c.accountType === 'cartao_credito')
       .reduce((acc, c) => {
-        // Calculate CC balance up to the target date
         const balance = calculateBalanceUpToDate(c.id, date, transacoesV2, contasMovimento);
         return acc + Math.abs(Math.min(0, balance)); // Only negative balance is liability
       }, 0);
-      
+  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
+
+  // UPDATED: getSaldoDevedor now uses the new helpers
+  const getSaldoDevedor = useCallback((targetDate?: Date) => {
+    const saldoEmprestimos = getLoanPrincipalRemaining(targetDate);
+    const saldoCartoes = getCreditCardDebt(targetDate);
     return saldoEmprestimos + saldoCartoes;
-  }, [emprestimos, contasMovimento, transacoesV2, calculateBalanceUpToDate, calculatePaidInstallmentsUpToDate, calculateLoanSchedule]);
+  }, [getLoanPrincipalRemaining, getCreditCardDebt]);
 
   const getJurosTotais = () => {
     return emprestimos.reduce((acc, e) => {
@@ -967,6 +972,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getSaldoAtual,
     getValorFipeTotal,
     getSaldoDevedor,
+    getLoanPrincipalRemaining, // EXPOSED
+    getCreditCardDebt, // EXPOSED
     getJurosTotais,
     getDespesasFixas,
     getPatrimonioLiquido,
