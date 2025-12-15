@@ -163,11 +163,11 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
     });
 
     const receitasMes = transacoesFluxo
-      .filter(t => t.operationType === 'receita' || t.operationType === 'rendimento')
+      .filter(t => t.operationType === "receita" || t.operationType === "rendimento")
       .reduce((acc, t) => acc + t.amount, 0);
 
     const despesasMes = transacoesFluxo
-      .filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo')
+      .filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo")
       .reduce((acc, t) => acc + t.amount, 0);
       
     // 5. Despesas Fixas do Mês (Filtradas pela data de corte)
@@ -415,7 +415,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
       </div>
 
       <ScrollArea className="max-h-40">
-        <div className="space-y-2">
+        <div className="space-y-2 pb-2">
           {alertas.length > 0 ? (
             alertas.map((alerta) => {
               const Icon = getAlertIcon(alerta.id);
