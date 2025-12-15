@@ -13,12 +13,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info } from "lucide-react";
+import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, BillSourceType, formatCurrency, TransacaoCompleta, getDomainFromOperation, generateTransactionId } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { EditableCell } from "../EditableCell"; // Import EditableCell
 
 interface BillsTrackerListProps {
   bills: BillTracker[];
@@ -32,7 +33,8 @@ const SOURCE_CONFIG: Record<BillSourceType, { icon: React.ElementType; color: st
   loan_installment: { icon: Building2, color: 'text-orange-500', label: 'Empréstimo' },
   insurance_installment: { icon: Shield, color: 'text-blue-500', label: 'Seguro' },
   fixed_expense: { icon: Repeat, color: 'text-purple-500', label: 'Despesa Fixa' },
-  ad_hoc: { icon: DollarSign, color: 'text-primary', label: 'Avulsa' },
+  variable_expense: { icon: DollarSign, color: 'text-warning', label: 'Despesa Variável' }, // NEW
+  ad_hoc: { icon: Info, color: 'text-primary', label: 'Avulsa' },
 };
 
 export function BillsTrackerList({
@@ -42,7 +44,7 @@ export function BillsTrackerList({
   onAddBill,
   currentDate,
 }: BillsTrackerListProps) {
-  const { addTransacaoV2, categoriasV2, contasMovimento, markLoanParcelPaid, unmarkLoanParcelPaid, markSeguroParcelPaid, unmarkSeguroParcelPaid } = useFinance();
+  const { addTransacaoV2, categoriasV2, contasMovimento, markLoanParcelPaid, unmarkLoanParcelPaid, markSeguroParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2 } = useFinance();
   
   const [newBillData, setNewBillData] = useState({
     description: '',
@@ -84,10 +86,36 @@ export function BillsTrackerList({
     setShowAdHocForm(false);
     toast.success("Conta avulsa adicionada!");
   };
+  
+  const handleExcludeBill = (bill: BillTracker) => {
+    if (bill.sourceType === 'loan_installment' || bill.sourceType === 'insurance_installment') {
+        toast.error("Não é possível excluir parcelas de empréstimo ou seguro.");
+        return;
+    }
+    
+    if (bill.isPaid) {
+        toast.error("Desmarque o pagamento antes de excluir.");
+        return;
+    }
+    
+    // Mark as excluded in the tracker state
+    onUpdateBill(bill.id, { isExcluded: true });
+    toast.info(`Conta "${bill.description}" excluída da lista deste mês.`);
+  };
+  
+  const handleUpdateExpectedAmount = (bill: BillTracker, newAmount: number) => {
+    if (bill.sourceType === 'loan_installment' || bill.sourceType === 'insurance_installment') {
+        toast.error("Valor de parcelas fixas deve ser alterado no cadastro do Empréstimo/Seguro.");
+        return;
+    }
+    
+    onUpdateBill(bill.id, { expectedAmount: newAmount });
+    toast.success("Valor atualizado!");
+  };
 
   const handleMarkAsPaid = useCallback((bill: BillTracker, isChecked: boolean) => {
     if (!isChecked) {
-      // Se desmarcar, precisamos reverter a transação
+      // Reverter pagamento
       if (bill.transactionId) {
         // 1. Reverter marcação de empréstimo/seguro (se aplicável)
         if (bill.sourceType === 'loan_installment' && bill.sourceRef) {
@@ -103,19 +131,16 @@ export function BillsTrackerList({
         }
         
         // 2. Remover a transação do extrato
-        // NOTE: Não temos uma função deleteTransacaoV2 no contexto, então vamos usar setTransacoesV2
-        // Isso é um ponto de atenção, mas necessário para a funcionalidade.
-        // Idealmente, o contexto teria uma função de exclusão segura.
-        // Por enquanto, vamos apenas atualizar o status do BillTracker.
+        setTransacoesV2(prev => prev.filter(t => t.id !== bill.transactionId));
         
-        // Para simplificar a reversão, vamos apenas desmarcar o BillTracker
+        // 3. Atualizar BillTracker
         onUpdateBill(bill.id, { isPaid: false, paymentDate: undefined, transactionId: undefined });
-        toast.warning("Conta desmarcada. Lembre-se de excluir a transação manualmente no extrato se necessário.");
+        toast.warning("Pagamento estornado e transação excluída.");
       }
       return;
     }
 
-    // Se marcar como pago
+    // Marcar como pago
     const suggestedAccount = contasMovimento.find(c => c.id === bill.suggestedAccountId);
     const suggestedCategory = categoriasV2.find(c => c.id === bill.suggestedCategoryId);
     
@@ -123,7 +148,7 @@ export function BillsTrackerList({
       toast.error("Conta de débito sugerida não encontrada. Configure uma conta corrente.");
       return;
     }
-    if (!suggestedCategory && bill.sourceType !== 'loan_installment') {
+    if (!suggestedCategory && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment') {
       toast.error("Categoria sugerida não encontrada.");
       return;
     }
@@ -141,7 +166,6 @@ export function BillsTrackerList({
       loanIdLink = `loan_${bill.sourceRef}`;
       parcelaIdLink = bill.parcelaNumber.toString();
     } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
-      // Pagamento de seguro é uma despesa, mas com link especial
       operationType = 'despesa';
       vehicleTransactionIdLink = `${bill.sourceRef}_${bill.parcelaNumber}`;
     }
@@ -192,7 +216,7 @@ export function BillsTrackerList({
     onUpdateBill(bill.id, { isPaid: true, paymentDate, transactionId });
     toast.success(`Conta "${bill.description}" paga e registrada!`);
 
-  }, [addTransacaoV2, onUpdateBill, categoriasV2, contasMovimento, currentDate, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid]);
+  }, [addTransacaoV2, onUpdateBill, categoriasV2, contasMovimento, currentDate, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2]);
 
   const pendingBills = bills.filter(b => !b.isPaid);
   const paidBills = bills.filter(b => b.isPaid);
@@ -202,6 +226,17 @@ export function BillsTrackerList({
   const formatDate = (dateStr: string) => {
     const date = parseDateLocal(dateStr);
     return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  };
+  
+  const getCategoryLabel = (categoryId: string | undefined) => {
+    if (!categoryId) return 'N/A';
+    const cat = categoriasV2.find(c => c.id === categoryId);
+    return cat ? `${cat.icon} ${cat.label}` : 'N/A';
+  };
+  
+  const getAccountName = (accountId: string | undefined) => {
+    if (!accountId) return 'N/A';
+    return contasMovimento.find(c => c.id === accountId)?.name || 'N/A';
   };
 
   return (
@@ -213,14 +248,14 @@ export function BillsTrackerList({
           className="w-full gap-2"
           onClick={() => setShowAdHocForm(prev => !prev)}
         >
-          {showAdHocForm ? <Info className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+          {showAdHocForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           {showAdHocForm ? "Ocultar Adição Rápida" : "Adicionar Conta Avulsa"}
         </Button>
         
         {showAdHocForm && (
           <div className="mt-4 space-y-3 p-3 border rounded-lg bg-muted/30">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-3">
+            <div className="grid grid-cols-4 gap-3">
+              <div className="col-span-2">
                 <Label className="text-xs">Descrição *</Label>
                 <Input
                   value={newBillData.description}
@@ -251,10 +286,10 @@ export function BillsTrackerList({
               </div>
               <Button 
                 onClick={handleAddAdHocBill} 
-                className="col-span-1 h-8 text-xs"
+                className="col-span-4 h-8 text-xs"
                 disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0 || !newBillData.dueDate}
               >
-                Adicionar
+                Adicionar Conta Avulsa
               </Button>
             </div>
           </div>
@@ -270,8 +305,8 @@ export function BillsTrackerList({
           </Badge>
         </div>
         
-        <div className="rounded-lg border border-border overflow-hidden">
-          <Table>
+        <div className="rounded-lg border border-border overflow-x-auto">
+          <Table className="min-w-[1000px]">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="text-muted-foreground w-10 text-center">Pagar</TableHead>
@@ -279,7 +314,8 @@ export function BillsTrackerList({
                 <TableHead className="text-muted-foreground">Descrição</TableHead>
                 <TableHead className="text-muted-foreground w-24 text-right">Valor</TableHead>
                 <TableHead className="text-muted-foreground w-24">Tipo</TableHead>
-                <TableHead className="text-muted-foreground w-16">Ações</TableHead>
+                <TableHead className="text-muted-foreground w-32">Categoria</TableHead>
+                <TableHead className="text-muted-foreground w-16 text-center">Excluir</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -288,6 +324,8 @@ export function BillsTrackerList({
                 const Icon = config.icon;
                 const dueDate = parseDateLocal(bill.dueDate);
                 const isOverdue = dueDate < currentDate && !bill.isPaid;
+                
+                const isEditable = bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
                 
                 return (
                   <TableRow 
@@ -314,7 +352,16 @@ export function BillsTrackerList({
                       {bill.description}
                     </TableCell>
                     <TableCell className="text-right font-semibold text-destructive whitespace-nowrap">
-                      {formatCurrency(bill.expectedAmount)}
+                      {isEditable ? (
+                        <EditableCell 
+                          value={bill.expectedAmount} 
+                          type="currency" 
+                          onSave={(v) => handleUpdateExpectedAmount(bill, Number(v))}
+                          className="text-destructive text-right"
+                        />
+                      ) : (
+                        formatCurrency(bill.expectedAmount)
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn("gap-1 text-xs", config.color)}>
@@ -322,15 +369,19 @@ export function BillsTrackerList({
                         {config.label}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      {bill.sourceType === 'ad_hoc' && (
+                    <TableCell className="text-sm">
+                      {getCategoryLabel(bill.suggestedCategoryId)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {isEditable && (
                         <Button 
                           variant="ghost" 
                           size="icon" 
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => onDeleteBill(bill.id)}
+                          onClick={() => handleExcludeBill(bill)}
+                          title="Excluir da lista deste mês"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <X className="w-4 h-4" />
                         </Button>
                       )}
                     </TableCell>
@@ -339,7 +390,7 @@ export function BillsTrackerList({
               })}
               {pendingBills.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     <Check className="w-6 h-6 mx-auto mb-2 text-success" />
                     Todas as contas pendentes foram pagas!
                   </TableCell>
@@ -354,8 +405,8 @@ export function BillsTrackerList({
       {paidBills.length > 0 && (
         <div className="glass-card p-5">
           <h3 className="text-lg font-semibold text-foreground mb-4">Contas Pagas ({paidBills.length})</h3>
-          <div className="rounded-lg border border-border overflow-hidden">
-            <Table>
+          <div className="rounded-lg border border-border overflow-x-auto">
+            <Table className="min-w-[1000px]">
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
                   <TableHead className="text-muted-foreground w-10 text-center">Pago</TableHead>
@@ -363,6 +414,7 @@ export function BillsTrackerList({
                   <TableHead className="text-muted-foreground">Descrição</TableHead>
                   <TableHead className="text-muted-foreground w-24 text-right">Valor</TableHead>
                   <TableHead className="text-muted-foreground w-24">Tipo</TableHead>
+                  <TableHead className="text-muted-foreground w-32">Categoria</TableHead>
                   <TableHead className="text-muted-foreground w-16">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -394,6 +446,9 @@ export function BillsTrackerList({
                           <Icon className="w-3 h-3" />
                           {config.label}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {getCategoryLabel(bill.suggestedCategoryId)}
                       </TableCell>
                       <TableCell>
                         {/* Botão para ver transação no extrato */}

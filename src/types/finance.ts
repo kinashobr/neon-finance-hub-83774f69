@@ -194,7 +194,7 @@ export interface ObjetivoFinanceiro {
 // NOVO: RASTREADOR DE CONTAS A PAGAR (BillTracker)
 // ============================================
 
-export type BillSourceType = 'loan_installment' | 'insurance_installment' | 'fixed_expense' | 'ad_hoc';
+export type BillSourceType = 'loan_installment' | 'insurance_installment' | 'fixed_expense' | 'ad_hoc' | 'variable_expense'; // ADDED variable_expense
 
 export interface BillTracker {
   id: string;
@@ -215,6 +215,8 @@ export interface BillTracker {
   
   // Categoria sugerida
   suggestedCategoryId?: string;
+  
+  isExcluded?: boolean; // NEW: Mark if excluded from current month's list
 }
 
 // Schema de Exportação V2 (Simplificado)

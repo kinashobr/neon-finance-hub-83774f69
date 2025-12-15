@@ -159,6 +159,11 @@ interface FinanceContextType {
   alertStartDate: string; // YYYY-MM-DD string
   setAlertStartDate: Dispatch<SetStateAction<string>>;
   
+  // NEW: Revenue Forecast
+  monthlyRevenueForecast: number;
+  setMonthlyRevenueForecast: Dispatch<SetStateAction<number>>;
+  getRevenueForPreviousMonth: (date: Date) => number;
+  
   // Cálculos principais
   getTotalReceitas: (mes?: string) => number;
   getTotalDespesas: (mes?: string) => number;
@@ -233,6 +238,9 @@ const STORAGE_KEYS = {
   
   // Alert Filtering (NEW)
   ALERT_START_DATE: "fin_alert_start_date_v1",
+  
+  // NEW: Revenue Forecast
+  MONTHLY_REVENUE_FORECAST: "fin_monthly_revenue_forecast_v1",
 };
 
 // ============================================
@@ -342,6 +350,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [alertStartDate, setAlertStartDate] = useState<string>(() => 
     loadFromStorage(STORAGE_KEYS.ALERT_START_DATE, defaultAlertStartDate)
   );
+  
+  // NEW: Revenue Forecast State
+  const [monthlyRevenueForecast, setMonthlyRevenueForecast] = useState<number>(() => 
+    loadFromStorage(STORAGE_KEYS.MONTHLY_REVENUE_FORECAST, 0)
+  );
 
   // ============================================
   // EFEITOS PARA PERSISTÊNCIA AUTOMÁTICA
@@ -358,6 +371,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   
   // NEW EFFECT for alertStartDate
   useEffect(() => { saveToStorage(STORAGE_KEYS.ALERT_START_DATE, alertStartDate); }, [alertStartDate]);
+  
+  // NEW EFFECT for monthlyRevenueForecast
+  useEffect(() => { saveToStorage(STORAGE_KEYS.MONTHLY_REVENUE_FORECAST, monthlyRevenueForecast); }, [monthlyRevenueForecast]);
   
   // Core V2 persistence
   useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
@@ -637,32 +653,52 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setBillsTracker(prev => prev.filter(b => b.id !== id));
   }, []);
   
+  const getRevenueForPreviousMonth = useCallback((date: Date): number => {
+    const prevMonth = subMonths(date, 1);
+    const prevMonthYear = format(prevMonth, 'yyyy-MM');
+    
+    return transacoesV2.filter(t => 
+        (t.operationType === 'receita' || t.operationType === 'rendimento') && 
+        t.date.startsWith(prevMonthYear)
+    ).reduce((acc, t) => acc + t.amount, 0);
+}, [transacoesV2]);
+
   const getBillsForPeriod = useCallback((date: Date): BillTracker[] => {
-    const start = startOfMonth(date);
-    const end = endOfMonth(date);
     const monthYear = format(date, 'yyyy-MM');
+    const prevMonth = subMonths(date, 1);
+    const prevMonthYear = format(prevMonth, 'yyyy-MM');
     
     const existingBillsMap = new Map<string, BillTracker>();
     
-    // 1. Carregar Bills Ad-Hoc e Bills já persistidas (para manter o status isPaid)
+    // 1. Carregar Bills Ad-Hoc e Bills já persistidas (para manter o status isPaid/isExcluded)
     billsTracker.forEach(bill => {
-        // Bills Ad-Hoc são sempre mantidas
-        if (bill.sourceType === 'ad_hoc') {
+        const billDate = parseDateLocal(bill.dueDate);
+        
+        // Bills Ad-Hoc are kept if they fall in the current month or are pending/excluded
+        if (bill.sourceType === 'ad_hoc' && (isSameMonth(billDate, date) || !bill.isPaid)) {
             existingBillsMap.set(bill.id, bill);
         }
         
-        // Bills de recorrência que caem no mês
-        const billDate = parseDateLocal(bill.dueDate);
+        // Bills de recorrência que caem no mês (mantidas para status)
         if (isSameMonth(billDate, date)) {
             existingBillsMap.set(bill.id, bill);
         }
     });
     
+    // Helper to get the value of a category from the previous month
+    const getPreviousMonthExpense = (categoryId: string): number => {
+        const tx = transacoesV2.filter(t => 
+            (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo') && 
+            t.categoryId === categoryId && 
+            t.date.startsWith(prevMonthYear)
+        );
+        return tx.reduce((acc, t) => acc + t.amount, 0);
+    };
+    
     // 2. Gerar Bills de Empréstimos (loan_installment)
     emprestimos.forEach(loan => {
         if (loan.status !== 'ativo' || !loan.dataInicio || loan.meses === 0) return;
         
-        // Encontrar a parcela que vence no mês
         for (let i = 1; i <= loan.meses; i++) {
             const dueDate = getDueDate(loan.dataInicio, i);
             
@@ -670,31 +706,28 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 const billId = `loan_${loan.id}_${i}`;
                 const dueDateStr = format(dueDate, 'yyyy-MM-dd');
                 
-                // Verificar se já existe uma transação de pagamento para esta parcela
                 const isPaidByTx = transacoesV2.some(t => 
                     t.operationType === 'pagamento_emprestimo' && 
                     t.links?.loanId === `loan_${loan.id}` && 
                     t.links?.parcelaId === i.toString()
                 );
                 
-                // Se já existe no tracker ou já foi paga por transação, atualiza o status
                 const existing = existingBillsMap.get(billId);
-                if (existing || isPaidByTx) {
+                
+                if (isPaidByTx) {
                     if (existing) {
-                        existingBillsMap.set(billId, { ...existing, isPaid: isPaidByTx });
+                        existingBillsMap.set(billId, { ...existing, isPaid: true });
                     }
-                    // Se já foi paga por transação, não precisamos criar um novo BillTracker
-                    if (isPaidByTx) return; 
+                    return; 
                 }
                 
-                // Se não existe e não foi paga, cria
                 if (!existing) {
                     const newBill: BillTracker = {
                         id: billId,
                         description: `Parcela ${i}/${loan.meses} - ${loan.contrato}`,
                         dueDate: dueDateStr,
                         expectedAmount: loan.parcela,
-                        isPaid: isPaidByTx,
+                        isPaid: false,
                         sourceType: 'loan_installment',
                         sourceRef: loan.id.toString(),
                         parcelaNumber: i,
@@ -704,7 +737,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     existingBillsMap.set(billId, newBill);
                 }
                 
-                break; // Encontramos a parcela do mês, podemos parar
+                break;
             }
         }
     });
@@ -718,15 +751,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 const billId = `seguro_${seguro.id}_${parcela.numero}`;
                 const dueDateStr = format(dueDate, 'yyyy-MM-dd');
                 
-                // Se já existe no tracker ou já foi paga por transação, atualiza o status
-                const isPaidByTx = parcela.paga; // Usamos o status do seguro, que é atualizado via transação
-                
+                const isPaidByTx = parcela.paga;
                 const existing = existingBillsMap.get(billId);
-                if (existing || isPaidByTx) {
+                
+                if (isPaidByTx) {
                     if (existing) {
-                        existingBillsMap.set(billId, { ...existing, isPaid: isPaidByTx });
+                        existingBillsMap.set(billId, { ...existing, isPaid: true });
                     }
-                    if (isPaidByTx) return;
+                    return;
                 }
                 
                 if (!existing) {
@@ -735,11 +767,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                         description: `Seguro ${seguro.numeroApolice} - Parcela ${parcela.numero}/${seguro.numeroParcelas}`,
                         dueDate: dueDateStr,
                         expectedAmount: parcela.valor,
-                        isPaid: isPaidByTx,
+                        isPaid: false,
                         sourceType: 'insurance_installment',
                         sourceRef: seguro.id.toString(),
                         parcelaNumber: parcela.numero,
-                        suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id, // Sugere CC
+                        suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
                         suggestedCategoryId: categoriasV2.find(c => c.label.toLowerCase() === 'seguro')?.id,
                     };
                     existingBillsMap.set(billId, newBill);
@@ -748,69 +780,97 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
     });
     
-    // 4. Gerar Bills de Despesas Fixas (fixed_expense) - Simplificação: Apenas as que não foram pagas
+    // 4. Gerar Bills de Despesas Fixas (fixed_expense)
     const fixedExpenseCategories = categoriasV2.filter(c => c.nature === 'despesa_fixa' && c.label.toLowerCase() !== 'seguro');
     
     fixedExpenseCategories.forEach(cat => {
-        // Simplificação: Assume que a despesa fixa vence no dia 10 (conforme o pedido do usuário)
-        const dueDate = new Date(date.getFullYear(), date.getMonth(), 10);
+        const dueDate = new Date(date.getFullYear(), date.getMonth(), 10); // Assume dia 10
         const dueDateStr = format(dueDate, 'yyyy-MM-dd');
         const billId = `fixed_${cat.id}_${monthYear}`;
         
-        // 4a. Verificar se já existe uma transação de despesa para esta categoria no mês
         const isPaidByTx = transacoesV2.some(t => 
             t.operationType === 'despesa' && 
             t.categoryId === cat.id && 
             t.date.startsWith(monthYear)
         );
         
-        // 4b. Se já existe no tracker ou já foi paga por transação, atualiza o status
         const existing = existingBillsMap.get(billId);
-        if (existing || isPaidByTx) {
+        
+        if (isPaidByTx) {
             if (existing) {
-                existingBillsMap.set(billId, { ...existing, isPaid: isPaidByTx });
+                existingBillsMap.set(billId, { ...existing, isPaid: true });
             }
-            if (isPaidByTx) return;
+            return;
         }
         
-        // 4c. Se não existe e não foi paga, cria (com valor médio/estimado)
         if (!existing) {
-            // Cálculo de valor médio (simplificado: média dos últimos 3 meses)
-            let totalLast3Months = 0;
-            for (let i = 0; i < 3; i++) {
-                const prevMonth = subMonths(date, i);
-                const prevMonthYear = format(prevMonth, 'yyyy-MM');
-                
-                const total = transacoesV2.filter(t => 
-                    t.operationType === 'despesa' && 
-                    t.categoryId === cat.id && 
-                    t.date.startsWith(prevMonthYear)
-                ).reduce((acc, t) => acc + t.amount, 0);
-                
-                totalLast3Months += total;
-            }
-            const estimatedAmount = totalLast3Months / 3 || 100; // Default 100 if no history
+            const estimatedAmount = getPreviousMonthExpense(cat.id);
             
             const newBill: BillTracker = {
                 id: billId,
                 description: cat.label,
                 dueDate: dueDateStr,
-                expectedAmount: estimatedAmount,
-                isPaid: isPaidByTx,
+                expectedAmount: estimatedAmount || 0,
+                isPaid: false,
                 sourceType: 'fixed_expense',
                 sourceRef: cat.id,
                 suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
                 suggestedCategoryId: cat.id,
             };
             existingBillsMap.set(billId, newBill);
+        } else {
+            existingBillsMap.set(billId, { ...existing, isPaid: isPaidByTx });
         }
     });
     
-    // 5. Retorna a lista consolidada, ordenada por data de vencimento
-    return Array.from(existingBillsMap.values()).sort((a, b) => 
-        parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime()
-    );
-  }, [billsTracker, emprestimos, segurosVeiculo, categoriasV2, transacoesV2, contasMovimento, calculateLoanSchedule]);
+    // 5. Gerar Bills de Despesas Variáveis (variable_expense)
+    const variableExpenseCategories = categoriasV2.filter(c => c.nature === 'despesa_variavel');
+    
+    variableExpenseCategories.forEach(cat => {
+        const dueDate = new Date(date.getFullYear(), date.getMonth(), 25); // Assume dia 25
+        const dueDateStr = format(dueDate, 'yyyy-MM-dd');
+        const billId = `variable_${cat.id}_${monthYear}`;
+        
+        const isPaidByTx = transacoesV2.some(t => 
+            t.operationType === 'despesa' && 
+            t.categoryId === cat.id && 
+            t.date.startsWith(monthYear)
+        );
+        
+        const existing = existingBillsMap.get(billId);
+        
+        if (isPaidByTx) {
+            if (existing) {
+                existingBillsMap.set(billId, { ...existing, isPaid: true });
+            }
+            return;
+        }
+        
+        if (!existing) {
+            const estimatedAmount = getPreviousMonthExpense(cat.id);
+            
+            const newBill: BillTracker = {
+                id: billId,
+                description: cat.label,
+                dueDate: dueDateStr,
+                expectedAmount: estimatedAmount || 0,
+                isPaid: false,
+                sourceType: 'variable_expense', // Changed to variable_expense
+                sourceRef: cat.id,
+                suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
+                suggestedCategoryId: cat.id,
+            };
+            existingBillsMap.set(billId, newBill);
+        } else {
+            existingBillsMap.set(billId, { ...existing, isPaid: isPaidByTx });
+        }
+    });
+    
+    // 6. Retorna a lista consolidada, filtrando excluídos e ordenando
+    return Array.from(existingBillsMap.values())
+        .filter(b => !b.isExcluded || isSameMonth(parseDateLocal(b.dueDate), date)) // Only filter out excluded if they are NOT from the current month
+        .sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
+}, [billsTracker, emprestimos, segurosVeiculo, categoriasV2, transacoesV2, contasMovimento, calculateLoanSchedule]);
 
 
   // ============================================
@@ -838,13 +898,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setEmprestimos(prev => prev.map(e => {
       if (e.id !== loanId) return e;
       
-      // A contagem de parcelas pagas é feita dinamicamente em calculatePaidInstallmentsUpToDate
-      // Aqui, apenas garantimos que o status seja 'ativo' se não estiver quitado
       const isQuitado = (e.parcelasPagas || 0) + 1 >= e.meses;
       
       return {
         ...e,
-        // Não atualizamos parcelasPagas aqui, pois ela é calculada via transações
         status: isQuitado ? 'quitado' : 'ativo',
       };
     }));
@@ -854,8 +911,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setEmprestimos(prev => prev.map(e => {
       if (e.id !== loanId) return e;
       
-      // A contagem de parcelas pagas é feita dinamicamente em calculatePaidInstallmentsUpToDate
-      // Aqui, apenas garantimos que o status seja 'ativo'
       return {
         ...e,
         status: 'ativo',
@@ -1210,6 +1265,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // Alert Filtering (NEW)
     alertStartDate,
     setAlertStartDate,
+    
+    // Revenue Forecast (NEW)
+    monthlyRevenueForecast,
+    setMonthlyRevenueForecast,
+    getRevenueForPreviousMonth,
     
     getTotalReceitas,
     getTotalDespesas,
