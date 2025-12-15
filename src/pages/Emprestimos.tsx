@@ -50,7 +50,15 @@ const Emprestimos = () => {
   // Get pending loans list
   const pendingLoans = getPendingLoans(); 
 
-  // Effect para abrir o modal se a navegação veio do alerta
+  // Handler para abrir o modal de configuração a partir do alerta local
+  const handleOpenPendingConfigFromAlert = useCallback(() => {
+    if (pendingLoans.length > 0) {
+      setSelectedLoan(pendingLoans[0]);
+      setDetailDialogOpen(true);
+    }
+  }, [pendingLoans]);
+
+  // Effect para abrir o modal se a navegação veio do alerta (Sidebar)
   useEffect(() => {
     const state = location.state as { openLoanConfig?: boolean } | null;
     
@@ -60,9 +68,7 @@ const Emprestimos = () => {
       setDetailDialogOpen(true);
       
       // Limpa o estado de navegação para evitar reabertura ao voltar
-      // Nota: Não podemos limpar o estado diretamente aqui, mas podemos usar uma flag local se necessário.
-      // No entanto, como o modal só abre se houver pendentes, e o estado só é passado pelo alerta,
-      // a lógica deve funcionar para o caso de uso.
+      window.history.replaceState({}, document.title, location.pathname);
     }
   }, [location.state, pendingLoans]);
 
@@ -211,7 +217,11 @@ const Emprestimos = () => {
         {/* Alerts and Simulator */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <LoanAlerts emprestimos={emprestimosAtivos} />
+            {/* Passando o handler para o LoanAlerts */}
+            <LoanAlerts 
+              emprestimos={emprestimosAtivos} 
+              onOpenPendingConfig={handleOpenPendingConfigFromAlert}
+            />
             <LoanCharts emprestimos={emprestimosAtivos} />
           </div>
           <div className="space-y-6">

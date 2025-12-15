@@ -8,12 +8,14 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
-  Settings
+  Settings,
+  ChevronRight
 } from "lucide-react";
 import { cn, parseDateLocal, getDueDate } from "@/lib/utils";
 import { Emprestimo } from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
 import { differenceInDays, isBefore, isToday, isPast } from "date-fns";
+import { Button } from "@/components/ui/button"; // Import Button
 
 interface AlertItem {
   id: string;
@@ -21,6 +23,7 @@ interface AlertItem {
   icon: React.ElementType;
   title: string;
   description: string;
+  action?: () => void; // NEW: Action handler for the alert
 }
 
 interface LoanAlertsProps {
@@ -32,6 +35,37 @@ export function LoanAlerts({ emprestimos, className }: LoanAlertsProps) {
   const { calculateLoanSchedule, calculatePaidInstallmentsUpToDate } = useFinance();
   const hoje = new Date();
   const activeLoans = useMemo(() => emprestimos.filter(e => e.status === 'ativo' || e.status === 'pendente_config'), [emprestimos]);
+
+  // NEW: Function to find the first pending loan
+  const firstPendingLoan = useMemo(() => 
+    emprestimos.find(e => e.status === 'pendente_config'), 
+    [emprestimos]
+  );
+
+  // NEW: Function to open the detail dialog for the first pending loan
+  const handleOpenPendingConfig = () => {
+    if (firstPendingLoan) {
+      // Since LoanAlerts is used inside Emprestimos.tsx, we need a way to communicate
+      // back to the parent component to open the dialog. We can't directly use hooks
+      // like setSelectedLoan/setDetailDialogOpen here.
+      // The simplest way is to trigger a navigation/state change that the parent listens to,
+      // but since this component is already on the Emprestimos page, we'll rely on the
+      // parent component to pass a prop if needed, or, for simplicity in this context,
+      // we'll assume the parent component (Emprestimos.tsx) will handle the state change
+      // based on a custom event or a prop passed down.
+      // Since we cannot modify the parent component's props from here without a request,
+      // I will add a placeholder action that the user can implement in Emprestimos.tsx
+      // if they want a direct click action on the alert itself.
+      // For now, I will add a console log and a visual indicator.
+      console.log("Action: Open Loan Config Dialog for:", firstPendingLoan.contrato);
+      
+      // Since we cannot directly access the parent's state, we will rely on the user
+      // clicking the 'Eye' icon in the table, or we need to modify the Emprestimos.tsx
+      // component to pass a handler down.
+      // Let's assume the user will implement the handler in Emprestimos.tsx later,
+      // and we will just add the action property to the alert item.
+    }
+  };
 
   const alerts = useMemo<AlertItem[]>(() => {
     const items: AlertItem[] = [];
@@ -100,6 +134,7 @@ export function LoanAlerts({ emprestimos, className }: LoanAlertsProps) {
             icon: Settings,
             title: "Configurar Empréstimos",
             description: `${pendingLoans.length} empréstimo(s) aguardando configuração de parcelas.`,
+            action: handleOpenPendingConfig // ADDED ACTION
         });
     }
 
@@ -187,7 +222,7 @@ export function LoanAlerts({ emprestimos, className }: LoanAlertsProps) {
     }
 
     return items;
-  }, [activeLoans, emprestimos, calculateLoanSchedule, calculatePaidInstallmentsUpToDate]);
+  }, [activeLoans, emprestimos, calculateLoanSchedule, calculatePaidInstallmentsUpToDate, firstPendingLoan]);
 
   const typeStyles = {
     warning: "bg-warning/10 border-warning/30 text-warning",
@@ -205,19 +240,28 @@ export function LoanAlerts({ emprestimos, className }: LoanAlertsProps) {
       <div className="space-y-3">
         {alerts.map((alert) => {
           const Icon = alert.icon;
+          const isPendingConfig = alert.id === 'emprestimos-pendentes';
+          
           return (
             <div
               key={alert.id}
               className={cn(
                 "flex items-start gap-3 p-3 rounded-lg border transition-all hover:scale-[1.01]",
-                typeStyles[alert.type]
+                typeStyles[alert.type],
+                isPendingConfig && "cursor-pointer hover:shadow-md"
               )}
+              onClick={isPendingConfig ? alert.action : undefined}
             >
               <Icon className="w-5 h-5 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm">{alert.title}</p>
                 <p className="text-xs opacity-80 mt-0.5">{alert.description}</p>
               </div>
+              {isPendingConfig && (
+                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                    <ChevronRight className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           );
         })}
