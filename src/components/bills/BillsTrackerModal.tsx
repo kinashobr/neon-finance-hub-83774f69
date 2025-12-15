@@ -109,7 +109,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="max-w-7xl max-h-[95vh] overflow-hidden flex flex-col p-0" // Aumentado para max-w-7xl
+        className="max-w-[90vw] max-h-[95vh] overflow-hidden flex flex-col p-0" // Aumentado para max-w-[90vw]
         hideCloseButton 
       >
         
