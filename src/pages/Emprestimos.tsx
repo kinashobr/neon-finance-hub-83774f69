@@ -68,9 +68,10 @@ const Emprestimos = () => {
   const calculos = useMemo(() => {
     const targetDate = dateRanges.range1.to;
     
-    // Usar as novas funções para o breakdown
-    const saldoDevedorTotal = getSaldoDevedor(targetDate); 
+    // Saldo Devedor Total (Apenas Empréstimos)
     const principalEmprestimos = getLoanPrincipalRemaining(targetDate);
+    
+    // Dívida Cartões (Mantida para cálculo interno, mas não exibida no card principal)
     const dividaCartoes = getCreditCardDebt(targetDate);
     
     const totalContratado = emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
@@ -90,13 +91,13 @@ const Emprestimos = () => {
     return {
       totalContratado,
       totalPago: totalPaid, // Use calculated total paid
-      saldoDevedorTotal, 
-      principalEmprestimos, // NEW
-      dividaCartoes, // NEW
+      saldoDevedorTotal: principalEmprestimos, // FIXED: Only show loan principal here
+      principalEmprestimos, 
+      dividaCartoes, 
       parcelaMensalTotal,
       jurosTotais,
     };
-  }, [emprestimos, getSaldoDevedor, getLoanPrincipalRemaining, getCreditCardDebt, dateRanges.range1.to, calculatePaidInstallmentsUpToDate]);
+  }, [emprestimos, getLoanPrincipalRemaining, getCreditCardDebt, dateRanges.range1.to, calculatePaidInstallmentsUpToDate]);
 
   // Filtra empréstimos ativos
   const emprestimosAtivos = useMemo(() => {
@@ -148,11 +149,11 @@ const Emprestimos = () => {
             value={formatCurrency(calculos.saldoDevedorTotal)}
             icon={<TrendingDown className="w-5 h-5" />}
             status="danger"
-            tooltip="Valor total que resta a pagar em todos os empréstimos ativos (inclui Principal e Cartões de Crédito)."
+            tooltip="Valor total que resta a pagar em todos os empréstimos e financiamentos (apenas principal restante)."
             delay={0}
           />
           
-          {/* NEW CARD: Principal Empréstimos */}
+          {/* Card de Principal Empréstimos (Mantido, mas agora é o mesmo que o Total) */}
           <LoanCard
             title="Principal Empréstimos"
             value={formatCurrency(calculos.principalEmprestimos)}
@@ -162,15 +163,7 @@ const Emprestimos = () => {
             delay={50}
           />
           
-          {/* NEW CARD: Dívida Cartões de Crédito */}
-          <LoanCard
-            title="Dívida Cartões de Crédito"
-            value={formatCurrency(calculos.dividaCartoes)}
-            icon={<CreditCard className="w-5 h-5" />}
-            status={calculos.dividaCartoes > 0 ? "warning" : "success"}
-            tooltip="Saldo negativo total das contas de Cartão de Crédito (fatura pendente)."
-            delay={100}
-          />
+          {/* REMOVIDO: Card de Dívida Cartões de Crédito */}
           
           <LoanCard
             title="Parcela Mensal Total"
@@ -178,17 +171,17 @@ const Emprestimos = () => {
             icon={<Calendar className="w-5 h-5" />}
             status="warning"
             tooltip="Soma de todas as parcelas mensais de empréstimos."
-            delay={150}
+            delay={100}
           />
           
-          {/* Juros Totais (Contrato) - Re-added as the 4th card, or adjust layout */}
+          {/* Juros Totais (Contrato) */}
           <LoanCard
             title="Juros Totais (Contrato)"
             value={formatCurrency(calculos.jurosTotais)}
             icon={<Percent className="w-5 h-5" />}
             status="warning"
             tooltip="Custo total em juros se os empréstimos forem pagos até o final."
-            delay={200}
+            delay={150}
           />
         </div>
 
