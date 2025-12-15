@@ -66,7 +66,7 @@ export function BillsContextSidebar({
 
   return (
     <div className={cn(
-      "space-y-4",
+      "space-y-3",
       isMobile ? "p-4" : "p-2 border-r border-border h-full" // Reduzido padding para p-2
     )}>
       <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
