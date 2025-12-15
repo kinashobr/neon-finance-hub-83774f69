@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -43,6 +43,9 @@ const Emprestimos = () => {
   const [selectedLoan, setSelectedLoan] = useState<Emprestimo | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   
+  // NOVO: Ref para rastrear se a abertura automática já foi tratada
+  const autoOpenHandledRef = useRef(false);
+  
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
   }, [setDateRanges]);
@@ -62,14 +65,26 @@ const Emprestimos = () => {
   useEffect(() => {
     const state = location.state as { openLoanConfig?: boolean } | null;
     
-    if (state?.openLoanConfig && pendingLoans.length > 0) {
+    // Verifica se o estado de navegação indica abertura E se ainda não foi tratado
+    if (state?.openLoanConfig && pendingLoans.length > 0 && !autoOpenHandledRef.current) {
+      
+      // Marca como tratado
+      autoOpenHandledRef.current = true;
+      
       // Abre o modal para o primeiro empréstimo pendente
       setSelectedLoan(pendingLoans[0]);
       setDetailDialogOpen(true);
       
       // Limpa o estado de navegação para evitar reabertura ao voltar
+      // Nota: Substituir o estado atual na história do navegador
       window.history.replaceState({}, document.title, location.pathname);
     }
+    
+    // Se o modal for fechado, resetamos o ref para permitir que uma nova navegação o abra novamente.
+    // No entanto, o ref deve ser resetado apenas se o modal for fechado E o estado de navegação não estiver mais presente.
+    // A maneira mais simples de garantir que o ref não cause problemas é deixá-lo ser reavaliado apenas na montagem/navegação.
+    // A limpeza do location.state já garante que o useEffect não será re-executado com a flag 'openLoanConfig'.
+    
   }, [location.state, pendingLoans]);
 
   // Helper function to calculate the next due date for a loan
@@ -217,7 +232,6 @@ const Emprestimos = () => {
         {/* Alerts and Simulator */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            {/* Passando o handler para o LoanAlerts */}
             <LoanAlerts 
               emprestimos={emprestimosAtivos} 
               onOpenPendingConfig={handleOpenPendingConfigFromAlert}
