@@ -14,7 +14,7 @@ import {
 } from "@/types/finance";
 
 // Components
-import { AccountsCarousel } from "@/components/transactions/AccountsCarousel";
+import { AccountsGrid } from "@/components/transactions/AccountsCarousel"; // <-- RENAMED IMPORT
 import { MovimentarContaModal } from "@/components/transactions/MovimentarContaModal";
 import { KPISidebar } from "@/components/transactions/KPISidebar";
 import { ReconciliationPanel } from "@/components/transactions/ReconciliationPanel";
@@ -23,7 +23,8 @@ import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
 import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
-import { BillsTrackerModal } from "@/components/bills/BillsTrackerModal"; // <-- NEW IMPORT
+import { BillsTrackerModal } from "@/components/bills/BillsTrackerModal";
+import { TransactionsLayout } from "@/components/layout/TransactionsLayout"; // <-- NEW IMPORT
 
 // Context
 import { useFinance } from "@/contexts/FinanceContext";
@@ -770,6 +771,39 @@ const ReceitasDespesas = () => {
   const viewingSummary = viewingAccountId ? accountSummaries.find(s => s.accountId === viewingAccountId) : null;
   const viewingTransactions = viewingAccountId ? transactions.filter(t => t.accountId === viewingAccountId) : [];
 
+  const mainContent = (
+    <>
+      {/* Accounts Grid */}
+      <div className="glass-card p-4">
+        <AccountsGrid
+          accounts={accountSummaries}
+          onMovimentar={handleMovimentar}
+          onViewHistory={handleViewStatement}
+          onAddAccount={() => { setEditingAccount(undefined); setShowAccountModal(true); }}
+          onEditAccount={handleEditAccount}
+        />
+      </div>
+
+      {/* Reconciliation Panel */}
+      {showReconciliation && (
+        <ReconciliationPanel
+          accounts={visibleAccounts}
+          transactions={transactions}
+          onReconcile={handleReconcile}
+        />
+      )}
+      
+      {/* Transaction Filters (Mantido para filtros internos da tabela) */}
+      <div className="glass-card p-4">
+        {/* Transaction Filters */}
+      </div>
+    </>
+  );
+  
+  const kpiSidebar = (
+    <KPISidebar transactions={transacoesPeriodo1} categories={categories} />
+  );
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -797,30 +831,11 @@ const ReceitasDespesas = () => {
           </div>
         </div>
 
-        {/* Accounts Carousel */}
-        <div className="glass-card p-4">
-          <AccountsCarousel
-            accounts={accountSummaries}
-            onMovimentar={handleMovimentar}
-            onViewHistory={handleViewStatement}
-            onAddAccount={() => { setEditingAccount(undefined); setShowAccountModal(true); }}
-            onEditAccount={handleEditAccount}
-          />
-        </div>
-
-        {/* Reconciliation Panel */}
-        {showReconciliation && (
-          <ReconciliationPanel
-            accounts={visibleAccounts}
-            transactions={transactions}
-            onReconcile={handleReconcile}
-          />
-        )}
-
-        {/* KPI Sidebar - full width */}
-        <div className="glass-card p-4">
-          <KPISidebar transactions={transacoesPeriodo1} categories={categories} /> {/* <-- FIXED: Using transacoesPeriodo1 */}
-        </div>
+        {/* Main Content + KPI Sidebar */}
+        <TransactionsLayout
+          mainContent={mainContent}
+          kpiSidebar={kpiSidebar}
+        />
       </div>
 
       {/* Modals */}

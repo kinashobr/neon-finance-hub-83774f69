@@ -48,31 +48,26 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit }: Ac
 
   const balanceChange = currentBalance - initialBalance;
   const isPositive = balanceChange >= 0;
+  const isCurrentBalancePositive = currentBalance >= 0;
 
   return (
     <Card className={cn(
-      "glass-card min-w-[280px] max-w-[320px] p-4 transition-all hover:shadow-md",
+      "glass-card min-w-[200px] p-3 transition-all hover:shadow-md",
       statusClasses[reconciliationStatus] // Aplica a classe customizada que define a borda de 4px
     )}>
-      <div className="flex items-start justify-between mb-3">
+      <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
             <Building2 className="w-4 h-4 text-primary" />
           </div>
-          <div>
-            <h4 className="font-semibold text-sm text-foreground truncate max-w-[160px]">
-              {accountName}
-            </h4>
-            <span className={cn("text-xs px-1.5 py-0.5 rounded", statusBadgeColors[reconciliationStatus])}>
-              {reconciliationStatus === 'ok' ? 'Conciliada' : 
-               reconciliationStatus === 'warning' ? 'Pendente' : 'Divergente'}
-            </span>
-          </div>
+          <h4 className="font-semibold text-sm text-foreground truncate max-w-[120px]">
+            {accountName}
+          </h4>
         </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7">
+            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
               <MoreVertical className="w-4 h-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -89,70 +84,41 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit }: Ac
         </DropdownMenu>
       </div>
 
-      <div className="space-y-2 mb-4">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Saldo Inicial (período)</span>
-          {/* Exibe o saldo inicial do período, formatado */}
-          <span>{formatCurrency(initialBalance)}</span>
+      <div className="space-y-1 mb-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">Saldo Atual</span>
+          <span className={cn(
+            "text-lg font-bold",
+            isCurrentBalancePositive ? "text-foreground" : "text-destructive"
+          )}>
+            {formatCurrency(currentBalance)}
+          </span>
         </div>
         
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-foreground">Saldo Atual</span>
-          <span className="text-lg font-bold text-foreground">{formatCurrency(currentBalance)}</span>
-        </div>
-
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Saldo Projetado</span>
-          <span>{formatCurrency(projectedBalance)}</span>
+          <span>Variação (Período)</span>
+          <div className={cn(
+            "flex items-center gap-1",
+            isPositive ? "text-success" : "text-destructive"
+          )}>
+            {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+            <span>{isPositive ? '+' : ''}{formatCurrency(balanceChange)}</span>
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-4 py-2 border-y border-border">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-1 text-xs text-success">
-                <ArrowUpRight className="w-3 h-3" />
-                <span>{formatCurrency(totalIn)}</span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Total de entradas no período</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-1 text-xs text-destructive">
-                <ArrowDownRight className="w-3 h-3" />
-                <span>{formatCurrency(totalOut)}</span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Total de saídas no período</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        <span className="text-xs text-muted-foreground ml-auto">
-          {transactionCount} transações
-        </span>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className={cn(
-          "flex items-center gap-1 text-xs",
-          isPositive ? "text-success" : "text-destructive"
-        )}>
-          {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-          <span>{isPositive ? '+' : ''}{formatCurrency(balanceChange)}</span>
-        </div>
-
+      <div className="flex items-center justify-between pt-2 border-t border-border/50">
         <Button 
           size="sm" 
-          className="bg-primary hover:bg-primary/90"
+          variant="outline"
+          className="h-7 px-3 text-xs"
+          onClick={() => onViewHistory(accountId)}
+        >
+          Extrato
+        </Button>
+        <Button 
+          size="sm" 
+          className="h-7 px-3 text-xs bg-primary hover:bg-primary/90"
           onClick={() => onMovimentar(accountId)}
         >
           Movimentar
