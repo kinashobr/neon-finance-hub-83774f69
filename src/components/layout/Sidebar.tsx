@@ -316,7 +316,7 @@ export function Sidebar() {
         <div className="my-4 mx-2 h-px sidebar-divider" />
 
         {/* Import/Export Section */}
-        <div className={cn("px-1", collapsed && "px-0")}>
+        <div className={cn("px-2", collapsed && "px-0")}>
           {!collapsed && (
             <p className="text-xs sidebar-section-label mb-2 px-2">
               Transferir Dados
@@ -392,7 +392,9 @@ export function Sidebar() {
         <div className="my-4 mx-2 h-px sidebar-divider" />
 
         {/* Alertas Inteligentes */}
-        <SidebarAlertas collapsed={collapsed} />
+        <div className="px-2">
+          <SidebarAlertas collapsed={collapsed} />
+        </div>
       </div>
 
       {/* Footer - Theme Selector */}
