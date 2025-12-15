@@ -20,6 +20,7 @@ import {
   Repeat,
   Shield
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface AlertaConfig {
   id: string;
@@ -100,7 +101,7 @@ export function AlertasConfigDialog({ open, onOpenChange, config, onSave }: Aler
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-warning" />
@@ -143,7 +144,7 @@ export function AlertasConfigDialog({ open, onOpenChange, config, onSave }: Aler
                       <Label className="text-xs text-muted-foreground whitespace-nowrap">
                         Limite:
                       </Label>
-                      <div className="relative flex-1 max-w-24">
+                      <div className="relative flex-1 max-w-28">
                         <Input
                           type="number"
                           value={alerta.tolerancia}
@@ -171,7 +172,7 @@ export function AlertasConfigDialog({ open, onOpenChange, config, onSave }: Aler
             Resetar
           </Button>
           <Button onClick={handleSave} className="gap-2">
-            <Save className="w-4 h-4" />
+            <Save className="w-4 h-4 mr-2" />
             Salvar
           </Button>
         </DialogFooter>
