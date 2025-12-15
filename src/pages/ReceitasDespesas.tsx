@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Tags, Plus } from "lucide-react";
+import { RefreshCw, Tags, Plus, CalendarCheck } from "lucide-react";
 import { toast } from "sonner";
 import { isWithinInterval, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, addMonths, format } from "date-fns";
 
@@ -23,6 +23,7 @@ import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
 import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
+import { BillsTrackerModal } from "@/components/bills/BillsTrackerModal"; // <-- NEW IMPORT
 
 // Context
 import { useFinance } from "@/contexts/FinanceContext";
@@ -48,7 +49,7 @@ const ReceitasDespesas = () => {
     dateRanges, // <-- Use context state
     setDateRanges, // <-- Use context setter
     markSeguroParcelPaid,
-    unmarkSeguroParcelPaid, // <-- Use correct name // <-- FIXED
+    unmarkSeguroParcelaPaid, // <-- Use correct name // <-- FIXED
   } = useFinance();
 
   // Local state for transfer groups
@@ -70,6 +71,9 @@ const ReceitasDespesas = () => {
   // Statement dialog
   const [viewingAccountId, setViewingAccountId] = useState<string | null>(null);
   const [showStatementDialog, setShowStatementDialog] = useState(false);
+  
+  // Bills Tracker Modal (NEW STATE)
+  const [showBillsTrackerModal, setShowBillsTrackerModal] = useState(false);
 
   // Filter state (mantido para filtros internos da tabela, mas datas são controladas pelo PeriodSelector)
   const [searchTerm, setSearchTerm] = useState("");
@@ -482,7 +486,7 @@ const ReceitasDespesas = () => {
   };
 
   const handleDeleteTransaction = (id: string) => {
-    if (!window.confirm("Excluir esta transação?")) return;
+    if (!window.confirm("Tem certeza que deseja excluir esta transação?")) return;
 
     const transactionToDelete = transactions.find(t => t.id === id);
 
@@ -501,7 +505,7 @@ const ReceitasDespesas = () => {
         const parcelaNumero = parseInt(parcelaNumeroStr);
         
         if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
-            unmarkSeguroParcelPaid(seguroId, parcelaNumero); // <-- FIXED
+            unmarkSeguroParcelaPaid(seguroId, parcelaNumero); // <-- FIXED
         }
     }
     
@@ -780,6 +784,10 @@ const ReceitasDespesas = () => {
               initialRanges={dateRanges}
               onDateRangeChange={handlePeriodChange} 
             />
+            <Button variant="outline" size="sm" onClick={() => setShowBillsTrackerModal(true)} className="gap-2">
+              <CalendarCheck className="w-4 h-4" />
+              Contas a Pagar
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)}>
               <Tags className="w-4 h-4 mr-2" />Categorias
             </Button>
@@ -870,6 +878,12 @@ const ReceitasDespesas = () => {
           onReconcileAll={() => handleReconcile(viewingAccountId!)}
         />
       )}
+      
+      {/* Bills Tracker Modal (NEW) */}
+      <BillsTrackerModal
+        open={showBillsTrackerModal}
+        onOpenChange={setShowBillsTrackerModal}
+      />
     </MainLayout>
   );
 };

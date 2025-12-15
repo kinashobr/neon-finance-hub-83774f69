@@ -190,6 +190,33 @@ export interface ObjetivoFinanceiro {
   contaMovimentoId?: string;
 }
 
+// ============================================
+// NOVO: RASTREADOR DE CONTAS A PAGAR (BillTracker)
+// ============================================
+
+export type BillSourceType = 'loan_installment' | 'insurance_installment' | 'fixed_expense' | 'ad_hoc';
+
+export interface BillTracker {
+  id: string;
+  description: string;
+  dueDate: string; // YYYY-MM-DD
+  expectedAmount: number;
+  isPaid: boolean;
+  paymentDate?: string; // YYYY-MM-DD
+  transactionId?: string; // Link to TransacaoCompleta
+  
+  // Vínculos
+  sourceType: BillSourceType;
+  sourceRef?: string; // ID do Empréstimo, Seguro, ou Categoria
+  parcelaNumber?: number; // Número da parcela (se for installment)
+  
+  // Conta de débito sugerida
+  suggestedAccountId?: string;
+  
+  // Categoria sugerida
+  suggestedCategoryId?: string;
+}
+
 // Schema de Exportação V2 (Simplificado)
 export interface FinanceExportV2 {
   schemaVersion: '2.0';
@@ -269,6 +296,10 @@ export function generateAccountId(): string {
 
 export function generateCategoryId(): string {
   return `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+export function generateBillId(): string {
+  return `bill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 export function formatCurrency(value: number, currency = 'BRL'): string {
