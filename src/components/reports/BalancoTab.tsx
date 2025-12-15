@@ -922,7 +922,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
           <DetailedIndicatorBadge
             title="Liquidez Geral"
             value={formatRatio(metricas.liquidezGeral.valor)}
-            status={metricas.liquidez.geral.status}
+            status={metricas.liquidezGeral.status}
             trend={getTrend(variacoes.ativosTotal || 0)}
             trendLabel={range2.from ? `${(variacoes.ativosTotal || 0).toFixed(1)}% vs P2` : undefined}
             descricao="Capacidade de pagar todas as dívidas. Ideal: acima de 2x"
