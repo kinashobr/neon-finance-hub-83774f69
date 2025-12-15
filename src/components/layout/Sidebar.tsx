@@ -68,6 +68,7 @@ const navSections: NavSection[] = [
       { title: "Dashboard", path: "/", icon: LayoutDashboard },
       { title: "Receitas & Despesas", path: "/receitas-despesas", icon: Receipt },
       { title: "Empréstimos", path: "/emprestimos", icon: CreditCard },
+      { title: "Relatórios", path: "/relatorios", icon: BarChart3 },
     ],
   },
   {
@@ -84,14 +85,6 @@ const navSections: NavSection[] = [
     icon: Building,
     items: [
       { title: "Veículos", path: "/veiculos", icon: Car },
-    ],
-  },
-  {
-    id: "relatorios",
-    title: "Relatórios",
-    icon: FileBarChart,
-    items: [
-      { title: "Relatórios", path: "/relatorios", icon: BarChart3 },
     ],
   },
 ];
