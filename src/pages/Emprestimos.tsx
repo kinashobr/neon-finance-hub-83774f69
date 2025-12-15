@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -43,6 +43,17 @@ const Emprestimos = () => {
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
   }, [setDateRanges]);
+
+  // Get pending loans list
+  const pendingLoans = getPendingLoans(); 
+
+  // Effect to handle auto-opening configuration for pending loans
+  useEffect(() => {
+    if (pendingLoans.length === 1 && pendingLoans[0].status === 'pendente_config') {
+      setSelectedLoan(pendingLoans[0]);
+      setDetailDialogOpen(true);
+    }
+  }, [pendingLoans]);
 
   // Helper function to calculate the next due date for a loan
   const getNextDueDate = useCallback((loan: Emprestimo): Date | null => {
@@ -138,7 +149,10 @@ const Emprestimos = () => {
               initialRanges={dateRanges}
               onDateRangeChange={handlePeriodChange} 
             />
-            <LoanForm onSubmit={handleAddLoan} contasCorrentes={contasCorrentes} />
+            {/* Ocultando o botão Novo Empréstimo, mas mantendo a funcionalidade */}
+            <div className="hidden">
+              <LoanForm onSubmit={handleAddLoan} contasCorrentes={contasCorrentes} />
+            </div>
           </div>
         </div>
 
@@ -152,8 +166,6 @@ const Emprestimos = () => {
             tooltip="Valor total que resta a pagar em todos os empréstimos e financiamentos (apenas principal restante)."
             delay={0}
           />
-          
-          {/* REMOVIDO: Card de Principal Empréstimos */}
           
           {/* Dívida Cartões de Crédito (Mantido para referência, mas com título ajustado) */}
           <LoanCard
