@@ -414,8 +414,8 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
   }
 
   return (
-    <div className="px-2">
-      <div className="flex items-center justify-between mb-2 px-1">
+    <div>
+      <div className="flex items-center justify-between mb-2 px-2">
         <div className="flex items-center gap-2">
           <Bell className="w-3.5 h-3.5 text-muted-foreground" />
           <p className="text-xs sidebar-section-label">Alertas</p>
@@ -441,7 +441,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
       </div>
 
       <ScrollArea className="max-h-40">
-        <div className="space-y-2">
+        <div className="space-y-2 px-2">
           {alertas.length > 0 ? (
             alertas.map((alerta) => {
               const Icon = getAlertIcon(alerta.id);
