@@ -250,7 +250,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
         id: "margem-baixa",
         tipo: "warning",
         titulo: "Margem Baixa",
-        descricao: `${metricas.margemPoupanca.toFixed(1)}% de poupança`,
+        descricao: `${metricas.margemPoupanca.toFixed(1)}% de poupança (Meta: ${toleranciaMargem}%)`,
         rota: "/receitas-despesas"
       });
     }
@@ -261,7 +261,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
         id: "emprestimos-pendentes",
         tipo: "info",
         titulo: "Configurar Empréstimos",
-        descricao: `${metricas.emprestimosPendentes} pendente(s)`,
+        descricao: `${metricas.emprestimosPendentes} empréstimo(s) aguardando configuração de parcelas.`,
         rota: "/emprestimos"
       });
     }
@@ -276,7 +276,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
             id: "comprometimento-renda",
             tipo: "danger",
             titulo: "Comprometimento Alto",
-            descricao: `${comprometimentoRenda.toFixed(1)}% da renda em parcelas`,
+            descricao: `${comprometimentoRenda.toFixed(1)}% da renda em parcelas (Limite: ${toleranciaComprometimento}%)`,
             rota: "/emprestimos"
         });
     }
@@ -291,7 +291,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
             id: "rigidez-orcamentaria",
             tipo: "warning",
             titulo: "Rigidez Orçamentária",
-            descricao: `${rigidezOrcamentaria.toFixed(1)}% das despesas são fixas`,
+            descricao: `${rigidezOrcamentaria.toFixed(1)}% das despesas são fixas (Limite: ${toleranciaRigidez}%)`,
             rota: "/receitas-despesas"
         });
     }
@@ -303,7 +303,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
             id: "seguro-vencendo",
             tipo: "warning",
             titulo: "Seguro Vencendo",
-            descricao: `${metricas.segurosVencendo} seguro(s) vencendo em 60 dias`,
+            descricao: `${metricas.segurosVencendo} seguro(s) de veículo vencendo nos próximos 60 dias.`,
             rota: "/veiculos"
         });
     }
@@ -366,7 +366,10 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
             <div className="space-y-1">
               {alertas.length > 0 ? (
                 alertas.map(a => (
-                  <div key={a.id} className="text-xs">{a.titulo}</div>
+                  <div key={a.id} className="text-xs">
+                    <p className="font-medium">{a.titulo}</p>
+                    <p className="text-[10px] text-muted-foreground">{a.descricao}</p>
+                  </div>
                 ))
               ) : (
                 <div className="text-xs">Sem alertas</div>
@@ -387,6 +390,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
     );
   }
 
+  // Expanded view logic
   return (
     <div className="px-2">
       <div className="flex items-center justify-between mb-2 px-1">
@@ -420,31 +424,39 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
             alertas.map((alerta) => {
               const Icon = getAlertIcon(alerta.id);
               return (
-                <div
-                  key={alerta.id}
-                  className={cn(
-                    "flex items-start gap-2 p-2 rounded-lg text-xs border cursor-pointer group",
-                    getAlertStyles(alerta.tipo)
-                  )}
-                  onClick={() => alerta.rota && navigate(alerta.rota)}
-                >
-                  <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{alerta.titulo}</p>
-                    <p className="text-[10px] opacity-80 truncate">{alerta.descricao}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDismiss(alerta.id);
-                    }}
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
+                <Tooltip key={alerta.id}>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={cn(
+                        "flex items-start gap-2 p-2 rounded-lg text-xs border cursor-pointer group",
+                        getAlertStyles(alerta.tipo)
+                      )}
+                      onClick={() => alerta.rota && navigate(alerta.rota)}
+                    >
+                      <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{alerta.titulo}</p>
+                        <p className="text-[10px] opacity-80 truncate">{alerta.descricao}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDismiss(alerta.id);
+                        }}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="sidebar-tooltip max-w-xs">
+                    <p className="font-medium">{alerta.titulo}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{alerta.descricao}</p>
+                    {alerta.rota && <p className="text-xs text-primary mt-1">Clique para ir para {alerta.rota}</p>}
+                  </TooltipContent>
+                </Tooltip>
               );
             })
           ) : (
