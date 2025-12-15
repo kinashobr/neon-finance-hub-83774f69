@@ -80,7 +80,7 @@ export function BillsContextSidebar({
         netForecast >= 0 ? "stat-card-positive" : "stat-card-negative"
       )}>
         <div className="flex items-center justify-between">
-          <Label className="text-[5px] font-medium flex items-center gap-1">
+          <Label className="text-[10px] font-medium flex items-center gap-1">
             <Calculator className="w-3 h-3" />
             SALDO PREVISTO
           </Label>
