@@ -84,7 +84,7 @@ export function BillsContextSidebar({
             <Calculator className="w-3 h-3" />
             SALDO PREVISTO
           </Label>
-          <span className="text-[6px] text-muted-foreground">
+          <span className="text-[10px] text-muted-foreground">
             {pendingCount} pend.
           </span>
         </div>
