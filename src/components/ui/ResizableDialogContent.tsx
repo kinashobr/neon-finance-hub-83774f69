@@ -42,11 +42,11 @@ export function ResizableDialogContent({
   initialHeight = 600,
   minWidth = 700,
   minHeight = 500,
-  maxWidth = 1400,
-  maxHeight = 900,
+  maxWidth = 1600, // AUMENTADO de 1400
+  maxHeight = 1000, // AUMENTADO de 900
   storageKey,
   className,
-  hideCloseButton, // Destructure hideCloseButton
+  hideCloseButton,
   ...props
 }: ResizableDialogContentProps) {
   

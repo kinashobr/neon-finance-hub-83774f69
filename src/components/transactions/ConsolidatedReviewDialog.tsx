@@ -385,8 +385,8 @@ export function ConsolidatedReviewDialog({
           initialHeight={850}
           minWidth={900}
           minHeight={600}
-          maxWidth={1600}
-          maxHeight={1000}
+          maxWidth={1800} // AUMENTADO de 1600
+          maxHeight={1200} // AUMENTADO de 1000
           hideCloseButton={true} 
         >
           <DialogHeader className="px-4 pt-3 pb-2 border-b shrink-0">
