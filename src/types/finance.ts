@@ -65,9 +65,6 @@ export interface TransactionLinks {
   vehicleTransactionId: string | null;
 }
 
-// Tipos de Fluxo
-export type FlowType = 'in' | 'out' | 'transfer_in' | 'transfer_out';
-
 // Tipos de Operação no Modal (atualizado com veículos e liberação empréstimo)
 export type OperationType = 
   | 'receita' 
@@ -80,6 +77,20 @@ export type OperationType =
   | 'veiculo'
   | 'rendimento'
   | 'initial_balance'; // ADICIONADO
+
+// NOVO: Labels para OperationType
+export const OPERATION_TYPE_LABELS: Record<OperationType, string> = {
+  receita: 'Receita',
+  despesa: 'Despesa',
+  transferencia: 'Transferência',
+  aplicacao: 'Aplicação',
+  resgate: 'Resgate',
+  pagamento_emprestimo: 'Pag. Empréstimo',
+  liberacao_emprestimo: 'Liberação Empréstimo',
+  veiculo: 'Veículo',
+  rendimento: 'Rendimento',
+  initial_balance: 'Saldo Inicial',
+};
 
 // Domínio da Transação
 export type TransactionDomain = 'operational' | 'investment' | 'financing' | 'asset';
