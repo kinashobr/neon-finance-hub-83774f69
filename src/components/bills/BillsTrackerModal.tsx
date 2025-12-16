@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Calendar, CheckCircle2, Clock, TrendingUp, TrendingDown, DollarSign, Calculator, Menu, LogOut, X, Save } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 import { BillTracker, formatCurrency, TransacaoCompleta, getDomainFromOperation, generateTransactionId } from "@/types/finance";
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 import { toast } from "sonner";
-import { ResizableSidebar } from "../transactions/ResizableSidebar"; // IMPORTADO
+import { ResizableSidebar } from "../transactions/ResizableSidebar";
+import { ResizableDialogContent } from "../ui/ResizableDialogContent"; // NEW IMPORT
 
 interface BillsTrackerModalProps {
   open: boolean;
@@ -293,8 +294,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
-        className="max-w-[90vw] max-h-[95vh] overflow-hidden flex flex-col p-0"
+      <ResizableDialogContent 
+        storageKey="bills_tracker_modal"
+        initialWidth={1000}
+        initialHeight={700}
+        minWidth={700}
+        minHeight={500}
         hideCloseButton 
       >
         
@@ -382,7 +387,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             />
           </div>
         </div>
-      </DialogContent>
+      </ResizableDialogContent>
     </Dialog>
   );
 }

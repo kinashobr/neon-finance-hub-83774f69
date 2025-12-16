@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, Check, Loader2, AlertCircle, Calendar, ArrowRight, X, Settings } from "lucide-react";
@@ -18,6 +18,7 @@ import { ReviewContextSidebar } from "./ReviewContextSidebar"; // NEW IMPORT
 import { StandardizationRuleManagerModal } from "./StandardizationRuleManagerModal"; // NEW IMPORT
 import { ResizableSidebar } from "./ResizableSidebar"; // NEW IMPORT
 import { startOfMonth, endOfMonth, format, subDays, startOfDay, endOfDay } from "date-fns";
+import { ResizableDialogContent } from "../ui/ResizableDialogContent"; // NEW IMPORT
 
 // Interface simplificada para Empréstimo
 interface LoanInfo {
@@ -378,8 +379,14 @@ export function ConsolidatedReviewDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent 
-          className="max-w-7xl h-[95vh] p-0 overflow-hidden flex flex-col"
+        <ResizableDialogContent 
+          storageKey="consolidated_review_modal"
+          initialWidth={1400}
+          initialHeight={850}
+          minWidth={900}
+          minHeight={600}
+          maxWidth={1600}
+          maxHeight={1000}
           hideCloseButton 
         >
           <DialogHeader className="px-4 pt-3 pb-2 border-b shrink-0">
@@ -460,7 +467,7 @@ export function ConsolidatedReviewDialog({
               )}
             </div>
           </div>
-        </DialogContent>
+        </ResizableDialogContent>
       </Dialog>
       
       {/* Modal de Criação de Regra */}

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import {
   Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -40,6 +39,7 @@ import {
 } from "recharts";
 import { cn, parseDateLocal, getDueDate } from "@/lib/utils";
 import { useChartColors } from "@/hooks/useChartColors";
+import { ResizableDialogContent } from "../ui/ResizableDialogContent"; // NEW IMPORT
 
 interface LoanDetailDialogProps {
   emprestimo: Emprestimo | null;
@@ -174,7 +174,14 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[1100px] bg-card border-border max-h-[90vh] overflow-hidden flex flex-col">
+      <ResizableDialogContent 
+        storageKey="loan_detail_modal"
+        initialWidth={1100}
+        initialHeight={800}
+        minWidth={700}
+        minHeight={500}
+        className="bg-card border-border overflow-hidden flex flex-col"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-primary/10">
@@ -436,7 +443,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
             </div>
           </Tabs>
         )}
-      </DialogContent>
+      </ResizableDialogContent>
     </Dialog>
   );
 }
