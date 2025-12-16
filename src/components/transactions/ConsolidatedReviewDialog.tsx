@@ -318,7 +318,7 @@ export function ConsolidatedReviewDialog({
       
       contabilizedIds.add(tx.id);
       
-      // Rastrear qual statement precisa ser atualizado
+      // 5. Atualizar status dos statements
       const statementId = txToStatementMap.get(tx.id);
       if (statementId) {
           if (!updatedStatements.has(statementId)) {
@@ -402,7 +402,7 @@ export function ConsolidatedReviewDialog({
           <div className="flex flex-1 overflow-hidden">
             
             {/* Coluna Lateral (Controle e Status) */}
-            <div className="w-[280px] shrink-0 overflow-y-auto scrollbar-thin">
+            <div className="w-[224px] shrink-0 overflow-y-auto scrollbar-thin">
               <ReviewContextSidebar
                 accountId={accountId}
                 statements={importedStatements.filter(s => s.accountId === accountId)}

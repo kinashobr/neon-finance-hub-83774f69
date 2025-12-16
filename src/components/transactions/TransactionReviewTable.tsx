@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -52,6 +52,34 @@ const OPERATION_OPTIONS: { value: OperationType; label: string; color: string }[
 
 const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
+// Define column keys and initial widths (in pixels)
+const COLUMN_KEYS = ['date', 'amount', 'originalDescription', 'operationType', 'vinculo', 'category', 'description', 'rule'] as const;
+type ColumnKey = typeof COLUMN_KEYS[number];
+
+const INITIAL_WIDTHS: Record<ColumnKey, number> = {
+  date: 80,
+  amount: 100,
+  originalDescription: 250,
+  operationType: 150,
+  vinculo: 200,
+  category: 200,
+  description: 250,
+  rule: 80,
+};
+
+const columnHeaders: { key: ColumnKey, label: string, align?: 'center' | 'right' }[] = [
+  { key: 'date', label: 'Data' },
+  { key: 'amount', label: 'Valor', align: 'right' },
+  { key: 'originalDescription', label: 'Descrição Original' },
+  { key: 'operationType', label: 'Tipo Operação' },
+  { key: 'vinculo', label: 'Vínculo / Contraparte' },
+  { key: 'category', label: 'Categoria' },
+  { key: 'description', label: 'Descrição Final' },
+  { key: 'rule', label: 'Regra', align: 'center' },
+];
+
+const STORAGE_KEY = 'review_table_column_widths';
+
 export function TransactionReviewTable({
   transactions,
   accounts,
@@ -61,6 +89,70 @@ export function TransactionReviewTable({
   onUpdateTransaction,
   onCreateRule,
 }: TransactionReviewTableProps) {
+  
+  // --- Column Resizing State and Logic ---
+  const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : INITIAL_WIDTHS;
+    } catch {
+      return INITIAL_WIDTHS;
+    }
+  });
+  
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(columnWidths));
+  }, [columnWidths]);
+
+  const [resizingColumn, setResizingColumn] = useState<ColumnKey | null>(null);
+  const [startX, setStartX] = useState(0);
+  const [startWidth, setStartWidth] = useState(0);
+
+  const handleMouseDown = (e: React.MouseEvent, key: ColumnKey) => {
+    e.preventDefault();
+    setResizingColumn(key);
+    setStartX(e.clientX);
+    setStartWidth(columnWidths[key]);
+  };
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!resizingColumn) return;
+
+    const deltaX = e.clientX - startX;
+    const newWidth = Math.max(30, startWidth + deltaX); // Minimum width of 30px
+
+    setColumnWidths(prev => ({
+      ...prev,
+      [resizingColumn]: newWidth,
+    }));
+  }, [resizingColumn, startX, startWidth]);
+
+  const handleMouseUp = useCallback(() => {
+    setResizingColumn(null);
+  }, []);
+
+  useEffect(() => {
+    if (resizingColumn) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+    } else {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+    };
+  }, [resizingColumn, handleMouseMove, handleMouseUp]);
+  
+  const totalWidth = useMemo(() => {
+    return Object.values(columnWidths).reduce((sum, w) => sum + w, 0);
+  }, [columnWidths]);
+  // ---------------------------------------------
   
   const categoriesMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
   const accountsMap = useMemo(() => new Map(accounts.map(a => [a.id, a])), [accounts]);
@@ -212,17 +304,29 @@ export function TransactionReviewTable({
 
   return (
     <div className="overflow-x-auto">
-      <Table className="min-w-[1400px]">
+      <Table style={{ minWidth: `${totalWidth}px` }}>
         <TableHeader className="sticky top-0 bg-card z-10">
-          <TableRow className="border-border hover:bg-transparent h-9"> {/* Reduced height */}
-            <TableHead className="text-muted-foreground w-[80px] text-xs p-2">Data</TableHead>
-            <TableHead className="text-muted-foreground w-[100px] text-xs p-2">Valor</TableHead>
-            <TableHead className="text-muted-foreground w-[300px] text-xs p-2">Descrição Original</TableHead>
-            <TableHead className="text-muted-foreground w-[180px] text-xs p-2">Tipo Operação</TableHead>
-            <TableHead className="text-muted-foreground w-[250px] text-xs p-2">Vínculo / Contraparte</TableHead>
-            <TableHead className="text-muted-foreground w-[200px] text-xs p-2">Categoria</TableHead>
-            <TableHead className="text-muted-foreground w-[250px] text-xs p-2">Descrição Final</TableHead>
-            <TableHead className="text-muted-foreground w-[80px] text-center text-xs p-2">Regra</TableHead>
+          <TableRow className="border-border hover:bg-transparent h-9">
+            {columnHeaders.map((header) => (
+              <TableHead 
+                key={header.key} 
+                className={cn(
+                  "text-muted-foreground text-xs p-2 relative",
+                  header.align === 'center' && 'text-center',
+                  header.align === 'right' && 'text-right'
+                )}
+                style={{ width: columnWidths[header.key] }}
+              >
+                {header.label}
+                {/* Resizer Handle */}
+                {header.key !== 'rule' && (
+                  <div
+                    className="absolute right-0 top-0 h-full w-2 cursor-col-resize"
+                    onMouseDown={(e) => handleMouseDown(e, header.key)}
+                  />
+                )}
+              </TableHead>
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -244,25 +348,25 @@ export function TransactionReviewTable({
               <TableRow 
                 key={tx.id} 
                 className={cn(
-                  "border-border hover:bg-muted/30 transition-colors h-10", // Reduced row height
+                  "border-border hover:bg-muted/30 transition-colors h-10",
                   !isCategorized && "bg-warning/5 hover:bg-warning/10"
                 )}
               >
-                <TableCell className="text-muted-foreground text-xs whitespace-nowrap p-2"> {/* Reduced font and padding */}
+                <TableCell className="text-muted-foreground text-xs whitespace-nowrap p-2" style={{ width: columnWidths.date }}>
                   {parseDateLocal(tx.date).toLocaleDateString("pt-BR")}
                 </TableCell>
                 <TableCell className={cn(
-                  "font-medium whitespace-nowrap text-sm p-2", // Reduced padding
+                  "font-medium whitespace-nowrap text-sm p-2 text-right",
                   isIncome ? "text-success" : "text-destructive"
-                )}>
+                )} style={{ width: columnWidths.amount }}>
                   {isIncome ? '+' : '-'} {formatCurrency(tx.amount)}
                 </TableCell>
-                <TableCell className="text-xs max-w-[300px] truncate p-2" title={tx.originalDescription}>
+                <TableCell className="text-xs max-w-[250px] truncate p-2" title={tx.originalDescription} style={{ width: columnWidths.originalDescription }}>
                   {tx.originalDescription}
                 </TableCell>
                 
                 {/* Tipo Operação */}
-                <TableCell className="p-2">
+                <TableCell className="p-2" style={{ width: columnWidths.operationType }}>
                   <Select
                     value={tx.operationType || ''}
                     onValueChange={(v) => onUpdateTransaction(tx.id, { 
@@ -275,7 +379,7 @@ export function TransactionReviewTable({
                         tempVehicleOperation: null,
                     })}
                   >
-                    <SelectTrigger className="h-7 text-xs"> {/* Reduced height and font */}
+                    <SelectTrigger className="h-7 text-xs">
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -291,18 +395,18 @@ export function TransactionReviewTable({
                 </TableCell>
                 
                 {/* Vínculo / Contraparte (Dinâmico) */}
-                <TableCell className="p-2">
+                <TableCell className="p-2" style={{ width: columnWidths.vinculo }}>
                   {renderVincularSelector(tx)}
                 </TableCell>
                 
                 {/* Categoria */}
-                <TableCell className="p-2">
+                <TableCell className="p-2" style={{ width: columnWidths.category }}>
                   <Select
                     value={tx.categoryId || ''}
                     onValueChange={(v) => onUpdateTransaction(tx.id, { categoryId: v })}
                     disabled={isCategoryDisabled(tx)}
                   >
-                    <SelectTrigger className="h-7 text-xs"> {/* Reduced height and font */}
+                    <SelectTrigger className="h-7 text-xs">
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
@@ -318,21 +422,21 @@ export function TransactionReviewTable({
                 </TableCell>
                 
                 {/* Descrição Final */}
-                <TableCell className="p-2">
+                <TableCell className="p-2" style={{ width: columnWidths.description }}>
                   <EditableCell
                     value={tx.description}
                     type="text"
                     onSave={(v) => onUpdateTransaction(tx.id, { description: String(v) })}
-                    className="text-xs h-7" // Reduced height and font
+                    className="text-xs h-7"
                   />
                 </TableCell>
                 
                 {/* Ações / Regra */}
-                <TableCell className="text-center p-2">
+                <TableCell className="text-center p-2" style={{ width: columnWidths.rule }}>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-primary" // Reduced size
+                    className="h-7 w-7 text-muted-foreground hover:text-primary"
                     onClick={() => onCreateRule(tx)}
                     disabled={!isCategorized}
                     title="Criar regra de padronização"
