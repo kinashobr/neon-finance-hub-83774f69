@@ -83,7 +83,7 @@ export function ReviewContextSidebar({
         <PeriodSelector 
           initialRanges={dummyRanges}
           onDateRangeChange={onPeriodChange}
-          className="w-full h-8 text-xs"
+          className="w-full h-8 text-xs" // Aplicando classes de tamanho menor
         />
         <Button 
           onClick={onApplyFilter} 

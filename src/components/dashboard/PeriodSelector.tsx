@@ -195,7 +195,7 @@ export function PeriodSelector({
           className={cn(
             "w-[260px] justify-start text-left font-normal h-9 border-border shadow-sm hover:bg-muted/50 transition-colors",
             (!range.from && !range.to) && "text-muted-foreground",
-            className
+            className // Aplica classes customizadas, permitindo sobrescrever w-[260px] e h-9
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-primary" />
