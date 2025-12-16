@@ -95,6 +95,9 @@ export const OPERATION_TYPE_LABELS: Record<OperationType, string> = {
 // Domínio da Transação
 export type TransactionDomain = 'operational' | 'investment' | 'financing' | 'asset';
 
+// Fluxo da Transação (in, out, transfer_in, transfer_out)
+export type FlowType = 'in' | 'out' | 'transfer_in' | 'transfer_out'; // DEFINIDO E EXPORTADO
+
 // Meta informações
 export interface TransactionMeta {
   createdBy: string;

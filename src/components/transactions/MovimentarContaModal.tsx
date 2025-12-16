@@ -19,7 +19,7 @@ import {
   generateTransferGroupId, getDomainFromOperation,
   TransferGroup, FlowType
 } from "@/types/finance";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { SeguroParcelaSelector } from "./SeguroParcelaSelector";
 import { parseDateLocal } from "@/lib/utils"; // Importado para corrigir o bug de data
