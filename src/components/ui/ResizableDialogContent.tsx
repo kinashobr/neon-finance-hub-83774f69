@@ -1,6 +1,14 @@
 import { useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { DialogContent, DialogContentProps } from "@/components/ui/dialog";
+import { DialogContent } from "@/components/ui/dialog";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+
+// Define DialogContentProps manually since it's not exported by shadcn/ui
+interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  className?: string;
+  children?: React.ReactNode;
+  hideCloseButton?: boolean; // Added to support hiding the default close button
+}
 
 // Helper to load/save dimensions
 const loadDimensions = (key: string, initial: number, min: number, max: number): number => {
@@ -26,7 +34,6 @@ interface ResizableDialogContentProps extends DialogContentProps {
   maxWidth?: number;
   maxHeight?: number;
   storageKey: string;
-  className?: string;
 }
 
 export function ResizableDialogContent({
@@ -39,6 +46,7 @@ export function ResizableDialogContent({
   maxHeight = 900,
   storageKey,
   className,
+  hideCloseButton, // Destructure hideCloseButton
   ...props
 }: ResizableDialogContentProps) {
   
@@ -125,6 +133,8 @@ export function ResizableDialogContent({
         className
       )}
       style={style}
+      // Pass hideCloseButton to DialogContent
+      hideCloseButton={hideCloseButton}
     >
       {children}
       

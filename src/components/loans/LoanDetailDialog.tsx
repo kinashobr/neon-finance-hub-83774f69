@@ -180,6 +180,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
         initialHeight={800}
         minWidth={700}
         minHeight={500}
+        hideCloseButton={true}
         className="bg-card border-border overflow-hidden flex flex-col"
       >
         <DialogHeader>

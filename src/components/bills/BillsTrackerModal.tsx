@@ -300,7 +300,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         initialHeight={700}
         minWidth={700}
         minHeight={500}
-        hideCloseButton 
+        hideCloseButton={true} 
       >
         
         {/* Header Principal - Ultra Compacto */}
