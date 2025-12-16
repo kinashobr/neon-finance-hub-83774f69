@@ -375,7 +375,10 @@ export function ConsolidatedReviewDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-7xl h-[95vh] p-0 overflow-hidden flex flex-col">
+        <DialogContent 
+          className="max-w-7xl h-[95vh] p-0 overflow-hidden flex flex-col"
+          hideCloseButton // <-- ADICIONADO PARA REMOVER O BOTÃO PADRÃO
+        >
           <DialogHeader className="px-4 pt-3 pb-2 border-b shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -388,6 +391,7 @@ export function ConsolidatedReviewDialog({
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {/* Botão de fechar customizado (mantido) */}
                 <Button 
                   variant="ghost" 
                   size="icon" 
