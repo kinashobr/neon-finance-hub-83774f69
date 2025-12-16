@@ -23,7 +23,7 @@ interface LoanInfo {
   numeroContrato?: string;
 }
 
-// Interface simplificada para Investimento (agora passada via props)
+// Interface simplificada para Investimento
 interface InvestmentInfo {
   id: string;
   name: string;
@@ -147,6 +147,7 @@ const parseCSV = (content: string, accountId: string): ImportedTransaction[] => 
 
             transactions.push({
                 id: generateTransactionId(),
+                statementId: 'temp_stmt', // TEMPORARY FIX
                 date: normalizedDate,
                 amount: Math.abs(amount),
                 originalDescription,
@@ -194,6 +195,7 @@ const parseOFX = (content: string, accountId: string): ImportedTransaction[] => 
 
             transactions.push({
                 id: generateTransactionId(),
+                statementId: 'temp_stmt', // TEMPORARY FIX
                 date: normalizedDate,
                 amount: Math.abs(amount),
                 originalDescription,
@@ -368,7 +370,7 @@ export function ImportTransactionDialog({ open, onOpenChange, account, investmen
     addStandardizationRule(rule);
     
     // Reaplicar regras nas transações importadas para ver o efeito imediato
-    const reProcessedTransactions = applyRules(importedTransactions, [...standardizationRules, { ...rule, id: generateTransactionId() }]);
+    const reProcessedTransactions = applyRules(importedTransactions, [...standardizationRules, { ...rule, id: generateRuleId() }]);
     setImportedTransactions(reProcessedTransactions);
   };
 
@@ -609,18 +611,18 @@ export function ImportTransactionDialog({ open, onOpenChange, account, investmen
         if (tx.operationType === 'transferencia') return !!tx.destinationAccountId;
         
         // Aplicação/Resgate: Requer investimento
-        if ((tx.operationType === 'aplicacao' || tx.operationType === 'resgate') && !tx.tempInvestmentId) return true;
+        if ((tx.operationType === 'aplicacao' || tx.operationType === 'resgate') && !tx.tempInvestmentId) return false;
         
         // Pagamento Empréstimo: Requer empréstimo
-        if (tx.operationType === 'pagamento_emprestimo' && !tx.tempLoanId) return true;
+        if (tx.operationType === 'pagamento_emprestimo' && !tx.tempLoanId) return false;
         
         // Veículo: Requer tipo de operação
-        if (tx.operationType === 'veiculo' && !tx.tempVehicleOperation) return true;
+        if (tx.operationType === 'veiculo' && !tx.tempVehicleOperation) return false;
         
         // Outros: Requer categoria
-        if (['receita', 'despesa', 'rendimento', 'liberacao_emprestimo'].includes(tx.operationType) && !tx.categoryId) return true;
+        if (['receita', 'despesa', 'rendimento', 'liberacao_emprestimo'].includes(tx.operationType) && !tx.categoryId) return false;
         
-        return false;
+        return true;
       });
       
       const incompleteCount = importedTransactions.filter(tx => {
@@ -714,4 +716,4 @@ export function ImportTransactionDialog({ open, onOpenChange, account, investmen
       />
     </>
   );
-}
+  }
