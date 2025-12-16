@@ -22,7 +22,6 @@ import {
 import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { SeguroParcelaSelector } from "./SeguroParcelaSelector";
-import { parseDateLocal } from "@/lib/utils"; // Importado para corrigir o bug de data
 
 // Interface simplificada para Empréstimo (agora passada via props)
 interface LoanInfo {
