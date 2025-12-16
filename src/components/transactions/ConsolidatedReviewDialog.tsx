@@ -380,7 +380,7 @@ export function ConsolidatedReviewDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent 
           className="max-w-7xl h-[95vh] p-0 overflow-hidden flex flex-col"
-          hideCloseButton // <-- ADICIONADO PARA REMOVER O BOTÃO PADRÃO
+          hideCloseButton 
         >
           <DialogHeader className="px-4 pt-3 pb-2 border-b shrink-0">
             <div className="flex items-center justify-between">
@@ -407,7 +407,7 @@ export function ConsolidatedReviewDialog({
             </div>
           </DialogHeader>
 
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-1 overflow-y-auto"> {/* CORREÇÃO 1: A rolagem vertical é gerenciada por este container */}
             
             {/* Coluna Lateral (Controle e Status) - AGORA REDIMENSIONÁVEL */}
             <ResizableSidebar
@@ -431,7 +431,7 @@ export function ConsolidatedReviewDialog({
             </ResizableSidebar>
 
             {/* Coluna Principal (Tabela de Revisão) */}
-            <div className="flex-1 overflow-y-auto px-4 pt-2 pb-2">
+            <div className="flex-1 px-4 pt-2 pb-2"> {/* CORREÇÃO 2: Removido overflow-y-auto daqui */}
               <h3 className="text-sm font-semibold text-foreground mb-3">
                 Transações Pendentes no Período ({format(reviewRange.from || new Date(), 'dd/MM/yy')} - {format(reviewRange.to || new Date(), 'dd/MM/yy')})
               </h3>
