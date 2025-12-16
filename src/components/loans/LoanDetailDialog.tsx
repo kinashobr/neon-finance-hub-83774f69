@@ -432,7 +432,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                       <BarChart data={evolucaoData.slice(1, 25)}> {/* Slice from 1 to exclude initial point */}
                         <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
                         <XAxis dataKey="parcela" axisLine={false} tickLine={false} tick={{ fill: colors.mutedForeground, fontSize: 10 }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: colors.mutedForeground, fontSize: 10 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}k`} />}
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: colors.mutedForeground, fontSize: 10 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}k`} />
                         <Tooltip
                           contentStyle={{ backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: "8px" }}
                           formatter={(value: number) => [formatCurrency(value)]}
