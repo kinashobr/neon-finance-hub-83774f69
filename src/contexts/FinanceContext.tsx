@@ -15,6 +15,8 @@ import {
   BillTracker, // NEW
   generateBillId, // NEW
   BillSourceType, // NEW
+  StandardizationRule, // <-- NEW IMPORT
+  generateRuleId, // <-- NEW IMPORT
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format } from "date-fns"; // Import date-fns helpers
 import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
@@ -151,6 +153,11 @@ interface FinanceContextType {
   setTransacoesV2: Dispatch<SetStateAction<TransacaoCompleta[]>>;
   addTransacaoV2: (transaction: TransacaoCompleta) => void;
   
+  // Standardization Rules (NEW)
+  standardizationRules: StandardizationRule[];
+  addStandardizationRule: (rule: Omit<StandardizationRule, "id">) => void;
+  deleteStandardizationRule: (id: string) => void;
+  
   // Data Filtering (NEW)
   dateRanges: ComparisonDateRanges;
   setDateRanges: Dispatch<SetStateAction<ComparisonDateRanges>>;
@@ -233,6 +240,9 @@ const STORAGE_KEYS = {
   CATEGORIAS_V2: "fin_categories_v1",
   TRANSACOES_V2: "fin_transactions_v1",
   
+  // Standardization Rules (NEW KEY)
+  STANDARDIZATION_RULES: "fin_standardization_rules_v1",
+  
   // Data Filtering (NEW)
   DATE_RANGES: "fin_date_ranges_v1",
   
@@ -252,6 +262,7 @@ const initialVeiculos: Veiculo[] = [];
 const initialSegurosVeiculo: SeguroVeiculo[] = [];
 const initialObjetivos: ObjetivoFinanceiro[] = [];
 const initialBillsTracker: BillTracker[] = []; // NEW INITIAL STATE
+const initialStandardizationRules: StandardizationRule[] = []; // NEW INITIAL STATE
 
 // Default alert start date is 6 months ago
 const defaultAlertStartDate = subMonths(new Date(), 6).toISOString().split('T')[0];
@@ -341,6 +352,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     loadFromStorage(STORAGE_KEYS.TRANSACOES_V2, [])
   );
   
+  // Standardization Rules State (NEW)
+  const [standardizationRules, setStandardizationRules] = useState<StandardizationRule[]>(() => 
+    loadFromStorage(STORAGE_KEYS.STANDARDIZATION_RULES, initialStandardizationRules)
+  );
+  
   // Data Filtering State (NEW)
   const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(() => 
     loadFromStorage(STORAGE_KEYS.DATE_RANGES, DEFAULT_RANGES)
@@ -365,6 +381,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); }, [segurosVeiculo]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos); }, [objetivos]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.BILLS_TRACKER, billsTracker); }, [billsTracker]); // NEW EFFECT
+  
+  // NEW EFFECT for Standardization Rules
+  useEffect(() => { saveToStorage(STORAGE_KEYS.STANDARDIZATION_RULES, standardizationRules); }, [standardizationRules]);
   
   // NEW EFFECT for dateRanges
   useEffect(() => { saveToStorage(STORAGE_KEYS.DATE_RANGES, dateRanges); }, [dateRanges]);
@@ -999,6 +1018,22 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const addTransacaoV2 = (transaction: TransacaoCompleta) => {
     setTransacoesV2(prev => [...prev, transaction]);
   };
+  
+  // ============================================
+  // OPERAÇÕES DE REGRAS DE PADRONIZAÇÃO (NEW)
+  // ============================================
+  
+  const addStandardizationRule = useCallback((rule: Omit<StandardizationRule, "id">) => {
+    const newRule: StandardizationRule = {
+        ...rule,
+        id: generateRuleId(),
+    };
+    setStandardizationRules(prev => [...prev, newRule]);
+  }, []);
+
+  const deleteStandardizationRule = useCallback((id: string) => {
+    setStandardizationRules(prev => prev.filter(r => r.id !== id));
+  }, []);
 
   // ============================================
   // FUNÇÕES DE CONTAS MOVIMENTO
@@ -1172,6 +1207,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     (data.data as any).segurosVeiculo = segurosVeiculo;
     (data.data as any).objetivos = objetivos;
     (data.data as any).billsTracker = billsTracker; // NEW EXPORT
+    (data.data as any).standardizationRules = standardizationRules; // NEW EXPORT
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1201,6 +1237,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (data.data.segurosVeiculo) setSegurosVeiculo(data.data.segurosVeiculo);
         if (data.data.objetivos) setObjetivos(data.data.objetivos);
         if (data.data.billsTracker) setBillsTracker(data.data.billsTracker); // NEW IMPORT
+        if (data.data.standardizationRules) setStandardizationRules(data.data.standardizationRules); // NEW IMPORT
         
         return { success: true, message: "Dados V2 importados com sucesso!" };
       } else {
@@ -1257,6 +1294,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     transacoesV2,
     setTransacoesV2,
     addTransacaoV2,
+    
+    // Standardization Rules (NEW)
+    standardizationRules,
+    addStandardizationRule,
+    deleteStandardizationRule,
     
     // Data Filtering (NEW)
     dateRanges,

@@ -219,6 +219,38 @@ export interface BillTracker {
   isExcluded?: boolean; // NEW: Mark if excluded from current month's list
 }
 
+// ============================================
+// NOVO: IMPORTAÇÃO E PADRONIZAÇÃO
+// ============================================
+
+export interface StandardizationRule {
+  id: string;
+  pattern: string; // Substring a ser buscada na descrição original
+  categoryId: string;
+  operationType: OperationType; // 'receita', 'despesa', 'transferencia', etc.
+  descriptionTemplate: string; // Nova descrição padronizada
+}
+
+export interface ImportedTransaction {
+  id: string; // ID temporário para rastreamento
+  date: string; // YYYY-MM-DD
+  amount: number;
+  originalDescription: string;
+  
+  // Campos para revisão (pré-preenchidos por regras)
+  accountId: string;
+  categoryId: string | null;
+  operationType: OperationType | null;
+  description: string; // Descrição padronizada ou original
+  
+  // Campos de Transferência (preenchidos manualmente)
+  isTransfer: boolean;
+  destinationAccountId: string | null;
+  
+  // Meta
+  sourceType: 'csv' | 'ofx';
+}
+
 // Schema de Exportação V2 (Simplificado)
 export interface FinanceExportV2 {
   schemaVersion: '2.0';
@@ -302,6 +334,10 @@ export function generateCategoryId(): string {
 
 export function generateBillId(): string {
   return `bill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+export function generateRuleId(): string {
+  return `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 export function formatCurrency(value: number, currency = 'BRL'): string {
