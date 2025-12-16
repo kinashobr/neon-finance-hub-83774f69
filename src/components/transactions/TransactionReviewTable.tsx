@@ -82,10 +82,11 @@ export function TransactionReviewTable({
         <TableBody>
           {transactions.map((tx) => {
             const isTransfer = tx.operationType === 'transferencia';
-            // CORREÇÃO: Removida a verificação incorreta de 'veiculo'
             const isIncome = tx.operationType === 'receita' || tx.operationType === 'rendimento' || tx.operationType === 'liberacao_emprestimo';
             const currentCategory = tx.categoryId ? categoriesMap.get(tx.categoryId) : null;
-            const isCategorized = !!tx.categoryId && tx.operationType !== null;
+            
+            // Uma transação é considerada 'categorizada' se tiver tipo de operação e, se não for transferência, uma categoria.
+            const isCategorized = !!tx.operationType && (isTransfer || !!tx.categoryId);
             
             return (
               <TableRow 
@@ -112,7 +113,12 @@ export function TransactionReviewTable({
                 <TableCell>
                   <Select
                     value={tx.operationType || ''}
-                    onValueChange={(v) => onUpdateTransaction(tx.id, { operationType: v as OperationType, isTransfer: v === 'transferencia' })}
+                    onValueChange={(v) => onUpdateTransaction(tx.id, { 
+                        operationType: v as OperationType, 
+                        isTransfer: v === 'transferencia',
+                        // Limpa a categoria se mudar para transferência ou se a categoria atual for incompatível
+                        categoryId: v === 'transferencia' ? null : tx.categoryId
+                    })}
                   >
                     <SelectTrigger className="h-8 text-sm">
                       <SelectValue placeholder="Selecione..." />
@@ -134,7 +140,7 @@ export function TransactionReviewTable({
                   <Select
                     value={tx.categoryId || ''}
                     onValueChange={(v) => onUpdateTransaction(tx.id, { categoryId: v })}
-                    disabled={isTransfer}
+                    disabled={isTransfer || !tx.operationType}
                   >
                     <SelectTrigger className="h-8 text-sm">
                       <SelectValue placeholder="Selecione..." />

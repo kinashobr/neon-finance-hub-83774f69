@@ -3,13 +3,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, FileText, Check, X, Loader2, AlertCircle } from "lucide-react";
-import { ContaCorrente, TransacaoCompleta, Categoria, ImportedTransaction, StandardizationRule, OperationType, generateTransactionId } from "@/types/finance";
+import { Upload, FileText, Check, X, Loader2, AlertCircle, Pin } from "lucide-react";
+import { 
+  ContaCorrente, TransacaoCompleta, Categoria, ImportedTransaction, StandardizationRule, OperationType, 
+  generateTransactionId, generateTransferGroupId, getDomainFromOperation, TransferGroup, TransactionLinks
+} from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
 import { toast } from "sonner";
 import { parseDateLocal } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { TransactionReviewTable } from "./TransactionReviewTable"; // NEW IMPORT
+import { TransactionReviewTable } from "./TransactionReviewTable";
+import { StandardizationRuleFormModal } from "./StandardizationRuleFormModal"; // NEW IMPORT
 
 interface ImportTransactionDialogProps {
   open: boolean;
@@ -43,9 +47,12 @@ const parseCSV = (content: string, accountId: string): ImportedTransaction[] => 
     if (lines.length < 2) return [];
 
     const header = lines[0].toLowerCase();
-    const dataIndex = header.includes('data') ? header.split('\t').findIndex(h => h.includes('data')) : -1;
-    const valorIndex = header.includes('valor') ? header.split('\t').findIndex(h => h.includes('valor')) : -1;
-    const descIndex = header.includes('descri') ? header.split('\t').findIndex(h => h.includes('descri')) : -1;
+    const cols = header.split('\t');
+    
+    // Tenta encontrar as colunas por nome
+    const dataIndex = cols.findIndex(h => h.includes('data'));
+    const valorIndex = cols.findIndex(h => h.includes('valor'));
+    const descIndex = cols.findIndex(h => h.includes('descri'));
 
     if (dataIndex === -1 || valorIndex === -1 || descIndex === -1) {
         throw new Error("CSV inválido. Colunas 'Data', 'Valor' e 'Descrição' são obrigatórias.");
@@ -53,11 +60,11 @@ const parseCSV = (content: string, accountId: string): ImportedTransaction[] => 
 
     const transactions: ImportedTransaction[] = [];
     for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split('\t');
-        if (cols.length > Math.max(dataIndex, valorIndex, descIndex)) {
-            const dateStr = cols[dataIndex].trim();
-            const amountStr = cols[valorIndex].trim();
-            const originalDescription = cols[descIndex].trim();
+        const lineCols = lines[i].split('\t');
+        if (lineCols.length > Math.max(dataIndex, valorIndex, descIndex)) {
+            const dateStr = lineCols[dataIndex].trim();
+            const amountStr = lineCols[valorIndex].trim();
+            const originalDescription = lineCols[descIndex].trim();
             
             if (!dateStr || !amountStr || !originalDescription) continue;
 
@@ -102,7 +109,6 @@ const parseOFX = (content: string, accountId: string): ImportedTransaction[] => 
         const trnTypeMatch = stmtTrnBlock.match(/<TRNTYPE>(\w+)/);
         const dtPostedMatch = stmtTrnBlock.match(/<DTPOSTED>(\d+)/);
         const trnAmtMatch = stmtTrnBlock.match(/<TRNAMT>([\d.-]+)/);
-        const fitIdMatch = stmtTrnBlock.match(/<FITID>([\s\S]*?)</);
         const memoMatch = stmtTrnBlock.match(/<MEMO>([\s\S]*?)</);
 
         if (dtPostedMatch && trnAmtMatch && memoMatch) {
@@ -153,6 +159,10 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
   const [importedTransactions, setImportedTransactions] = useState<ImportedTransaction[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // State for Rule Creation Modal
+  const [showRuleModal, setShowRuleModal] = useState(false);
+  const [txToCreateRule, setTxToCreateRule] = useState<ImportedTransaction | null>(null);
 
   // Aplica as regras de padronização
   const applyRules = useCallback((transactions: ImportedTransaction[], rules: StandardizationRule[]): ImportedTransaction[] => {
@@ -170,7 +180,8 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
           // Se a regra for de transferência, marca como tal
           if (rule.operationType === 'transferencia') {
               updatedTx.isTransfer = true;
-              // Nota: destinationAccountId será preenchido manualmente na revisão
+              // Tenta preencher a conta destino se a regra for muito específica (opcional)
+              // Por enquanto, deixamos null para revisão manual
           }
           
           // Aplica a primeira regra que corresponder e sai
@@ -205,7 +216,6 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
       if (content.toLowerCase().includes('<ofx>')) {
         rawTransactions = parseOFX(content, account.id);
       } else if (content.includes('\t') || content.includes(',')) {
-        // Assume CSV se contiver tab ou vírgula (Nubank usa tab)
         rawTransactions = parseCSV(content, account.id);
       } else {
         setError("Formato de arquivo não reconhecido. Use .csv ou .ofx.");
@@ -231,19 +241,126 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
     }
   };
   
-  const handleContabilizar = () => {
-    // Lógica de contabilização será implementada na Fase 3
-    toast.info("Contabilização em desenvolvimento (Fase 3)");
-    onOpenChange(false);
-  };
-  
   const handleUpdateTransaction = (id: string, updates: Partial<ImportedTransaction>) => {
     setImportedTransactions(prev => prev.map(tx => tx.id === id ? { ...tx, ...updates } : tx));
   };
   
   const handleCreateRule = (tx: ImportedTransaction) => {
-    // Lógica de criação de regra será implementada na Fase 3
-    toast.info(`Criação de regra para "${tx.originalDescription}" em desenvolvimento (Fase 3)`);
+    setTxToCreateRule(tx);
+    setShowRuleModal(true);
+  };
+  
+  const handleSaveRule = (rule: Omit<StandardizationRule, "id">) => {
+    addStandardizationRule(rule);
+    
+    // Reaplicar regras nas transações importadas para ver o efeito imediato
+    const reProcessedTransactions = applyRules(importedTransactions, [...standardizationRules, { ...rule, id: generateTransactionId() }]);
+    setImportedTransactions(reProcessedTransactions);
+  };
+
+  const handleContabilizar = () => {
+    const newTransactions: TransacaoCompleta[] = [];
+    const transferGroups: TransferGroup[] = [];
+    
+    // 1. Validação final
+    const incompleteTx = importedTransactions.filter(tx => 
+        !tx.operationType || 
+        (!tx.isTransfer && !tx.categoryId) || 
+        (tx.isTransfer && !tx.destinationAccountId)
+    );
+    
+    if (incompleteTx.length > 0) {
+        toast.error(`Atenção: ${incompleteTx.length} transação(ões) não estão totalmente categorizadas ou configuradas.`);
+        return;
+    }
+    
+    // 2. Conversão e criação
+    importedTransactions.forEach(tx => {
+        const now = new Date().toISOString();
+        const isTransfer = tx.operationType === 'transferencia';
+        
+        // Determina o fluxo (in/out)
+        let flow: TransacaoCompleta['flow'] = 'out';
+        if (tx.operationType === 'receita' || tx.operationType === 'rendimento' || tx.operationType === 'liberacao_emprestimo' || (tx.operationType === 'veiculo' && tx.amount > 0)) {
+            flow = 'in';
+        } else if (isTransfer) {
+            // Transferência: a transação na conta de origem é 'transfer_out'
+            flow = 'transfer_out';
+        } else {
+            flow = 'out';
+        }
+        
+        // Transação principal (na conta importada)
+        const primaryTx: TransacaoCompleta = {
+            id: tx.id,
+            date: tx.date,
+            accountId: tx.accountId,
+            flow: flow,
+            operationType: tx.operationType!,
+            domain: getDomainFromOperation(tx.operationType!),
+            amount: tx.amount,
+            categoryId: tx.categoryId || null,
+            description: tx.description,
+            links: {
+                investmentId: null,
+                loanId: null,
+                transferGroupId: isTransfer ? generateTransferGroupId() : null,
+                parcelaId: null,
+                vehicleTransactionId: null,
+            },
+            conciliated: true, // Transações importadas são consideradas conciliadas
+            attachments: [],
+            meta: {
+                createdBy: 'system',
+                source: 'import',
+                createdAt: now,
+                originalDescription: tx.originalDescription,
+            }
+        };
+        
+        newTransactions.push(primaryTx);
+        
+        // 3. Criação da transação de contrapartida (se for transferência)
+        if (isTransfer && tx.destinationAccountId) {
+            const transferGroupId = primaryTx.links.transferGroupId!;
+            
+            // Transação de contrapartida (na conta destino)
+            const secondaryTx: TransacaoCompleta = {
+                ...primaryTx,
+                id: generateTransactionId(),
+                accountId: tx.destinationAccountId,
+                flow: 'transfer_in',
+                operationType: 'transferencia',
+                description: `Transferência recebida de ${account.name}`,
+                links: {
+                    ...primaryTx.links,
+                    transferGroupId,
+                },
+                meta: {
+                    ...primaryTx.meta,
+                    createdBy: 'system',
+                }
+            };
+            
+            newTransactions.push(secondaryTx);
+            
+            // Adiciona ao grupo de transferências (opcional, mas útil para rastreamento)
+            transferGroups.push({
+                id: transferGroupId,
+                fromAccountId: tx.accountId,
+                toAccountId: tx.destinationAccountId,
+                amount: tx.amount,
+                date: tx.date,
+                description: tx.description,
+            });
+        }
+    });
+    
+    // 4. Adiciona todas as transações ao contexto
+    newTransactions.forEach(t => addTransacaoV2(t));
+    
+    toast.success(`${newTransactions.length} lançamentos contabilizados com sucesso!`);
+    onOpenChange(false);
   };
 
   const renderContent = () => {
@@ -289,19 +406,35 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
     }
     
     if (step === 'review') {
+      const allCategorized = importedTransactions.every(tx => 
+        !!tx.operationType && 
+        (tx.isTransfer ? !!tx.destinationAccountId : !!tx.categoryId)
+      );
+      
+      const incompleteCount = importedTransactions.filter(tx => 
+        !tx.operationType || 
+        (tx.isTransfer ? !tx.destinationAccountId : !tx.categoryId)
+      ).length;
+
       return (
         <div className="space-y-4">
-          <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-between">
+          <div className={cn(
+            "p-3 rounded-lg border flex items-center justify-between",
+            allCategorized ? "bg-success/10 border-success/30" : "bg-warning/10 border-warning/30"
+          )}>
             <div>
-                <p className="text-sm font-medium text-primary">
-                {importedTransactions.length} transações prontas para revisão.
+                <p className="text-sm font-medium text-foreground">
+                {importedTransactions.length} transações carregadas.
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                Conta de Origem: {account.name}
+                <p className={cn("text-xs mt-1", allCategorized ? "text-success" : "text-warning")}>
+                    {allCategorized 
+                        ? <><Check className="w-3 h-3 inline mr-1" /> Todas prontas para contabilização.</>
+                        : <><AlertCircle className="w-3 h-3 inline mr-1" /> {incompleteCount} transação(ões) pendente(s) de categorização.</>
+                    }
                 </p>
             </div>
             <Button variant="outline" size="sm" onClick={() => setStep('upload')}>
-                <AlertCircle className="w-4 h-4 mr-2" />
+                <X className="w-4 h-4 mr-2" />
                 Trocar Arquivo
             </Button>
           </div>
@@ -318,8 +451,10 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
           
           <Button 
             onClick={handleContabilizar} 
-            className="w-full bg-success hover:bg-success/90"
+            className="w-full bg-success hover:bg-success/90 gap-2"
+            disabled={incompleteCount > 0}
           >
+            <Check className="w-4 h-4" />
             Contabilizar Lançamentos ({importedTransactions.length})
           </Button>
         </div>
@@ -328,25 +463,35 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-primary" />
-            Importar Extrato - {account.name}
-          </DialogTitle>
-          <DialogDescription>
-            {step === 'upload' 
-              ? "Carregue um arquivo CSV (Nubank) ou OFX para iniciar a conciliação."
-              : "Revise e categorize as transações importadas antes de contabilizar."
-            }
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="flex-1 overflow-y-auto pr-1">
-            {renderContent()}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              Importar Extrato - {account.name}
+            </DialogTitle>
+            <DialogDescription>
+              {step === 'upload' 
+                ? "Carregue um arquivo CSV (Nubank) ou OFX para iniciar a conciliação."
+                : "Revise e categorize as transações importadas antes de contabilizar."
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto pr-1">
+              {renderContent()}
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      <StandardizationRuleFormModal
+        open={showRuleModal}
+        onOpenChange={setShowRuleModal}
+        initialTransaction={txToCreateRule}
+        categories={categoriasV2}
+        onSave={handleSaveRule}
+      />
+    </>
   );
 }

@@ -24,7 +24,7 @@ import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { BillsTrackerModal } from "@/components/bills/BillsTrackerModal";
-import { ImportTransactionDialog } from "@/components/transactions/ImportTransactionDialog"; // <-- NOVO IMPORT
+import { ImportTransactionDialog } from "@/components/transactions/ImportTransactionDialog";
 
 // Context
 import { useFinance } from "@/contexts/FinanceContext";
@@ -220,6 +220,15 @@ const ReceitasDespesas = () => {
     if (account) {
       setAccountToImport(account);
       setShowImportModal(true);
+    }
+  };
+  
+  // NEW HANDLER: Close Import Modal
+  const handleCloseImportModal = (open: boolean) => {
+    setShowImportModal(open);
+    if (!open) {
+        // Limpa o estado da conta de importação ao fechar
+        setAccountToImport(null);
     }
   };
 
@@ -904,7 +913,7 @@ const ReceitasDespesas = () => {
       {accountToImport && (
         <ImportTransactionDialog
           open={showImportModal}
-          onOpenChange={setShowImportModal}
+          onOpenChange={handleCloseImportModal}
           account={accountToImport}
         />
       )}
