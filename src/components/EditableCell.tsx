@@ -15,9 +15,10 @@ interface EditableCellProps {
   type?: "text" | "number" | "date" | "select" | "currency";
   options?: string[];
   className?: string;
+  disabled?: boolean; // Added disabled prop
 }
 
-export function EditableCell({ value, onSave, type = "text", options = [], className = "" }: EditableCellProps) {
+export function EditableCell({ value, onSave, type = "text", options = [], className = "", disabled = false }: EditableCellProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -75,7 +76,7 @@ export function EditableCell({ value, onSave, type = "text", options = [], class
 
   if (type === "select" && options.length > 0) {
     return (
-      <Select value={String(value)} onValueChange={(v) => onSave(v)}>
+      <Select value={String(value)} onValueChange={(v) => onSave(v)} disabled={disabled}>
         <SelectTrigger className="h-8 bg-transparent border-transparent hover:border-border transition-colors">
           <SelectValue />
         </SelectTrigger>
@@ -99,6 +100,7 @@ export function EditableCell({ value, onSave, type = "text", options = [], class
         onKeyDown={handleKeyDown}
         step={type === "currency" ? "0.01" : undefined}
         className={`h-8 bg-muted border-primary ${className}`}
+        disabled={disabled} // Pass disabled prop to Input
       />
     );
   }
@@ -106,9 +108,9 @@ export function EditableCell({ value, onSave, type = "text", options = [], class
   // Use <span> instead of <div> to avoid nesting issues inside <p> elements
   return (
     <span
-      onClick={() => setIsEditing(true)}
-      className={`cursor-pointer px-2 py-1 rounded hover:bg-muted/50 transition-colors min-h-[32px] inline-flex items-center ${className}`}
-      title="Clique para editar"
+      onClick={() => !disabled && setIsEditing(true)} // Prevent editing if disabled
+      className={`cursor-pointer px-2 py-1 rounded transition-colors min-h-[32px] inline-flex items-center ${className} ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-muted/50'}`}
+      title={disabled ? "Edição desabilitada" : "Clique para editar"}
     >
       {formatDisplay()}
     </span>
