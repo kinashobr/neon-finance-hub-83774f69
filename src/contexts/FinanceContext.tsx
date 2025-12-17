@@ -301,7 +301,7 @@ interface FinanceContextType {
   addBill: (bill: Omit<BillTracker, "id" | "isPaid">) => void;
   updateBill: (id: string, updates: Partial<BillTracker>) => void;
   deleteBill: (id: string) => void;
-  getBillsForMonth: (date: Date, includeTemplates: boolean) => BillTracker[]; // RENOMEADO E MODIFICADO
+  getBillsForMonth: (date: Date) => BillTracker[]; // REMOVIDO includeTemplates
   
   // Contas Movimento (new integrated system)
   contasMovimento: ContaCorrente[];
@@ -975,189 +975,30 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     ).reduce((acc, t) => acc + t.amount, 0);
 }, [transacoesV2]);
 
-  const getBillsForMonth = useCallback((date: Date, includeTemplates: boolean): BillTracker[] => {
+  // SIMPLIFICADO: Retorna apenas contas persistidas (ad-hoc ou modificações salvas)
+  const getBillsForMonth = useCallback((date: Date): BillTracker[] => {
     const monthYear = format(date, 'yyyy-MM');
-    const prevMonth = subMonths(date, 1);
-    const prevMonthYear = format(prevMonth, 'yyyy-MM');
     
-    // 1. Carregar todas as MODIFICAÇÕES/AD-HOC persistidas
-    const persistedModificationsMap = new Map<string, BillTracker>();
-    const adHocBills: BillTracker[] = []; // NEW: Separate storage for ad-hoc bills
-    
-    billsTracker.forEach(bill => {
+    // 1. Filtra todas as contas persistidas (ad-hoc ou modificações de templates)
+    const filteredBills = billsTracker.filter(bill => {
         const billDate = parseDateLocal(bill.dueDate);
         
-        // NEW LOGIC: Separate ad-hoc bills
-        if (bill.sourceType === 'ad_hoc') {
-            adHocBills.push(bill);
-            return;
+        // Apenas contas do mês de referência
+        if (!isSameMonth(billDate, date)) {
+            return false;
         }
-
-        // Only store template modifications for the current month
-        if (isSameMonth(billDate, date)) {
-            persistedModificationsMap.set(bill.id, bill);
-        }
+        
+        // Inclui todas as contas ad-hoc e todas as contas que foram salvas (modificadas ou pagas)
+        return true;
     });
     
-    // Lista de todas as contas (templates + ad-hoc)
-    let allBills: BillTracker[] = [];
+    // 2. Remove contas que foram explicitamente excluídas (isExcluded)
+    // Nota: Mantemos as contas pagas, mesmo que excluídas, para fins de histórico no modal.
+    const finalBills = filteredBills.filter(b => !b.isExcluded || b.isPaid);
     
-    // 2. Adicionar Contas Ad-Hoc (sempre incluídas)
-    adHocBills.forEach(b => allBills.push(b)); // UPDATED USAGE
-        
-    if (!includeTemplates) {
-        // Se não for para incluir templates, retorna apenas as contas ad-hoc e as pagas
-        return allBills
-            .filter(b => b.isPaid || b.sourceType === 'ad_hoc')
-            .sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
-    }
-    
-    // 3. Gerar Templates (Empréstimos, Seguros, Despesas Fixas/Variáveis)
-    
-    const checkTransactionPayment = (billId: string): TransacaoCompleta | undefined => {
-        return transacoesV2.find(t => t.meta?.source === 'bill_tracker' && t.id === billId);
-    };
-    
-    const getPreviousMonthExpense = (categoryId: string): number => {
-        const tx = transacoesV2.filter(t => 
-            (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo') && 
-            t.categoryId === categoryId && 
-            t.date.startsWith(prevMonthYear)
-        );
-        return tx.reduce((acc, t) => acc + t.amount, 0);
-    };
-    
-    // --- 3a. Parcelas de Empréstimo ---
-    emprestimos.forEach(loan => {
-        if (loan.status !== 'ativo' || !loan.dataInicio || loan.meses === 0) return;
-        
-        for (let i = 1; i <= loan.meses; i++) {
-            const dueDate = getDueDate(loan.dataInicio, i);
-            
-            if (isSameMonth(dueDate, date)) {
-                // 🔑 ID DETERMINÍSTICO: loan_installment_ID_PARCELA_MESANO
-                const billId = `loan_installment_${loan.id}_${i}_${monthYear}`; 
-                const dueDateStr = format(dueDate, 'yyyy-MM-dd');
-                
-                const paidTx = transacoesV2.find(t => 
-                    t.operationType === 'pagamento_emprestimo' && 
-                    t.links?.loanId === `loan_${loan.id}` && 
-                    t.links?.parcelaId === i.toString()
-                );
-                
-                const isPaidByTx = !!paidTx;
-                const existingModification = persistedModificationsMap.get(billId);
-                
-                const baseBill: BillTracker = {
-                    id: billId,
-                    description: `Parcela ${i}/${loan.meses} - ${loan.contrato}`,
-                    dueDate: dueDateStr,
-                    expectedAmount: loan.parcela,
-                    isPaid: isPaidByTx,
-                    paymentDate: paidTx?.date,
-                    transactionId: paidTx?.id,
-                    sourceType: 'loan_installment',
-                    sourceRef: loan.id.toString(),
-                    parcelaNumber: i,
-                    suggestedAccountId: loan.contaCorrenteId,
-                    suggestedCategoryId: categoriasV2.find(c => c.label === 'Pag. Empréstimo')?.id,
-                    isExcluded: existingModification?.isExcluded,
-                };
-                
-                // Aplica modificações persistidas (se houver)
-                const finalBill = existingModification ? { ...baseBill, ...existingModification } : baseBill;
-                
-                // Adiciona apenas se NÃO estiver excluído OU se for pago (para mostrar histórico)
-                if (!finalBill.isExcluded || finalBill.isPaid) {
-                    allBills.push(finalBill);
-                }
-            }
-        }
-    });
-    
-    // --- 3b. Parcelas de Seguro ---
-    segurosVeiculo.forEach(seguro => {
-        seguro.parcelas.forEach(parcela => {
-            const dueDate = parseDateLocal(parcela.vencimento);
-            
-            if (isSameMonth(dueDate, date)) {
-                // 🔑 ID DETERMINÍSTICO: insurance_installment_ID_PARCELA_MESANO
-                const billId = `insurance_installment_${seguro.id}_${parcela.numero}_${monthYear}`; 
-                const dueDateStr = format(dueDate, 'yyyy-MM-dd');
-                
-                const paidTx = transacoesV2.find(t => 
-                    t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`
-                );
-                
-                const isPaidByTx = !!paidTx;
-                const existingModification = persistedModificationsMap.get(billId);
-                
-                const baseBill: BillTracker = {
-                    id: billId,
-                    description: `Seguro ${seguro.numeroApolice} - Parcela ${parcela.numero}/${seguro.numeroParcelas}`,
-                    dueDate: dueDateStr,
-                    expectedAmount: parcela.valor,
-                    isPaid: isPaidByTx,
-                    paymentDate: paidTx?.date,
-                    transactionId: paidTx?.id,
-                    sourceType: 'insurance_installment',
-                    sourceRef: seguro.id.toString(),
-                    parcelaNumber: parcela.numero,
-                    suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
-                    suggestedCategoryId: categoriasV2.find(c => c.label.toLowerCase() === 'seguro')?.id,
-                    isExcluded: existingModification?.isExcluded,
-                };
-                
-                const finalBill = existingModification ? { ...baseBill, ...existingModification } : baseBill;
-                
-                if (!finalBill.isExcluded || finalBill.isPaid) {
-                    allBills.push(finalBill);
-                }
-            }
-        });
-    });
-    
-    // --- 3c. Despesas Fixas e Variáveis (Estimativas) ---
-    const expenseCategories = categoriasV2.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel');
-    
-    expenseCategories.forEach(cat => {
-        const isFixed = cat.nature === 'despesa_fixa';
-        const dueDate = new Date(date.getFullYear(), date.getMonth(), isFixed ? 10 : 25);
-        const dueDateStr = format(dueDate, 'yyyy-MM-dd');
-        
-        // 🔑 ID DETERMINÍSTICO: fixed_expense_ID_CATEGORIA_MESANO
-        const billId = `${isFixed ? 'fixed_expense' : 'variable_expense'}_${cat.id}_${monthYear}`; 
-        
-        const existingModification = persistedModificationsMap.get(billId);
-        const paidTx = checkTransactionPayment(billId); // Check if paid via bill tracker
-        
-        const isPaidByTx = !!paidTx;
-        
-        const baseBill: BillTracker = {
-            id: billId,
-            description: cat.label,
-            dueDate: dueDateStr,
-            expectedAmount: existingModification?.expectedAmount || getPreviousMonthExpense(cat.id) || 0,
-            isPaid: isPaidByTx,
-            paymentDate: paidTx?.date,
-            transactionId: paidTx?.id,
-            sourceType: isFixed ? 'fixed_expense' : 'variable_expense',
-            sourceRef: cat.id,
-            suggestedAccountId: existingModification?.suggestedAccountId || contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
-            suggestedCategoryId: cat.id,
-            isExcluded: existingModification?.isExcluded,
-        };
-        
-        const finalBill = existingModification ? { ...baseBill, ...existingModification } : baseBill;
-        
-        if (!finalBill.isExcluded || finalBill.isPaid) {
-            allBills.push(finalBill);
-        }
-    });
-    
-    // 4. Retorna a lista consolidada e filtrada
-    return allBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
-  }, [billsTracker, emprestimos, segurosVeiculo, categoriasV2, transacoesV2, contasMovimento, calculateLoanSchedule]);
+    // 3. Ordena
+    return finalBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
+  }, [billsTracker]);
 
 
   // ============================================

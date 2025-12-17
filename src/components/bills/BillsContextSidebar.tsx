@@ -18,7 +18,7 @@ interface BillsContextSidebarProps {
   netForecast: number; // Saldo Previsto (Receita - Total PENDENTE)
   isMobile?: boolean;
   onSaveAndClose: () => void;
-  onRefreshList: () => void; // RENOMEADO
+  // onRefreshList: () => void; // REMOVIDO
 }
 
 export function BillsContextSidebar({
@@ -31,7 +31,7 @@ export function BillsContextSidebar({
   netForecast,
   isMobile = false,
   onSaveAndClose,
-  onRefreshList, // USADO
+  // onRefreshList, // REMOVIDO
 }: BillsContextSidebarProps) {
   
   const formatValue = (value: number) => {
@@ -104,8 +104,8 @@ export function BillsContextSidebar({
 
         <Separator />
 
-        {/* Botão de Geração Manual */}
-        <div className="space-y-2">
+        {/* Botão de Geração Manual (REMOVIDO) */}
+        {/* <div className="space-y-2">
           <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
             <RefreshCw className="w-3 h-3" />
             Lista de Contas
@@ -123,7 +123,7 @@ export function BillsContextSidebar({
           </p>
         </div>
 
-        <Separator />
+        <Separator /> */}
 
         {/* Itens de Apoio */}
         <div className="space-y-3"> {/* Increased space-y from 2 to 3 */}
