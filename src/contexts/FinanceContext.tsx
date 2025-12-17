@@ -658,11 +658,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     
     const investmentAccountIds = contasMovimento
       .filter(c => 
-        c.accountType === 'aplicacao_renda_fixa' || 
+        c.accountType === 'renda_fixa' || 
         c.accountType === 'poupanca' ||
-        c.accountType === 'criptoativos' ||
-        c.accountType === 'reserva_emergencia' ||
-        c.accountType === 'objetivos_financeiros'
+        c.accountType === 'cripto' ||
+        c.accountType === 'reserva' ||
+        c.accountType === 'objetivo'
       )
       .map(c => c.id);
 
@@ -1062,7 +1062,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // 2. Estão pagas E a data de pagamento (paymentDate) é no mês de referência.
     const filteredBills = billsTracker.filter(bill => {
         const billDueDate = parseDateLocal(bill.dueDate);
-        const isDueInMonth = isSameMonth(billDueDate, date);
+        const isSameMonthDate = isSameMonth(billDueDate, date);
         
         let isPaidInMonth = false;
         if (bill.isPaid && bill.paymentDate) {
@@ -1070,7 +1070,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             isPaidInMonth = isSameMonth(billPaymentDate, date);
         }
         
-        return isDueInMonth || isPaidInMonth;
+        return isSameMonthDate || isPaidInMonth;
     });
     
     // Remove contas que foram explicitamente excluídas (isExcluded) E não estão pagas
@@ -1385,7 +1385,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // ============================================
 
   const getContasCorrentesTipo = useCallback(() => {
-    return contasMovimento.filter(c => c.accountType === 'conta_corrente');
+    return contasMovimento.filter(c => c.accountType === 'corrente');
   }, [contasMovimento]);
   
   // ============================================

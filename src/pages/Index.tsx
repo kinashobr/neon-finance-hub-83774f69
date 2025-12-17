@@ -73,7 +73,7 @@ const Index = () => {
   // Liquidez imediata (contas correntes, poupança, reserva e RENDA FIXA)
   const liquidezImediata = useMemo(() => {
     return saldosPorConta
-      .filter(c => c.accountType === 'conta_corrente' || c.accountType === 'poupanca' || c.accountType === 'reserva_emergencia' || c.accountType === 'aplicacao_renda_fixa')
+      .filter(c => c.accountType === 'corrente' || c.accountType === 'poupanca' || c.accountType === 'reserva' || c.accountType === 'renda_fixa')
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 
@@ -148,7 +148,7 @@ const Index = () => {
   // Dados para acompanhamento de ativos
   const investimentosRFTotal = useMemo(() => {
     return saldosPorConta
-      .filter(c => c.accountType === 'aplicacao_renda_fixa' || c.accountType === 'poupanca')
+      .filter(c => c.accountType === 'renda_fixa' || c.accountType === 'poupanca')
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 
@@ -160,19 +160,19 @@ const Index = () => {
 
   const reservaEmergencia = useMemo(() => {
     return saldosPorConta
-      .filter(c => c.accountType === 'reserva_emergencia')
+      .filter(c => c.accountType === 'reserva')
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 
   const criptoTotal = useMemo(() => {
     return saldosPorConta
-      .filter(c => c.accountType === 'criptoativos' && !c.name.toLowerCase().includes('stable'))
+      .filter(c => c.accountType === 'cripto' && !c.name.toLowerCase().includes('stable'))
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
   
   const stablesTotal = useMemo(() => {
     return saldosPorConta
-      .filter(c => c.accountType === 'criptoativos' && c.name.toLowerCase().includes('stable'))
+      .filter(c => c.accountType === 'cripto' && c.name.toLowerCase().includes('stable'))
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 

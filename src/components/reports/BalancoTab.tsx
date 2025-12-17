@@ -241,7 +241,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     
     // Renda Fixa e Equivalentes (Ativo Circulante)
     const contasCirculantes = contasMovimento.filter(c => 
-      ['conta_corrente', 'poupanca', 'reserva_emergencia', 'aplicacao_renda_fixa'].includes(c.accountType)
+      ['corrente', 'poupanca', 'reserva', 'renda_fixa'].includes(c.accountType)
     );
     const caixaEquivalentes = contasCirculantes.reduce((acc, c) => acc + Math.max(0, saldosPorConta[c.id] || 0), 0);
     
@@ -250,12 +250,12 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     
     // Investimentos (Ativo Não Circulante) - Apenas Cripto e Objetivos
     const contasInvestimentoNaoCirculante = contasMovimento.filter(c => 
-      ['criptoativos', 'objetivos_financeiros'].includes(c.accountType)
+      ['cripto', 'objetivo'].includes(c.accountType)
     );
     
-    const saldoCripto = contasInvestimentoNaoCirculante.filter(c => c.accountType === 'criptoativos' && !c.name.toLowerCase().includes('stable')).reduce((acc, c) => acc + Math.max(0, saldosPorConta[c.id] || 0), 0);
-    const saldoStable = contasInvestimentoNaoCirculante.filter(c => c.accountType === 'criptoativos' && c.name.toLowerCase().includes('stable')).reduce((acc, c) => acc + Math.max(0, saldosPorConta[c.id] || 0), 0);
-    const saldoObjetivos = contasInvestimentoNaoCirculante.filter(c => c.accountType === 'objetivos_financeiros').reduce((acc, c) => acc + Math.max(0, saldosPorConta[c.id] || 0), 0);
+    const saldoCripto = contasInvestimentoNaoCirculante.filter(c => c.accountType === 'cripto' && !c.name.toLowerCase().includes('stable')).reduce((acc, c) => acc + Math.max(0, saldosPorConta[c.id] || 0), 0);
+    const saldoStable = contasInvestimentoNaoCirculante.filter(c => c.accountType === 'cripto' && c.name.toLowerCase().includes('stable')).reduce((acc, c) => acc + Math.max(0, saldosPorConta[c.id] || 0), 0);
+    const saldoObjetivos = contasInvestimentoNaoCirculante.filter(c => c.accountType === 'objetivo').reduce((acc, c) => acc + Math.max(0, saldosPorConta[c.id] || 0), 0);
     
     const investimentosNaoCirculantes = saldoCripto + saldoStable + saldoObjetivos;
 
@@ -562,7 +562,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                     </div>
                   </TableCell>
                 </TableRow>
-                {contasMovimento.filter(c => ['conta_corrente', 'poupanca', 'reserva_emergencia', 'aplicacao_renda_fixa'].includes(c.accountType)).map(conta => (
+                {contasMovimento.filter(c => ['corrente', 'poupanca', 'reserva', 'renda_fixa'].includes(c.accountType)).map(conta => (
                   <TableRow key={conta.id} className="border-border hover:bg-muted/20">
                     <TableCell className="pl-6 flex items-center gap-2">
                       <ChevronRight className="w-3 h-3 text-muted-foreground" />
