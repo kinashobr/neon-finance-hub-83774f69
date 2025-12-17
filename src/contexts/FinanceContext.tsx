@@ -23,6 +23,7 @@ import {
   OperationType, // <-- NEW IMPORT
   getFlowTypeFromOperation, // <-- NEW IMPORT
   BillSourceType,
+  TransactionLinks,
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns"; // Import date-fns helpers
 import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
@@ -192,6 +193,8 @@ const parseCSV = (content: string, accountId: string): ImportedTransaction[] => 
                 sourceType: 'csv',
                 isContabilized: false,
                 contabilizedTransactionId: undefined,
+                isPotentialDuplicate: false,
+                duplicateOfTxId: undefined,
             });
         }
     }
@@ -239,6 +242,8 @@ const parseOFX = (content: string, accountId: string): ImportedTransaction[] => 
                 sourceType: 'ofx',
                 isContabilized: false,
                 contabilizedTransactionId: undefined,
+                isPotentialDuplicate: false,
+                duplicateOfTxId: undefined,
             });
         }
     }
@@ -292,7 +297,7 @@ interface FinanceContextType {
 
   // NEW: Bill Tracker
   billsTracker: BillTracker[];
-  setBillsTracker: Dispatch<SetStateAction<BillTracker[]>>; // <--- EXPOSED FOR ERROR 3
+  setBillsTracker: Dispatch<SetStateAction<BillTracker[]>>;
   addBill: (bill: Omit<BillTracker, "id" | "isPaid">) => void;
   updateBill: (id: string, updates: Partial<BillTracker>) => void;
   deleteBill: (id: string) => void;
@@ -1203,6 +1208,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setEmprestimos(prev => prev.map(e => {
       if (e.id !== loanId) return e;
       
+      // Simplificação: Apenas marca o status como ativo/quitado
       const isQuitado = (e.parcelasPagas || 0) + 1 >= e.meses;
       
       return {
@@ -1552,7 +1558,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     deleteObjetivo,
     
     billsTracker,
-    setBillsTracker, // <--- EXPOSED FOR ERROR 3
+    setBillsTracker,
     addBill,
     updateBill,
     deleteBill,

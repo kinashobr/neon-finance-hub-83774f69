@@ -241,7 +241,7 @@ export interface BillTracker {
 export interface StandardizationRule {
   id: string;
   pattern: string; // Substring a ser buscada na descrição original
-  categoryId: string;
+  categoryId: string | null; // Pode ser null para transferências/aplicações
   operationType: OperationType; // 'receita', 'despesa', 'transferencia', etc.
   descriptionTemplate: string; // Nova descrição padronizada
 }

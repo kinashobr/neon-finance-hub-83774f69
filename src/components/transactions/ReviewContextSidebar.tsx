@@ -135,7 +135,7 @@ export function ReviewContextSidebar({
           className="w-full gap-2 h-9"
         >
           <Check className="w-4 h-4" />
-          Contabilizar ({pendingCount})
+          Contabilizar ({totalCount - pendingCount})
         </Button>
         <Button 
           variant="ghost" 

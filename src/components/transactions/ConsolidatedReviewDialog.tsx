@@ -7,7 +7,8 @@ import {
   ContaCorrente, Categoria, ImportedTransaction, StandardizationRule, 
   TransacaoCompleta, TransferGroup, generateTransactionId, generateTransferGroupId, 
   getDomainFromOperation, getFlowTypeFromOperation, DateRange, ComparisonDateRanges,
-  ImportedStatement
+  ImportedStatement,
+  TransactionLinks
 } from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
 import { toast } from "sonner";
@@ -375,6 +376,7 @@ export function ConsolidatedReviewDialog({
   }).length;
   
   const totalCount = transactionsToReview.length;
+  const readyToContabilizeCount = totalCount - pendingCount - transactionsToReview.filter(tx => tx.isPotentialDuplicate).length;
 
   return (
     <>

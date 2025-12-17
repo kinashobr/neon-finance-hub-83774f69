@@ -59,7 +59,7 @@ export function StandardizationRuleManagerModal({
             </TableHeader>
             <TableBody>
               {rules.map((rule) => {
-                const category = categoriesMap.get(rule.categoryId);
+                const category = rule.categoryId ? categoriesMap.get(rule.categoryId) : null;
                 return (
                   <TableRow key={rule.id} className="hover:bg-muted/30">
                     <TableCell className="text-sm font-medium max-w-[250px] truncate" title={rule.pattern}>
@@ -75,8 +75,8 @@ export function StandardizationRuleManagerModal({
                           <span>{category.label}</span>
                         </div>
                       ) : (
-                        <span className="text-destructive flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3" /> Categoria Inválida
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          — Não Aplicável
                         </span>
                       )}
                     </TableCell>
