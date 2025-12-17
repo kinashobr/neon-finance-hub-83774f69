@@ -135,7 +135,6 @@ const Emprestimos = () => {
       totalContratado,
       totalPago: totalPaid, // Use calculated total paid
       saldoDevedorTotal: principalEmprestimos, // FIXED: Only show loan principal here
-      principalEmprestimos, 
       dividaCartoes, 
       parcelaMensalTotal,
       jurosTotais,

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, Dispatch, SetStateAction, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, Dispatch, SetStateAction, ReactNode, useMemo } from "react";
 import {
   Categoria, TransacaoCompleta,
   DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
@@ -556,39 +556,102 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // ============================================
   // FUNÇÃO CENTRAL DE CÁLCULO DE SALDO POR DATA
   // ============================================
+  
+  // Cache de saldos acumulados (Memoização Estrutural)
+  // Key: accountId_dateString (YYYY-MM-DD)
+  const balanceCache = useMemo(() => {
+    const cache = new Map<string, number>();
+    
+    // 1. Ordenar todas as transações por data e depois por ID (para estabilidade)
+    const sortedTransactions = [...transacoesV2].sort((a, b) => {
+        const dateA = parseDateLocal(a.date).getTime();
+        const dateB = parseDateLocal(b.date).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+        return a.id.localeCompare(b.id);
+    });
+    
+    // 2. Calcular o saldo acumulado para cada conta em cada dia de transação
+    const accountBalances: Record<string, number> = {};
+    
+    // Inicializar saldos
+    contasMovimento.forEach(account => {
+        accountBalances[account.id] = 0;
+    });
+    
+    sortedTransactions.forEach(t => {
+        const account = contasMovimento.find(a => a.id === t.accountId);
+        if (!account) return;
+        
+        const dateKey = t.date;
+        
+        const isCreditCard = account.accountType === 'cartao_credito';
+        
+        let amountChange = 0;
+        if (isCreditCard) {
+            if (t.flow === 'out') {
+                amountChange = -t.amount;
+            } else if (t.flow === 'in') {
+                amountChange = t.amount;
+            }
+        } else {
+            if (t.flow === 'in' || t.flow === 'transfer_in') {
+                amountChange = t.amount;
+            } else {
+                amountChange = -t.amount;
+            }
+        }
+        
+        // Atualiza o saldo
+        accountBalances[t.accountId] = (accountBalances[t.accountId] || 0) + amountChange;
+        
+        // Armazena no cache o saldo final do dia da transação
+        cache.set(`${t.accountId}_${dateKey}`, accountBalances[t.accountId]);
+    });
+    
+    return cache;
+  }, [transacoesV2, contasMovimento]);
+
 
   const calculateBalanceUpToDate = useCallback((accountId: string, date: Date | undefined, allTransactions: TransacaoCompleta[], accounts: ContaCorrente[]): number => {
     const account = accounts.find(a => a.id === accountId);
     if (!account) return 0;
 
-    let balance = 0; 
-    
     const targetDate = date || new Date(9999, 11, 31);
-
+    const targetDateStr = format(targetDate, 'yyyy-MM-dd');
+    
+    // 1. Tenta encontrar o saldo exato no cache para a data alvo
+    if (balanceCache.has(`${accountId}_${targetDateStr}`)) {
+        return balanceCache.get(`${accountId}_${targetDateStr}`)!;
+    }
+    
+    // 2. Se não estiver no cache, procura a transação mais recente antes da data alvo
     const transactionsBeforeDate = allTransactions
         .filter(t => t.accountId === accountId && parseDateLocal(t.date) <= targetDate)
-        .sort((a, b) => parseDateLocal(a.date).getTime() - parseDateLocal(b.date).getTime());
-
-    transactionsBeforeDate.forEach(t => {
-        const isCreditCard = account.accountType === 'cartao_credito';
+        .sort((a, b) => {
+            const dateA = parseDateLocal(a.date).getTime();
+            const dateB = parseDateLocal(b.date).getTime();
+            if (dateA !== dateB) return dateB - dateA; // Mais recente primeiro
+            return b.id.localeCompare(a.id);
+        });
         
-        if (isCreditCard) {
-          if (t.flow === 'out') {
-            balance -= t.amount;
-          } else if (t.flow === 'in') {
-            balance += t.amount;
-          }
-        } else {
-          if (t.flow === 'in' || t.flow === 'transfer_in') {
-            balance += t.amount;
-          } else {
-            balance -= t.amount;
-          }
+    if (transactionsBeforeDate.length > 0) {
+        const latestTx = transactionsBeforeDate[0];
+        const latestDateStr = latestTx.date;
+        
+        // Se a transação mais recente for na data alvo, o saldo já está no cache
+        if (latestDateStr === targetDateStr) {
+            return balanceCache.get(`${accountId}_${latestDateStr}`)!;
         }
-    });
+        
+        // Se a transação mais recente for ANTES da data alvo, usamos o saldo daquele dia
+        if (parseDateLocal(latestDateStr) < targetDate) {
+            return balanceCache.get(`${accountId}_${latestDateStr}`)!;
+        }
+    }
 
-    return balance;
-  }, [contasMovimento, transacoesV2]); // <-- FIX: Removed self-reference (Error 1)
+    // 3. Se não houver transações antes ou na data alvo, o saldo é 0.
+    return 0;
+  }, [balanceCache]);
 
   const calculateTotalInvestmentBalanceAtDate = useCallback((date: Date | undefined): number => {
     const targetDate = date || new Date(9999, 11, 31);
@@ -639,22 +702,22 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   
   // ============================================
   // CÁLCULO DE CRONOGRAMA DE AMORTIZAÇÃO (MÉTODO PRICE)
+  // Refatorado para usar PONTO FIXO (centavos)
   // ============================================
   
   const calculateLoanSchedule = useCallback((loanId: number): AmortizationItem[] => {
     const loan = emprestimos.find(e => e.id === loanId);
     if (!loan || loan.meses === 0 || loan.taxaMensal === 0) return [];
 
+    // Conversão para centavos (ponto fixo)
     const taxa = loan.taxaMensal / 100;
-    const parcelaFixa = loan.parcela;
+    const parcelaFixaCents = Math.round(loan.parcela * 100);
+    let saldoDevedorCents = Math.round(loan.valorTotal * 100);
     
-    const round = (num: number) => Math.round(num * 100) / 100;
-    
-    let saldoDevedor = loan.valorTotal;
     const schedule: AmortizationItem[] = [];
 
     for (let i = 1; i <= loan.meses; i++) {
-      if (saldoDevedor <= 0) {
+      if (saldoDevedorCents <= 0) {
         schedule.push({
           parcela: i,
           juros: 0,
@@ -664,23 +727,30 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         continue;
       }
       
-      const juros = saldoDevedor * taxa;
-      let amortizacao = parcelaFixa - juros;
+      // Cálculo de juros em centavos (arredondado para o centavo mais próximo)
+      const jurosCents = Math.round(saldoDevedorCents * taxa);
+      let amortizacaoCents = parcelaFixaCents - jurosCents;
       
       if (i === loan.meses) {
-          amortizacao = saldoDevedor;
+          // Na última parcela, a amortização é o saldo devedor restante
+          amortizacaoCents = saldoDevedorCents;
       }
       
-      const novoSaldoDevedor = round(Math.max(0, saldoDevedor - amortizacao));
+      const novoSaldoDevedorCents = Math.max(0, saldoDevedorCents - amortizacaoCents);
+      
+      // Conversão de volta para float (reais) para o objeto AmortizationItem
+      const juros = jurosCents / 100;
+      const amortizacao = amortizacaoCents / 100;
+      const novoSaldoDevedor = novoSaldoDevedorCents / 100;
       
       schedule.push({
         parcela: i,
-        juros: round(Math.max(0, juros)),
-        amortizacao: round(Math.max(0, amortizacao)),
+        juros: Math.max(0, juros),
+        amortizacao: Math.max(0, amortizacao),
         saldoDevedor: novoSaldoDevedor,
       });
       
-      saldoDevedor = novoSaldoDevedor;
+      saldoDevedorCents = novoSaldoDevedorCents;
     }
     
     return schedule;
