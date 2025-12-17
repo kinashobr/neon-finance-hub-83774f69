@@ -36,7 +36,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     markLoanParcelPaid,
     unmarkLoanParcelPaid,
     markSeguroParcelPaid,
-    unmarkSeguroParcelaPaid,
+    unmarkSeguroParcelPaid, // <-- FIX: Corrected spelling
     setTransacoesV2,
     contasMovimento, 
     categoriasV2, 
@@ -230,7 +230,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
                     const seguroId = parseInt(bill.sourceRef);
                     if (!isNaN(seguroId)) {
-                        unmarkSeguroParcelaPaid(seguroId, bill.parcelaNumber);
+                        unmarkSeguroParcelPaid(seguroId, bill.parcelaNumber); // FIX: Corrected usage
                     }
                 }
                 
@@ -278,6 +278,13 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     onOpenChange(false);
     toast.success("Contas pagas e alterações salvas!");
   };
+
+  // Initial load when modal opens
+  useEffect(() => {
+    if (open) {
+      handleRefreshList();
+    }
+  }, [open, handleRefreshList]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
