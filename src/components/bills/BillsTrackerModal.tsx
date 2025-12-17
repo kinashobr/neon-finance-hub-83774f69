@@ -67,33 +67,61 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const handleRefreshList = useCallback(() => {
     // Generate the full list including templates
     const generatedBills = getBillsForMonth(referenceDate, true);
-    setLocalBills(generatedBills);
-    setOriginalMonthBills(generatedBills.map(b => ({ ...b }))); // CAPTURA O SNAPSHOT
+    
+    // Merge não destrutivo: mantém o estado atual de isPaid/transactionId/paymentDate
+    setLocalBills(prev => {
+        const prevMap = new Map(prev.map(b => [b.id, b]));
+        
+        const mergedBills = generatedBills.map(newBill => {
+            const existing = prevMap.get(newBill.id);
+            
+            if (existing) {
+                // Se já existe, mantém o estado de pagamento e exclusão do local,
+                // mas atualiza os valores base (expectedAmount, description, dueDate)
+                return {
+                    ...newBill,
+                    isPaid: existing.isPaid,
+                    paymentDate: existing.paymentDate,
+                    transactionId: existing.transactionId,
+                    isExcluded: existing.isExcluded,
+                    // Permite que o usuário tenha editado o valor/conta sugerida
+                    expectedAmount: existing.expectedAmount,
+                    suggestedAccountId: existing.suggestedAccountId,
+                };
+            }
+            return newBill;
+        });
+        
+        // Adiciona bills que estavam no estado anterior mas não foram regeneradas (ex: ad-hoc)
+        // Nota: getBillsForMonth já inclui ad-hoc, então este passo é mais para garantir
+        // que nenhuma bill 'ad-hoc' que foi adicionada localmente e ainda não persistida seja perdida.
+        // Mas como handleAddBillAndRefresh já atualiza o global, isso é menos crítico.
+        
+        return mergedBills;
+    });
+    
+    // O snapshot imutável é atualizado apenas na abertura do modal ou no Save.
+    // Não atualizamos o originalMonthBills aqui, pois o refresh é uma ação de edição.
+    
     setLocalRevenueForecast(monthlyRevenueForecast || previousMonthRevenue); // Ensure forecast is also refreshed
     toast.info("Lista de contas atualizada manualmente.");
   }, [getBillsForMonth, referenceDate, monthlyRevenueForecast, previousMonthRevenue]);
 
-  // Initial load when modal opens
+  // Initial load when modal opens (PASSO 1: Bloquear regeneração)
   useEffect(() => {
-    if (open) {
-      // Inicializa o estado local com a lista gerada automaticamente
-      const generatedBills = getBillsForMonth(referenceDate, true);
-      setLocalBills(generatedBills);
-      
-      // 🔒 CAPTURA O SNAPSHOT IMUTÁVEL NA ABERTURA
-      setOriginalMonthBills(generatedBills.map(b => ({ ...b })));
-      
-      setLocalRevenueForecast(monthlyRevenueForecast || previousMonthRevenue);
-    }
-  }, [open, monthlyRevenueForecast, previousMonthRevenue, getBillsForMonth, referenceDate]);
-
-  // NEW: Handler for adding ad-hoc bills directly to context
-  const handleAddBillAndRefresh = useCallback((bill: Omit<BillTracker, "id" | "isPaid">) => {
-    addBill(bill);
-    // Since addBill updates the global state, we need to refresh the local list immediately
-    // to reflect the new ad-hoc bill.
-    handleRefreshList();
-  }, [addBill, handleRefreshList]);
+    if (!open) return;
+    
+    // 1. Carrega a lista completa (templates + ad-hoc)
+    const generatedBills = getBillsForMonth(referenceDate, true);
+    
+    // 2. Define o estado local e o snapshot imutável
+    setLocalBills(generatedBills);
+    setOriginalMonthBills(generatedBills.map(b => ({ ...b }))); 
+    
+    // 3. Define a previsão de receita
+    setLocalRevenueForecast(monthlyRevenueForecast || previousMonthRevenue);
+    
+  }, [open]); // Dependência apenas em 'open'
 
   // Totais baseados no estado local
   const totalExpectedExpense = useMemo(() => 
@@ -147,7 +175,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setMonthlyRevenueForecast(localRevenueForecast);
     
     // 2. Setup para comparação e persistência
-    // ⚠️ CORREÇÃO: Usa o snapshot imutável para comparação
     const originalBillsMap = new Map(originalMonthBills.map(b => [b.id, b]));
     
     const newTransactions: TransacaoCompleta[] = [];
