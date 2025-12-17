@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, X } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { BillTracker, PotentialFixedBill, BillSourceType, formatCurrency } from "@/types/finance";
+import { BillTracker, PotentialFixedBill, BillSourceType, formatCurrency, generateBillId, TransactionLinks } from "@/types/finance";
 import { BillsTrackerList } from "./BillsTrackerList";
 import { FixedBillsList } from "./FixedBillsList";
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
@@ -16,6 +16,9 @@ interface BillsTrackerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+// Tipo auxiliar para links parciais
+type PartialTransactionLinks = Partial<TransactionLinks>;
 
 export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps) {
   const { 
@@ -89,7 +92,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       
       const transactionId = `bill_tx_${bill.id}`;
       
-      const baseLinks: Partial<BillTracker['sourceType']> = {};
+      // Usar o tipo auxiliar para links
+      const baseLinks: PartialTransactionLinks = {};
       let description = bill.description;
       
       if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
@@ -126,8 +130,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         categoryId: category.id,
         description: description,
         links: {
-          investmentId: null,
-          transferGroupId: null,
+          investmentId: baseLinks.investmentId || null,
+          transferGroupId: baseLinks.transferGroupId || null,
           vehicleTransactionId: baseLinks.vehicleTransactionId || null,
           loanId: baseLinks.loanId || null,
           parcelaId: baseLinks.parcelaId || null,
