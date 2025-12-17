@@ -483,7 +483,7 @@ export function MovimentarContaModal({
                 placeholder="0,00"
                 value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
-                disabled={isAmountAutoFilled}
+                disabled={!!isAmountAutoFilled}
                 className="h-10"
               />
             </div>
@@ -553,7 +553,7 @@ export function MovimentarContaModal({
                 >
                   <SelectTrigger className="h-10">
                     <SelectValue placeholder="Selecione o investimento" />
-                  </SelectTrigger>
+                    </SelectTrigger>
                   <SelectContent>
                     {investments.map(i => (
                       <SelectItem key={i.id} value={i.id}>

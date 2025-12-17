@@ -236,7 +236,17 @@ const ReceitasDespesas = () => {
   };
 
   const handleTransactionSubmit = (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => {
-    const tx = { ...transaction, links: { ...(transaction.links || {}) } };
+    // Ensure tx has complete links structure
+    const tx: TransacaoCompleta = { 
+        ...transaction, 
+        links: { 
+            investmentId: transaction.links.investmentId || null,
+            loanId: transaction.links.loanId || null,
+            transferGroupId: transaction.links.transferGroupId || null,
+            parcelaId: transaction.links.parcelaId || null,
+            vehicleTransactionId: transaction.links.vehicleTransactionId || null,
+        }
+    };
 
     if (editingTransaction) {
       const linkedGroupId = editingTransaction.links?.transferGroupId;
@@ -255,17 +265,8 @@ const ReceitasDespesas = () => {
       if (linkedGroupId) {
         setTransacoesV2(prev => prev.map(t => {
           if (t.id === tx.id) {
-            const fullTx: TransacaoCompleta = {
-              ...tx,
-              links: {
-                investmentId: tx.links.investmentId || null,
-                loanId: tx.links.loanId || null,
-                transferGroupId: tx.links.transferGroupId || null,
-                parcelaId: tx.links.parcelaId || null,
-                vehicleTransactionId: tx.links.vehicleTransactionId || null,
-              }
-            };
-            return fullTx;
+            // Use the complete tx object directly
+            return tx;
           }
           if (t.links?.transferGroupId === linkedGroupId && t.id !== tx.id) {
             const otherAccount = accounts.find(a => a.id === t.accountId);
