@@ -304,7 +304,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       >
         
         {/* Header Principal - Ultra Compacto */}
-        <DialogHeader className="border-b pb-2 pt-3 px-4 shrink-0" onMouseDown={(e) => e.stopPropagation()}>
+        <DialogHeader className="border-b pb-2 pt-3 px-4 shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <Calendar className="w-4 h-4 text-primary" />

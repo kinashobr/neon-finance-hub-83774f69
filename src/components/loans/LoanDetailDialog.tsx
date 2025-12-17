@@ -20,7 +20,6 @@ import {
   Settings,
   Edit,
   Award,
-  X, // ADDED X icon for close button
 } from "lucide-react";
 import { Emprestimo } from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
@@ -184,43 +183,31 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
         hideCloseButton={true}
         className="bg-card border-border overflow-hidden flex flex-col"
       >
-        <DialogHeader className="px-4 pt-3 pb-2 border-b shrink-0" onMouseDown={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Building2 className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <span className="text-xl">{emprestimo.contrato}</span>
-                {!isPending && (
-                  <Badge variant="outline" className="ml-3 bg-primary/10 text-primary border-primary/30">
-                    {calculos.progressoFinanceiro.toFixed(0)}% amortizado
-                  </Badge>
-                )}
-                {isPending && (
-                  <Badge variant="outline" className="ml-3 border-warning text-warning">
-                    Pendente de Configuração
-                  </Badge>
-                )}
-              </div>
-            </DialogTitle>
-            <div className="flex items-center gap-2">
-              {!isPending && !isEditing && (
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                  <Edit className="w-4 h-4 mr-2" />
-                  Editar
-                </Button>
-              )}
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8"
-                onClick={() => onOpenChange(false)}
-              >
-                <X className="w-4 h-4" />
-              </Button>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Building2 className="w-5 h-5 text-primary" />
             </div>
-          </div>
+            <div className="flex-1">
+              <span className="text-xl">{emprestimo.contrato}</span>
+              {!isPending && (
+                <Badge variant="outline" className="ml-3 bg-primary/10 text-primary border-primary/30">
+                  {calculos.progressoFinanceiro.toFixed(0)}% amortizado
+                </Badge>
+              )}
+              {isPending && (
+                <Badge variant="outline" className="ml-3 border-warning text-warning">
+                  Pendente de Configuração
+                </Badge>
+              )}
+            </div>
+            {!isPending && !isEditing && (
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                <Edit className="w-4 h-4 mr-2" />
+                Editar
+              </Button>
+            )}
+          </DialogTitle>
         </DialogHeader>
 
         {/* Show Config Form for pending loans or when editing */}
