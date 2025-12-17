@@ -39,13 +39,14 @@ const SOURCE_CONFIG: Record<BillSourceType, { icon: React.ElementType; color: st
 };
 
 // Define column keys and initial widths (in pixels)
-const COLUMN_KEYS = ['pay', 'due', 'description', 'account', 'type', 'amount', 'actions'] as const;
+const COLUMN_KEYS = ['pay', 'due', 'paymentDate', 'description', 'account', 'type', 'amount', 'actions'] as const;
 type ColumnKey = typeof COLUMN_KEYS[number];
 
 const INITIAL_WIDTHS: Record<ColumnKey, number> = {
   pay: 40,
   due: 80,
-  description: 300, // Start wide
+  paymentDate: 80, // NEW WIDTH
+  description: 220, // Adjusted width
   account: 112, // w-28
   type: 64, // w-16
   amount: 80,
@@ -55,6 +56,7 @@ const INITIAL_WIDTHS: Record<ColumnKey, number> = {
 const columnHeaders: { key: ColumnKey, label: string, align?: 'center' | 'right' }[] = [
   { key: 'pay', label: 'Pagar', align: 'center' },
   { key: 'due', label: 'Vencimento' },
+  { key: 'paymentDate', label: 'Data Pgto' }, // NEW HEADER
   { key: 'description', label: 'Descrição' },
   { key: 'account', label: 'Conta Pgto' },
   { key: 'type', label: 'Tipo' },
@@ -212,8 +214,6 @@ export function BillsTrackerList({
   };
   
   const handleUpdateDueDate = (bill: BillTracker, newDateStr: string) => {
-    // Remove a restrição de tipo, permitindo a edição para todas as contas não pagas.
-    
     if (bill.isPaid) {
         toast.error("Não é possível alterar a data de vencimento de contas já pagas.");
         return;
@@ -221,6 +221,16 @@ export function BillsTrackerList({
     
     onUpdateBill(bill.id, { dueDate: newDateStr });
     toast.success("Data de vencimento atualizada!");
+  };
+  
+  const handleUpdatePaymentDate = (bill: BillTracker, newDateStr: string) => {
+    if (!bill.isPaid) {
+        toast.error("A conta deve estar paga para alterar a data de pagamento.");
+        return;
+    }
+    
+    onUpdateBill(bill.id, { paymentDate: newDateStr });
+    toast.success("Data de pagamento atualizada!");
   };
 
   const sortedBills = useMemo(() => {
@@ -397,10 +407,24 @@ export function BillsTrackerList({
                             />
                         ) : (
                             <span className="text-base">
-                                {isPaid ? formatDate(bill.paymentDate!) : formatDate(bill.dueDate)}
+                                {formatDate(bill.dueDate)}
                             </span>
                         )}
                       </div>
+                    </TableCell>
+                    
+                    {/* NEW: Payment Date Cell */}
+                    <TableCell className="font-medium whitespace-nowrap text-base p-2" style={{ width: columnWidths.paymentDate }}>
+                        {isPaid && bill.paymentDate ? (
+                            <EditableCell
+                                value={bill.paymentDate}
+                                type="date"
+                                onSave={(v) => handleUpdatePaymentDate(bill, String(v))}
+                                className="text-base text-success"
+                            />
+                        ) : (
+                            <span className="text-muted-foreground">—</span>
+                        )}
                     </TableCell>
                     
                     <TableCell className="text-base max-w-[200px] truncate p-2" style={{ width: columnWidths.description }}>
@@ -474,7 +498,7 @@ export function BillsTrackerList({
               })}
               {sortedBills.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     <Check className="w-6 h-6 mx-auto mb-2 text-success" />
                     Nenhuma conta pendente ou paga neste mês.
                   </TableCell>
