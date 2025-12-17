@@ -6,19 +6,18 @@ import { EditableCell } from "../EditableCell";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button"; // Import Button
+import { Button } from "@/components/ui/button";
 
 interface BillsContextSidebarProps {
   localRevenueForecast: number;
   setLocalRevenueForecast: (value: number) => void;
   previousMonthRevenue: number;
-  totalExpectedExpense: number; // Total PENDENTE
+  totalExpectedExpense: number;
   totalPaid: number;
   pendingCount: number;
-  netForecast: number; // Saldo Previsto (Receita - Total PENDENTE)
+  netForecast: number;
   isMobile?: boolean;
   onSaveAndClose: () => void;
-  // onRefreshList: () => void; // REMOVIDO
 }
 
 export function BillsContextSidebar({
@@ -31,7 +30,6 @@ export function BillsContextSidebar({
   netForecast,
   isMobile = false,
   onSaveAndClose,
-  // onRefreshList, // REMOVIDO
 }: BillsContextSidebarProps) {
   
   const formatValue = (value: number) => {
@@ -71,18 +69,17 @@ export function BillsContextSidebar({
 
   return (
     <div className={cn(
-      "space-y-4 flex flex-col", // Increased space-y from 3 to 4
-      isMobile ? "p-4" : "p-4 border-r border-border h-full" // Increased desktop padding from p-2 to p-4
+      "space-y-4 flex flex-col",
+      isMobile ? "p-4" : "p-4 border-r border-border h-full"
     )}>
-      <div className={cn("space-y-4", isMobile ? "flex-1" : "flex-grow")}> {/* Increased space-y from 3 to 4 */}
+      <div className={cn("space-y-4", isMobile ? "flex-1" : "flex-grow")}>
         <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
           <Target className="w-3 h-3" />
           Contexto
         </h3>
         
-        {/* Saldo Previsto (Maior Destaque) */}
         <Card className={cn(
-          "p-3 shadow-lg", // Increased padding from p-2 to p-3
+          "p-3 shadow-lg",
           netForecast >= 0 ? "stat-card-positive" : "stat-card-negative"
         )}>
           <div className="flex items-center justify-between">
@@ -95,7 +92,7 @@ export function BillsContextSidebar({
             </span>
           </div>
           <p className={cn(
-            "text-xl font-bold mt-0.5", // Increased text size from text-base to text-xl
+            "text-xl font-bold mt-0.5",
             netForecast >= 0 ? "text-success" : "text-destructive"
           )}>
             {formatCurrency(netForecast)}
@@ -104,29 +101,7 @@ export function BillsContextSidebar({
 
         <Separator />
 
-        {/* Botão de Geração Manual (REMOVIDO) */}
-        {/* <div className="space-y-2">
-          <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-            <RefreshCw className="w-3 h-3" />
-            Lista de Contas
-          </Label>
-          <Button 
-            onClick={onRefreshList} 
-            className="w-full gap-2"
-            variant="outline"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Atualizar Lista
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Recarrega a lista com base nos templates e pagamentos mais recentes.
-          </p>
-        </div>
-
-        <Separator /> */}
-
-        {/* Itens de Apoio */}
-        <div className="space-y-3"> {/* Increased space-y from 2 to 3 */}
+        <div className="space-y-3">
           {items.map(item => (
             <div key={item.id} className="space-y-0.5">
               <Label className="text-xs text-muted-foreground flex items-center gap-1">
@@ -139,14 +114,14 @@ export function BillsContextSidebar({
                     value={item.value} 
                     type="currency" 
                     onSave={setLocalRevenueForecast}
-                    className={cn("text-base font-bold", item.color)} // Increased text size from text-sm to text-base
+                    className={cn("text-base font-bold", item.color)}
                   />
                   <p className="text-[9px] text-muted-foreground">
                     Sugestão: {formatCurrency(item.suggestion)}
                   </p>
                 </>
               ) : (
-                <p className={cn("text-base font-bold", item.color)}> {/* Increased text size from text-sm to text-base */}
+                <p className={cn("text-base font-bold", item.color)}>
                   {formatCurrency(item.value)}
                 </p>
               )}
@@ -155,7 +130,6 @@ export function BillsContextSidebar({
         </div>
       </div>
       
-      {/* Botão Salvar e Sair (Fixo no final) */}
       <div className={cn("mt-auto pt-3", isMobile && "pt-0")}>
         <Button onClick={onSaveAndClose} className="w-full gap-2">
           <Save className="w-4 h-4" />
