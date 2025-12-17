@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { BillTracker, BillSourceType, formatCurrency } from "@/types/finance";
+import { BillTracker, BillSourceType, formatCurrency, CATEGORY_NATURE_LABELS } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -39,16 +39,18 @@ const SOURCE_CONFIG: Record<BillSourceType, { icon: React.ElementType; color: st
 };
 
 // Define column keys and initial widths (in pixels)
-const COLUMN_KEYS = ['pay', 'due', 'paymentDate', 'description', 'account', 'type', 'amount', 'actions'] as const;
+// ADICIONANDO 'category'
+const COLUMN_KEYS = ['pay', 'due', 'paymentDate', 'description', 'account', 'type', 'category', 'amount', 'actions'] as const;
 type ColumnKey = typeof COLUMN_KEYS[number];
 
 const INITIAL_WIDTHS: Record<ColumnKey, number> = {
   pay: 40,
   due: 80,
-  paymentDate: 80, // NEW WIDTH
-  description: 220, // Adjusted width
-  account: 112, // w-28
-  type: 64, // w-16
+  paymentDate: 80,
+  description: 180, // Reduzido para dar espaço à categoria
+  account: 112,
+  type: 64,
+  category: 150, // NOVO
   amount: 80,
   actions: 40,
 };
@@ -56,10 +58,11 @@ const INITIAL_WIDTHS: Record<ColumnKey, number> = {
 const columnHeaders: { key: ColumnKey, label: string, align?: 'center' | 'right' }[] = [
   { key: 'pay', label: 'Pagar', align: 'center' },
   { key: 'due', label: 'Vencimento' },
-  { key: 'paymentDate', label: 'Data Pgto' }, // NEW HEADER
+  { key: 'paymentDate', label: 'Data Pgto' },
   { key: 'description', label: 'Descrição' },
   { key: 'account', label: 'Conta Pgto' },
   { key: 'type', label: 'Tipo' },
+  { key: 'category', label: 'Categoria' }, // NOVO
   { key: 'amount', label: 'Valor', align: 'right' },
   { key: 'actions', label: 'Ações', align: 'center' },
 ];
@@ -213,6 +216,16 @@ export function BillsTrackerList({
     toast.success("Conta de pagamento sugerida atualizada!");
   };
   
+  const handleUpdateSuggestedCategory = (bill: BillTracker, newCategoryId: string) => {
+    // Apenas permite alteração se for uma conta avulsa ou fixa genérica
+    if (bill.sourceType === 'ad_hoc' || bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense') {
+        onUpdateBill(bill.id, { suggestedCategoryId: newCategoryId });
+        toast.success("Categoria atualizada!");
+    } else {
+        toast.error("A categoria para parcelas fixas é definida automaticamente.");
+    }
+  };
+  
   const handleUpdateDueDate = (bill: BillTracker, newDateStr: string) => {
     if (bill.isPaid) {
         toast.error("Não é possível alterar a data de vencimento de contas já pagas.");
@@ -260,6 +273,11 @@ export function BillsTrackerList({
   const accountOptions = useMemo(() => 
     availableAccounts.map(a => ({ value: a.id, label: a.name })),
     [availableAccounts]
+  );
+  
+  const expenseCategories = useMemo(() => 
+    categoriasV2.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel'),
+    [categoriasV2]
   );
 
   return (
@@ -377,6 +395,11 @@ export function BillsTrackerList({
                 // A data de vencimento pode ser alterada se não estiver paga (para qualquer tipo de conta)
                 const isDateEditable = !isPaid;
                 
+                // A categoria é editável apenas para contas avulsas/fixas genéricas e se não estiver paga
+                const isCategoryEditable = isAmountEditable && !isPaid;
+                
+                const currentCategory = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
+                
                 return (
                   <TableRow 
                     key={bill.id} 
@@ -413,7 +436,7 @@ export function BillsTrackerList({
                       </div>
                     </TableCell>
                     
-                    {/* NEW: Payment Date Cell */}
+                    {/* Payment Date Cell */}
                     <TableCell className="font-medium whitespace-nowrap text-base p-2" style={{ width: columnWidths.paymentDate }}>
                         {isPaid && bill.paymentDate ? (
                             <EditableCell
@@ -457,6 +480,26 @@ export function BillsTrackerList({
                       </Badge>
                     </TableCell>
                     
+                    {/* NOVO: Categoria Cell */}
+                    <TableCell className="p-2 text-base" style={{ width: columnWidths.category }}>
+                        <Select 
+                            value={bill.suggestedCategoryId || ''} 
+                            onValueChange={(v) => handleUpdateSuggestedCategory(bill, v)}
+                            disabled={!isCategoryEditable}
+                        >
+                            <SelectTrigger className="h-9 text-base p-2 w-full">
+                                <SelectValue placeholder={currentCategory?.label || "Selecione..."} />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                                {expenseCategories.map(cat => (
+                                    <SelectItem key={cat.id} value={cat.id} className="text-base">
+                                        {cat.icon} {cat.label} ({CATEGORY_NATURE_LABELS[cat.nature]})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </TableCell>
+                    
                     <TableCell className={cn("text-right font-semibold whitespace-nowrap p-2", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
                       {isAmountEditable && !isPaid ? (
                         <EditableCell 
@@ -498,7 +541,7 @@ export function BillsTrackerList({
               })}
               {sortedBills.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     <Check className="w-6 h-6 mx-auto mb-2 text-success" />
                     Nenhuma conta pendente ou paga neste mês.
                   </TableCell>

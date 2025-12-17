@@ -2,11 +2,13 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, X } from "lucide-react";
+import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, X, Settings } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, PotentialFixedBill, BillSourceType, formatCurrency, generateBillId, TransactionLinks, OperationType } from "@/types/finance";
 import { BillsTrackerList } from "./BillsTrackerList";
 import { FixedBillsList } from "./FixedBillsList";
+import { BillsSidebarKPIs } from "./BillsSidebarKPIs"; // NEW IMPORT
+import { FixedBillSelectorModal } from "./FixedBillSelectorModal"; // NEW IMPORT
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -38,7 +40,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   } = useFinance();
   
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
-  const [activeTab, setActiveTab] = useState("current");
+  const [showFixedBillSelector, setShowFixedBillSelector] = useState(false); // NEW STATE for selector modal
+  const [fixedBillSelectorMode, setFixedBillSelectorMode] = useState<'current' | 'future'>('current'); // NEW STATE for selector mode
   
   const currentMonthBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
   
@@ -50,6 +53,10 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const futureFixedBills = useMemo(() => 
     getFutureFixedBills(currentDate, currentMonthBills)
   , [getFutureFixedBills, currentDate, currentMonthBills]);
+  
+  const totalPendingBills = useMemo(() => 
+    currentMonthBills.filter(b => !b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0)
+  , [currentMonthBills]);
 
   // --- Handlers ---
   
@@ -158,23 +165,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         paymentDate: format(new Date(), 'yyyy-MM-dd') 
       });
       
-      // Mark fixed installment as paid in source entity if applicable
-      if (bill.sourceType === 'loan_installment' && baseLinks.loanId && baseLinks.parcelaId) {
-        // Loan payment is handled by the transaction submitter in ReceitasDespesas.tsx
-        // We rely on the transaction being created to link the payment.
-      }
-      if (bill.sourceType === 'insurance_installment' && baseLinks.vehicleTransactionId) {
-        const [seguroIdStr, parcelaNumeroStr] = baseLinks.vehicleTransactionId.split('_');
-        const seguroId = parseInt(seguroIdStr);
-        const parcelaNumero = parseInt(parcelaNumeroStr);
-        if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
-            // Mark seguro parcel paid
-            // Note: This is usually done by the transaction submitter, but doing it here ensures consistency if the transaction is created outside the main flow.
-            // However, since we are creating the transaction here, we rely on the main flow to handle the entity update.
-            // For simplicity and to avoid circular dependencies, we assume the transaction creation is enough for now.
-        }
-      }
-      
       toast.success(`Conta "${bill.description}" paga e transação criada!`);
       
     } else {
@@ -188,9 +178,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             return b;
         }));
         
-        // Note: Deleting the transaction should be handled by the main transaction flow 
-        // (e.g., in ReceitasDespesas.tsx) to handle linked transfers/entities.
-        // For now, we rely on the user to manually delete the transaction if needed, 
+        // Note: We rely on the user to manually delete the transaction if needed, 
         // or we implement a dedicated function here if we want full autonomy.
         toast.warning("Conta desmarcada como paga. Lembre-se de excluir a transação manualmente se necessário.");
         
@@ -242,82 +230,94 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   }, [setBillsTracker, contasMovimento, categoriasV2, currentMonthBills, updateBill]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
-        className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden"
-        hideCloseButton={true}
-      >
-        <DialogHeader className="p-6 pb-0 shrink-0">
-          <DialogTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <CalendarCheck className="w-6 h-6 text-primary" />
-              Contas a Pagar
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => handleMonthChange('prev')}>
-                Anterior
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent 
+          className="max-w-6xl h-[90vh] flex flex-col p-0 overflow-hidden"
+          hideCloseButton={true}
+        >
+          <DialogHeader className="p-6 pb-0 shrink-0">
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CalendarCheck className="w-6 h-6 text-primary" />
+                Contas a Pagar
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleMonthChange('prev')}>
+                  Anterior
+                </Button>
+                <h4 className="font-semibold text-lg w-40 text-center">
+                  {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+                </h4>
+                <Button variant="outline" size="sm" onClick={() => handleMonthChange('next')}>
+                  Próximo
+                </Button>
+              </div>
+              <Button variant="ghost" onClick={() => onOpenChange(false)}>
+                <X className="w-5 h-5" />
               </Button>
-              <h4 className="font-semibold text-lg w-40 text-center">
-                {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
-              </h4>
-              <Button variant="outline" size="sm" onClick={() => handleMonthChange('next')}>
-                Próximo
-              </Button>
-            </div>
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
-              <X className="w-5 h-5" />
-            </Button>
-          </DialogTitle>
-        </DialogHeader>
-        
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col p-6 pt-4 overflow-hidden">
-          <TabsList className="bg-muted/50 w-full grid grid-cols-3 shrink-0">
-            <TabsTrigger value="current" className="text-sm">
-              <DollarSign className="w-4 h-4 mr-2" /> Contas do Mês
-            </TabsTrigger>
-            <TabsTrigger value="fixed" className="text-sm">
-              <Repeat className="w-4 h-4 mr-2" /> Contas Fixas
-            </TabsTrigger>
-            <TabsTrigger value="future" className="text-sm">
-              <Info className="w-4 h-4 mr-2" /> Próximos Vencimentos
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Tab Contas do Mês */}
-          <TabsContent value="current" className="mt-4 flex-1 min-h-0">
-            <BillsTrackerList
-              bills={currentMonthBills}
-              onUpdateBill={handleUpdateBill}
-              onDeleteBill={handleDeleteBill}
-              onAddBill={handleAddBill}
-              onTogglePaid={handleTogglePaid}
-              currentDate={currentDate}
-            />
-          </TabsContent>
-
-          {/* Tab Contas Fixas (Empréstimos/Seguros) */}
-          <TabsContent value="fixed" className="mt-4 flex-1 min-h-0">
-            <FixedBillsList
-              potentialBills={potentialFixedBills}
-              onToggleFixedBill={handleToggleFixedBill}
-              currentDate={currentDate}
-              title="Parcelas Fixas Vencendo no Mês"
-              description="Selecione as parcelas de empréstimos e seguros que devem ser incluídas na lista de contas a pagar deste mês."
-            />
-          </TabsContent>
+            </DialogTitle>
+          </DialogHeader>
           
-          {/* Tab Próximos Vencimentos */}
-          <TabsContent value="future" className="mt-4 flex-1 min-h-0">
-            <FixedBillsList
-              potentialBills={futureFixedBills}
-              onToggleFixedBill={handleToggleFixedBill}
-              currentDate={currentDate}
-              title="Próximos Vencimentos Fixos (Após este mês)"
-              description="Visualize e gerencie parcelas futuras de empréstimos e seguros."
-            />
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+          {/* NOVO LAYOUT: Sidebar + Main Content */}
+          <div className="flex flex-1 overflow-hidden p-6 pt-4 gap-6">
+            
+            {/* Sidebar KPIs (25% width) */}
+            <div className="w-1/4 shrink-0 overflow-y-auto">
+                <BillsSidebarKPIs 
+                    currentDate={currentDate}
+                    totalPendingBills={totalPendingBills}
+                />
+            </div>
+            
+            {/* Main Content (75% width) */}
+            <div className="flex-1 flex flex-col min-w-0 space-y-4">
+                
+                {/* Botões de Gerenciamento Fixo */}
+                <div className="flex gap-3 shrink-0">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => { setFixedBillSelectorMode('current'); setShowFixedBillSelector(true); }}
+                        className="gap-2"
+                    >
+                        <Repeat className="w-4 h-4" /> Gerenciar Parcelas do Mês
+                    </Button>
+                    <Button 
+                        variant="outline" 
+                        onClick={() => { setFixedBillSelectorMode('future'); setShowFixedBillSelector(true); }}
+                        className="gap-2"
+                    >
+                        <Settings className="w-4 h-4" /> Próximos Vencimentos
+                    </Button>
+                </div>
+                
+                {/* Lista de Contas */}
+                <div className="flex-1 min-h-0">
+                    <BillsTrackerList
+                        bills={currentMonthBills}
+                        onUpdateBill={handleUpdateBill}
+                        onDeleteBill={handleDeleteBill}
+                        onAddBill={handleAddBill}
+                        onTogglePaid={handleTogglePaid}
+                        currentDate={currentDate}
+                    />
+                </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Fixed Bill Selector Modal */}
+      {showFixedBillSelector && (
+        <FixedBillSelectorModal
+            open={showFixedBillSelector}
+            onOpenChange={setShowFixedBillSelector}
+            mode={fixedBillSelectorMode}
+            currentDate={currentDate}
+            potentialFixedBills={fixedBillSelectorMode === 'current' ? potentialFixedBills : futureFixedBills}
+            onToggleFixedBill={handleToggleFixedBill}
+        />
+      )}
+    </>
   );
 }
