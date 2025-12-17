@@ -178,8 +178,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
 
     // 1. RECEITAS: Apenas operações de 'receita' e 'rendimento', EXCLUINDO 'initial_balance'
     const transacoesReceita = transactions.filter(t => 
-      (t.operationType === 'receita' || t.operationType === 'rendimento') &&
-      t.operationType !== 'initial_balance'
+      t.operationType !== 'initial_balance' && (t.operationType === 'receita' || t.operationType === 'rendimento')
     );
 
     const receitasAgrupadas = new Map<string, number>();
@@ -230,9 +229,9 @@ export function DRETab({ dateRanges }: DRETabProps) {
     
     // --- 2b. Filter transactions (Exclude cash insurance payments, asset purchases, and initial_balance) ---
     const transacoesDespesaOperacional = transactions.filter(t => 
+      t.operationType !== 'initial_balance' && // EXCLUIR SALDO INICIAL
       t.operationType === 'despesa' && // FIXED: Exclude 'veiculo' operation type
       t.flow === 'out' &&
-      t.operationType !== 'initial_balance' && // EXCLUIR SALDO INICIAL
       // EXCLUDE cash payments for insurance if they are linked to the 'Seguro' category
       (t.categoryId !== seguroCategory?.id)
     );
@@ -375,13 +374,13 @@ export function DRETab({ dateRanges }: DRETabProps) {
       });
 
       const receitasMes = transacoesMes
-        .filter(t => (t.operationType === 'receita' || t.operationType === 'rendimento') && t.operationType !== 'initial_balance')
+        .filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'receita' || t.operationType === 'rendimento'))
         .reduce((acc, t) => acc + t.amount, 0);
       
       // Despesas aqui incluem despesas operacionais e pagamentos de empréstimo (valor total da parcela)
       // NOTE: This evolution chart uses CASH basis for simplicity (total outflow)
       const despesasMes = transacoesMes
-        .filter(t => (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo') && t.operationType !== 'initial_balance')
+        .filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo'))
         .reduce((acc, t) => acc + t.amount, 0);
 
       resultado.push({

@@ -93,28 +93,28 @@ const Index = () => {
   // Receitas e despesas do período ATUAL (P1)
   const receitasPeriodo1 = useMemo(() => {
     return transacoesPeriodo1
-      .filter(t => (t.operationType === 'receita' || t.operationType === 'rendimento') && t.operationType !== 'initial_balance')
+      .filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'receita' || t.operationType === 'rendimento'))
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesPeriodo1]);
 
   // Despesas e despesas do período ATUAL (P1)
   const despesasPeriodo1 = useMemo(() => {
     return transacoesPeriodo1
-      .filter(t => (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo') && t.operationType !== 'initial_balance')
+      .filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo'))
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesPeriodo1]);
 
   // Receitas e despesas do período ANTERIOR (P2)
   const receitasPeriodo2 = useMemo(() => {
     return transacoesPeriodo2
-      .filter(t => (t.operationType === 'receita' || t.operationType === 'rendimento') && t.operationType !== 'initial_balance')
+      .filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'receita' || t.operationType === 'rendimento'))
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesPeriodo2]);
 
   // Despesas e despesas do período ANTERIOR (P2)
   const despesasPeriodo2 = useMemo(() => {
     return transacoesPeriodo2
-      .filter(t => (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo') && t.operationType !== 'initial_balance')
+      .filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo'))
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesPeriodo2]);
 
@@ -210,8 +210,8 @@ const Index = () => {
         return d.getMonth() === m && d.getFullYear() === y;
       });
       
-      const rec = txMes.filter(t => (t.operationType === 'receita' || t.operationType === 'rendimento') && t.operationType !== 'initial_balance').reduce((a, t) => a + t.amount, 0);
-      const desp = txMes.filter(t => (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo') && t.operationType !== 'initial_balance').reduce((a, t) => a + t.amount, 0);
+      const rec = txMes.filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'receita' || t.operationType === 'rendimento')).reduce((a, t) => a + t.amount, 0);
+      const desp = txMes.filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo')).reduce((a, t) => a + t.amount, 0);
       
       if (rec > desp) ultimos6Meses.push(true);
       else ultimos6Meses.push(false);
