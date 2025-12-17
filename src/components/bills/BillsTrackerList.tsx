@@ -130,7 +130,7 @@ export function BillsTrackerList({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'default';
-    }
+    };
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
@@ -209,6 +209,21 @@ export function BillsTrackerList({
   const handleUpdateSuggestedAccount = (bill: BillTracker, newAccountId: string) => {
     onUpdateBill(bill.id, { suggestedAccountId: newAccountId });
     toast.success("Conta de pagamento sugerida atualizada!");
+  };
+  
+  const handleUpdateDueDate = (bill: BillTracker, newDateStr: string) => {
+    if (bill.sourceType === 'loan_installment' || bill.sourceType === 'insurance_installment') {
+        toast.error("Data de vencimento de parcelas fixas deve ser alterada no cadastro do Empréstimo/Seguro.");
+        return;
+    }
+    
+    if (bill.isPaid) {
+        toast.error("Não é possível alterar a data de vencimento de contas já pagas.");
+        return;
+    }
+    
+    onUpdateBill(bill.id, { dueDate: newDateStr });
+    toast.success("Data de vencimento atualizada!");
   };
 
   const sortedBills = useMemo(() => {
@@ -349,6 +364,7 @@ export function BillsTrackerList({
                 const isOverdue = dueDate < currentDate && !bill.isPaid;
                 const isPaid = bill.isPaid;
                 
+                // Apenas contas ad-hoc, fixed_expense ou variable_expense podem ter valor/data alterados
                 const isEditable = bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
                 
                 return (
@@ -371,7 +387,20 @@ export function BillsTrackerList({
                     <TableCell className={cn("font-medium whitespace-nowrap text-base p-2", isOverdue && "text-destructive")} style={{ width: columnWidths.due }}>
                       <div className="flex items-center gap-1">
                         {isOverdue && <AlertTriangle className="w-4 h-4 text-destructive" />}
-                        {isPaid ? formatDate(bill.paymentDate!) : formatDate(bill.dueDate)}
+                        
+                        {isEditable && !isPaid ? (
+                            <EditableCell
+                                value={bill.dueDate}
+                                type="date"
+                                onSave={(v) => handleUpdateDueDate(bill, String(v))}
+                                displayValue={formatDate(bill.dueDate)}
+                                className={cn("text-base", isOverdue && "text-destructive")}
+                            />
+                        ) : (
+                            <span className="text-base">
+                                {isPaid ? formatDate(bill.paymentDate!) : formatDate(bill.dueDate)}
+                            </span>
+                        )}
                       </div>
                     </TableCell>
                     
