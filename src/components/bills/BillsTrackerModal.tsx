@@ -20,6 +20,10 @@ interface BillsTrackerModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+// Helper para verificar se é um template gerado automaticamente
+const isGeneratedTemplate = (bill: BillTracker) => 
+    bill.sourceType !== 'ad_hoc' && bill.sourceRef;
+
 export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps) {
   const { 
     billsTracker, 
@@ -40,6 +44,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setTransacoesV2,
     contasMovimento, 
     categoriasV2, 
+    transacoesV2, // <-- ADDED: Need access to global transactions for deletion
   } = useFinance();
   
   const referenceDate = dateRanges.range1.to || new Date();
@@ -120,6 +125,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 isPaid: isChecked,
                 // Uses the current system date for payment
                 paymentDate: isChecked ? format(today, 'yyyy-MM-dd') : undefined,
+                // Preserve existing transactionId if available, otherwise generate a new one if paying
                 transactionId: isChecked ? b.transactionId || generateTransactionId() : undefined,
             };
         }
@@ -140,11 +146,10 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     const newTransactions: TransacaoCompleta[] = [];
     const transactionsToRemove: string[] = [];
     
-    // Lista de bills que serão o novo billsTracker
-    // Keep only bills from other months OR ad-hoc bills from any month
-    let updatedBillsTracker: BillTracker[] = billsTracker.filter(b => {
+    // Filtra o billsTracker global para manter apenas contas de outros meses
+    // e contas ad-hoc (que são sempre persistidas)
+    let finalBillsTracker: BillTracker[] = billsTracker.filter(b => {
         const isCurrentMonth = isSameMonth(parseDateLocal(b.dueDate), referenceDate);
-        // Mantém bills de outros meses E bills ad-hoc do mês atual (para rastrear alterações)
         return !isCurrentMonth || b.sourceType === 'ad_hoc';
     });
     
@@ -154,13 +159,19 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         
         const wasPaid = originalBill?.isPaid || false;
         const isNowPaid = localVersion.isPaid;
-        const isGeneratedTemplate = localVersion.sourceType !== 'ad_hoc' && localVersion.sourceRef;
+        const isTemplate = isGeneratedTemplate(localVersion);
         
+        // Verifica se houve qualquer alteração que precise ser persistida
+        const hasNonPaymentChanges = 
+            localVersion.isExcluded !== originalBill?.isExcluded || 
+            localVersion.expectedAmount !== originalBill?.expectedAmount || 
+            localVersion.suggestedAccountId !== originalBill?.suggestedAccountId;
+            
         // --- A. Handle Payment (isNowPaid && !wasPaid) ---
         if (isNowPaid && !wasPaid) {
             const bill = localVersion;
             const paymentDate = bill.paymentDate || format(new Date(), 'yyyy-MM-dd'); 
-            const transactionId = bill.transactionId || generateTransactionId(); // Use the ID from local state or generate new
+            const transactionId = bill.transactionId || generateTransactionId(); 
             
             const suggestedAccount = contasMovimento.find(c => c.id === bill.suggestedAccountId);
             if (!suggestedAccount) {
@@ -223,10 +234,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 }
             }
             
-            // Se for ad-hoc, atualiza o billsTracker global com o status pago e o transactionId
-            if (localVersion.sourceType === 'ad_hoc') {
-                updatedBillsTracker = updatedBillsTracker.filter(b => b.id !== localVersion.id);
-                updatedBillsTracker.push({ ...localVersion, transactionId });
+            // Se for template ou ad-hoc, salva a versão paga no billsTracker global
+            // (Templates pagos são salvos para rastreamento de histórico)
+            if (isTemplate || localVersion.sourceType === 'ad_hoc') {
+                finalBillsTracker = finalBillsTracker.filter(b => b.id !== localVersion.id);
+                finalBillsTracker.push({ ...localVersion, transactionId });
             }
             
         } 
@@ -251,36 +263,35 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 }
             }
             
-            // Se for ad-hoc, atualiza o billsTracker global com o status pendente
-            if (localVersion.sourceType === 'ad_hoc') {
+            // Se for template ou ad-hoc, salva a versão pendente no billsTracker global
+            if (isTemplate || localVersion.sourceType === 'ad_hoc') {
                 const updatedBill = { ...localVersion, isPaid: false, paymentDate: undefined, transactionId: undefined };
-                updatedBillsTracker = updatedBillsTracker.filter(b => b.id !== localVersion.id);
-                updatedBillsTracker.push(updatedBill);
+                finalBillsTracker = finalBillsTracker.filter(b => b.id !== localVersion.id);
+                finalBillsTracker.push(updatedBill);
             }
         } 
         // --- C. Handle Non-Payment Changes (Exclusion/Value/Account) ---
-        else {
-            const hasNonPaymentChanges = 
-                localVersion.isExcluded !== originalBill?.isExcluded || 
-                localVersion.expectedAmount !== originalBill?.expectedAmount || 
-                localVersion.suggestedAccountId !== originalBill?.suggestedAccountId ||
-                localVersion.sourceType === 'ad_hoc' && !originalBill; // New ad-hoc bill
-                
-            if (hasNonPaymentChanges) {
-                
-                // Se for um template gerado OU ad-hoc, salva a modificação no billsTracker
-                if (localVersion.sourceType === 'ad_hoc' || isGeneratedTemplate) {
-                    // Se for um template gerado, precisamos garantir que ele seja salvo no billsTracker
-                    // para que o getBillsForMonth o encontre na próxima abertura e respeite a exclusão/alteração.
-                    updatedBillsTracker = updatedBillsTracker.filter(b => b.id !== localVersion.id);
-                    updatedBillsTracker.push(localVersion);
+        else if (hasNonPaymentChanges) {
+            
+            // Se for um template gerado, salva a modificação no billsTracker global
+            if (isTemplate) {
+                // Apenas salva a modificação se for do mês atual (para que getBillsForMonth a encontre)
+                if (isSameMonth(parseDateLocal(localVersion.dueDate), referenceDate)) {
+                    finalBillsTracker = finalBillsTracker.filter(b => b.id !== localVersion.id);
+                    finalBillsTracker.push(localVersion);
                 }
+            }
+            
+            // Se for ad-hoc, já está incluído no filtro inicial, mas garantimos que a versão mais recente seja salva
+            if (localVersion.sourceType === 'ad_hoc') {
+                finalBillsTracker = finalBillsTracker.filter(b => b.id !== localVersion.id);
+                finalBillsTracker.push(localVersion);
             }
         }
     });
     
     // 3. Filtra bills excluídas permanentemente (apenas ad-hoc)
-    const finalBillsTracker = updatedBillsTracker.filter(b => 
+    finalBillsTracker = finalBillsTracker.filter(b => 
         !(b.sourceType === 'ad_hoc' && b.isExcluded)
     );
     
