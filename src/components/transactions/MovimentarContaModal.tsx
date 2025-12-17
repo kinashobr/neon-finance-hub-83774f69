@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, ArrowLeftRight, Car, DollarSign, Plus, Minus, RefreshCw, Coins, TrendingDown, Tags } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, ArrowLeftRight, Car, DollarSign, Plus, Minus, RefreshCw, Coins, TrendingDown, Tags, ChevronRight, ChevronLeft, CheckCircle2 } from "lucide-react";
 import { ContaCorrente, Categoria, AccountType, ACCOUNT_TYPE_LABELS, generateTransactionId, formatCurrency, OperationType, TransacaoCompleta, TransactionLinks, generateTransferGroupId, getFlowTypeFromOperation, getDomainFromOperation, InvestmentInfo, SeguroVeiculo, Veiculo, OPERATION_TYPE_LABELS } from "@/types/finance";
 import { toast } from "sonner";
 import { parseDateLocal, cn } from "@/lib/utils";
@@ -113,6 +114,9 @@ export function MovimentarContaModal({
   const [tempSeguroId, setTempSeguroId] = useState<string | null>(null);
   const [tempSeguroParcelaId, setTempSeguroParcelaId] = useState<string | null>(null);
 
+  // UI State for Tabs
+  const [activeTab, setActiveTab] = useState("passo1");
+
   const isEditing = !!editingTransaction;
   const selectedAccount = accounts.find(a => a.id === accountId);
   const availableOperations = selectedAccount ? getAvailableOperationTypes(selectedAccount.accountType) : [];
@@ -122,6 +126,7 @@ export function MovimentarContaModal({
   const isLoanPayment = operationType === 'pagamento_emprestimo';
   const isLoanLiberation = operationType === 'liberacao_emprestimo';
   const isVehicle = operationType === 'veiculo';
+  const isFinancingFlow = isLoanPayment || isLoanLiberation;
   
   // Categorizable if it's a basic flow (receita, despesa, rendimento)
   const isCategorizable = operationType === 'receita' || operationType === 'despesa' || operationType === 'rendimento';
@@ -130,6 +135,9 @@ export function MovimentarContaModal({
   const isInsurancePayment = operationType === 'despesa' && categoryId === seguroCategory?.id;
   
   const availableCategories = useMemo(() => getCategoryOptions(operationType, categories), [operationType, categories]);
+  
+  // Determine if Vínculo tab is required
+  const isVinculoRequired = isTransfer || isInvestmentFlow || isFinancingFlow || isVehicle || isInsurancePayment;
   
   // Filter loans to only show active ones for payment
   const activeLoans = useMemo(() => loans.filter(l => l.id.startsWith('loan_')), [loans]);
@@ -163,6 +171,7 @@ export function MovimentarContaModal({
   // Reset state when modal opens/changes
   useEffect(() => {
     if (open) {
+      setActiveTab("passo1"); // Always start at step 1
       if (editingTransaction) {
         setAccountId(editingTransaction.accountId);
         setDate(editingTransaction.date);
@@ -195,10 +204,10 @@ export function MovimentarContaModal({
         setAccountId(selectedAccountId || accounts[0]?.id || '');
         setDate(new Date().toISOString().split('T')[0]);
         setAmount("");
-        // Initialize operationType based on available operations for the selected account
         const initialAccountOps = getAvailableOperationTypes(accounts.find(a => a.id === (selectedAccountId || accounts[0]?.id))?.accountType || 'corrente');
         setOperationType(initialAccountOps[0] || null); 
         setCategoryId(null);
+        setDescription("");
         
         setDestinationAccountId(null);
         setTempInvestmentId(null);
@@ -206,18 +215,17 @@ export function MovimentarContaModal({
         setTempParcelaId(null);
         setTempVehicleOperation(null);
         setTempNumeroContrato('');
-        setTempSeguroId(null); // NEW RESET
-        setTempSeguroParcelaId(null); // NEW RESET
+        setTempSeguroId(null); 
+        setTempSeguroParcelaId(null); 
       }
     }
-  }, [open, editingTransaction, selectedAccountId, accounts]); // Removed availableOperations from dependency array
+  }, [open, editingTransaction, selectedAccountId, accounts]);
 
   // Auto-select category if only one is available AND it's categorizable
   useEffect(() => {
     if (availableCategories.length === 1 && isCategorizable && !isInsurancePayment) {
       setCategoryId(availableCategories[0].id);
     } else if (isCategorizable && !isInsurancePayment) {
-      // If it's a basic flow, ensure category is selected if available
       if (!categoryId && availableCategories.length > 0) {
           // Do nothing, let user select
       } else if (!categoryId && availableCategories.length === 0) {
@@ -229,7 +237,6 @@ export function MovimentarContaModal({
   // Auto-select operation type if account changes (only for new transactions)
   useEffect(() => {
     if (selectedAccount && !isEditing) {
-      // Only update operation type if it hasn't been set yet or if the account type forces a change
       if (!operationType || !availableOperations.includes(operationType)) {
         setOperationType(availableOperations[0] || null);
       }
@@ -263,10 +270,8 @@ export function MovimentarContaModal({
   }, [isInsurancePayment, tempSeguroId, tempSeguroParcelaId, segurosVeiculo]);
 
   const handleAmountChange = (value: string) => {
-    // Permite apenas números, vírgula e ponto
     let cleaned = value.replace(/[^\d,.]/g, '');
     
-    // Garante que apenas a última vírgula/ponto seja o separador decimal
     const parts = cleaned.split(/[,.]/);
     if (parts.length > 2) {
       cleaned = parts.slice(0, -1).join('') + '.' + parts.slice(-1);
@@ -292,19 +297,19 @@ export function MovimentarContaModal({
       return;
     }
     
-    // Validation for Categorizable flows (excluding insurance, which is handled below)
+    // Final Validation for Categorizable flows
     if (isCategorizable && !isInsurancePayment && !categoryId) {
       toast.error("Selecione uma categoria.");
       return;
     }
     
-    // Validation for Insurance Payment
+    // Final Validation for Insurance Payment
     if (isInsurancePayment && (!tempSeguroId || !tempSeguroParcelaId)) {
         toast.error("Selecione o seguro e a parcela para o pagamento.");
         return;
     }
     
-    // Validation for Vínculo flows
+    // Final Validation for Vínculo flows
     if (isTransfer && !destinationAccountId) {
       toast.error("Selecione a conta destino para a transferência.");
       return;
@@ -341,7 +346,6 @@ export function MovimentarContaModal({
       operationType,
       domain,
       amount: parsedAmount,
-      // Use categoryId if categorizable OR if it's an insurance payment (where category is required)
       categoryId: isCategorizable || isInsurancePayment ? categoryId : null,
       description: description.trim() || OPERATION_TYPE_LABELS[operationType] || 'Movimentação',
       links: {
@@ -349,7 +353,6 @@ export function MovimentarContaModal({
         loanId: tempLoanId,
         transferGroupId: editingTransaction?.links?.transferGroupId || null,
         parcelaId: tempParcelaId,
-        // NEW LINK: vehicleTransactionId for insurance payments
         vehicleTransactionId: isInsurancePayment ? `${tempSeguroId}_${tempSeguroParcelaId}` : null, 
       } as TransactionLinks,
       conciliated: false,
@@ -395,6 +398,50 @@ export function MovimentarContaModal({
   const HeaderIcon = selectedOperationConfig?.icon || DollarSign;
   const headerColor = selectedOperationConfig?.color || 'text-primary';
 
+  // --- Navigation Logic ---
+  const handleNext = () => {
+    if (activeTab === 'passo1') {
+      const parsedAmount = parseFloat(amount.replace(',', '.'));
+      if (!accountId || !date || parsedAmount <= 0 || !operationType) {
+        toast.error("Preencha Conta, Data, Valor e Tipo de Operação.");
+        return;
+      }
+      
+      if (isVinculoRequired) {
+        setActiveTab('passo3'); // Skip passo 2 if Vínculo is required
+      } else {
+        setActiveTab('passo2');
+      }
+    } else if (activeTab === 'passo2') {
+      // Validation for Passo 2 (Category)
+      if (showCategorySelector && !isInsurancePayment && !categoryId) {
+        toast.error("Selecione uma categoria.");
+        return;
+      }
+      // If Vínculo is required, we should have skipped Passo 2. If we are here, we submit.
+      handleSubmit({} as any); // Submit placeholder, actual submit logic handles validation
+    } else if (activeTab === 'passo3') {
+      // Validation for Passo 3 (Vínculos) is handled in handleSubmit
+      handleSubmit({} as any);
+    }
+  };
+
+  const handleBack = () => {
+    if (activeTab === 'passo2') {
+      setActiveTab('passo1');
+    } else if (activeTab === 'passo3') {
+      if (isCategorizable || isInsurancePayment) {
+        setActiveTab('passo2');
+      } else {
+        setActiveTab('passo1');
+      }
+    }
+  };
+  
+  const currentStepIndex = activeTab === 'passo1' ? 1 : activeTab === 'passo2' ? 2 : 3;
+  const totalSteps = isVinculoRequired ? 3 : 2;
+  const isLastStep = (activeTab === 'passo2' && !isVinculoRequired) || activeTab === 'passo3';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -404,165 +451,178 @@ export function MovimentarContaModal({
             {isEditing ? "Editar Transação" : "Nova Movimentação"}
           </DialogTitle>
           <DialogDescription>
-              Registre receitas, despesas, transferências e movimentações de ativos.
+              {isEditing ? "Atualize os detalhes da transação." : `Passo ${currentStepIndex} de ${totalSteps}: ${activeTab === 'passo1' ? 'Detalhes Essenciais' : activeTab === 'passo2' ? 'Classificação' : 'Vínculos'}`}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6 flex flex-col h-full">
           
-          {/* Bloco 1: Informações Essenciais */}
-          <div className="space-y-4 p-4 rounded-lg border border-border/50 bg-muted/10">
-            <h4 className="font-semibold text-sm text-foreground flex items-center gap-2">
-                <Wallet className="w-4 h-4" /> Detalhes da Movimentação
-            </h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="accountId">Conta *</Label>
-                <Select 
-                  value={accountId} 
-                  onValueChange={(v) => setAccountId(v)}
-                  disabled={isEditing}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="Selecione a conta" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts.map(a => (
-                      <SelectItem key={a.id} value={a.id}>
-                        <span className="flex items-center gap-2">
-                          {ACCOUNT_TYPE_LABELS[a.accountType]} - {a.name}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date">Data *</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="h-10"
-                />
-              </div>
-            </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+            
+            {/* Tab List (Visual Indicator) */}
+            <TabsList className="grid w-full grid-cols-3 h-10 mb-4 bg-muted/50">
+              <TabsTrigger value="passo1" className="text-xs" disabled={activeTab !== 'passo1'}>
+                1. Essenciais
+              </TabsTrigger>
+              <TabsTrigger value="passo2" className="text-xs" disabled={activeTab !== 'passo2'}>
+                2. Classificação
+              </TabsTrigger>
+              <TabsTrigger value="passo3" className="text-xs" disabled={activeTab !== 'passo3'}>
+                3. Vínculos
+              </TabsTrigger>
+            </TabsList>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="operationType">Tipo de Operação *</Label>
-                <Select 
-                  value={operationType || ''} 
-                  onValueChange={(v) => {
-                    setOperationType(v as OperationType);
-                    setCategoryId(null); 
-                    setTempInvestmentId(null);
-                    setTempLoanId(null);
-                    setTempParcelaId(null);
-                    setDestinationAccountId(null);
-                    setTempVehicleOperation(null);
-                    setTempSeguroId(null); 
-                    setTempSeguroParcelaId(null); 
-                  }}
-                  disabled={isEditing}
-                >
-                  <SelectTrigger className={cn("h-10", selectedOperationConfig?.color)}>
-                    <SelectValue placeholder="Selecione a operação">
-                        {selectedOperationConfig && (
-                            <span className="flex items-center gap-2">
-                                <selectedOperationConfig.icon className="w-4 h-4" />
-                                {selectedOperationConfig.label}
-                            </span>
-                        )}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableOperations.map(op => {
-                      const option = OPERATION_OPTIONS.find(o => o.value === op);
-                      if (!option) return null;
-                      const Icon = option.icon;
-                      return (
-                        <SelectItem key={op} value={op}>
-                          <span className={cn("flex items-center gap-2", option.color)}>
-                            <Icon className="w-4 h-4" />
-                            {option.label}
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="amount">Valor (R$) *</Label>
-                <Input
-                  id="amount"
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0,00"
-                  value={amount}
-                  onChange={(e) => handleAmountChange(e.target.value)}
-                  disabled={!!isAmountAutoFilled}
-                  className="h-10"
-                />
-              </div>
-            </div>
-          </div>
-          
-          {/* Bloco 2: Categoria e Descrição */}
-          <div className="space-y-4 p-4 rounded-lg border border-border/50 bg-muted/10">
-            <h4 className="font-semibold text-sm text-foreground flex items-center gap-2">
-                <Tags className="w-4 h-4" /> Classificação
-            </h4>
-            <div className="grid grid-cols-1 gap-4">
-                {/* Categoria Selector */}
-                {showCategorySelector && (
-                <div className="space-y-2">
-                    <Label htmlFor="categoryId">Categoria {isCategorizable ? '*' : ''}</Label>
-                    <Select 
-                    value={categoryId || ''} 
-                    onValueChange={(v) => {
-                        setCategoryId(v);
-                        // Reset insurance links if category changes away from Seguro
-                        if (v !== seguroCategory?.id) {
-                            setTempSeguroId(null);
-                            setTempSeguroParcelaId(null);
-                        }
-                    }}
-                    disabled={isCategoryDisabled}
-                    >
-                    <SelectTrigger className="h-10">
-                        <SelectValue placeholder="Selecione a categoria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {availableCategories.map(c => (
-                        <SelectItem key={c.id} value={c.id}>
-                            {c.icon} {c.label}
-                        </SelectItem>
-                        ))}
-                    </SelectContent>
-                    </Select>
+            {/* Passo 1: Detalhes Essenciais */}
+            <TabsContent value="passo1" className="mt-0 space-y-4 p-4 rounded-lg border border-border/50 bg-muted/10">
+                <h4 className="font-semibold text-sm text-foreground flex items-center gap-2">
+                    <Wallet className="w-4 h-4" /> Detalhes da Movimentação
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="accountId">Conta *</Label>
+                        <Select 
+                        value={accountId} 
+                        onValueChange={(v) => setAccountId(v)}
+                        disabled={isEditing}
+                        >
+                        <SelectTrigger className="h-10">
+                            <SelectValue placeholder="Selecione a conta" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {accounts.map(a => (
+                            <SelectItem key={a.id} value={a.id}>
+                                <span className="flex items-center gap-2">
+                                {ACCOUNT_TYPE_LABELS[a.accountType]} - {a.name}
+                                </span>
+                            </SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="date">Data *</Label>
+                        <Input
+                        id="date"
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        className="h-10"
+                        />
+                    </div>
                 </div>
-                )}
-                
-                {/* Descrição (Full Width) */}
-                <div className="space-y-2">
-                    <Label htmlFor="description">Descrição</Label>
-                    <Input
-                    id="description"
-                    placeholder="Descrição da transação"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="h-10"
-                    />
-                </div>
-            </div>
-          </div>
 
-          {/* Bloco 3: Vínculos (Condicionais) */}
-          {(isTransfer || isInvestmentFlow || isLoanPayment || isLoanLiberation || isVehicle || isInsurancePayment) && (
-            <div className="space-y-4 p-4 rounded-lg border border-border/50 bg-primary/10">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="operationType">Tipo de Operação *</Label>
+                        <Select 
+                        value={operationType || ''} 
+                        onValueChange={(v) => {
+                            setOperationType(v as OperationType);
+                            setCategoryId(null); 
+                            setTempInvestmentId(null);
+                            setTempLoanId(null);
+                            setTempParcelaId(null);
+                            setDestinationAccountId(null);
+                            setTempVehicleOperation(null);
+                            setTempSeguroId(null); 
+                            setTempSeguroParcelaId(null); 
+                        }}
+                        disabled={isEditing}
+                        >
+                        <SelectTrigger className={cn("h-10", selectedOperationConfig?.color)}>
+                            <SelectValue placeholder="Selecione a operação">
+                                {selectedOperationConfig && (
+                                    <span className="flex items-center gap-2">
+                                        <selectedOperationConfig.icon className="w-4 h-4" />
+                                        {selectedOperationConfig.label}
+                                    </span>
+                                )}
+                            </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                            {availableOperations.map(op => {
+                            const option = OPERATION_OPTIONS.find(o => o.value === op);
+                            if (!option) return null;
+                            const Icon = option.icon;
+                            return (
+                                <SelectItem key={op} value={op}>
+                                <span className={cn("flex items-center gap-2", option.color)}>
+                                    <Icon className="w-4 h-4" />
+                                    {option.label}
+                                </span>
+                                </SelectItem>
+                            );
+                            })}
+                        </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="amount">Valor (R$) *</Label>
+                        <Input
+                        id="amount"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        value={amount}
+                        onChange={(e) => handleAmountChange(e.target.value)}
+                        disabled={!!isAmountAutoFilled}
+                        className="h-10"
+                        />
+                    </div>
+                </div>
+            </TabsContent>
+            
+            {/* Passo 2: Classificação e Descrição */}
+            <TabsContent value="passo2" className="mt-0 space-y-4 p-4 rounded-lg border border-border/50 bg-muted/10">
+                <h4 className="font-semibold text-sm text-foreground flex items-center gap-2">
+                    <Tags className="w-4 h-4" /> Classificação
+                </h4>
+                <div className="grid grid-cols-1 gap-4">
+                    {/* Categoria Selector */}
+                    {showCategorySelector && (
+                    <div className="space-y-2">
+                        <Label htmlFor="categoryId">Categoria {isCategorizable ? '*' : ''}</Label>
+                        <Select 
+                        value={categoryId || ''} 
+                        onValueChange={(v) => {
+                            setCategoryId(v);
+                            if (v !== seguroCategory?.id) {
+                                setTempSeguroId(null);
+                                setTempSeguroParcelaId(null);
+                            }
+                        }}
+                        disabled={isCategoryDisabled}
+                        >
+                        <SelectTrigger className="h-10">
+                            <SelectValue placeholder="Selecione a categoria" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {availableCategories.map(c => (
+                            <SelectItem key={c.id} value={c.id}>
+                                {c.icon} {c.label}
+                            </SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                    </div>
+                    )}
+                    
+                    {/* Descrição (Full Width) */}
+                    <div className="space-y-2">
+                        <Label htmlFor="description">Descrição</Label>
+                        <Input
+                        id="description"
+                        placeholder="Descrição da transação"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        className="h-10"
+                        />
+                    </div>
+                </div>
+            </TabsContent>
+
+            {/* Passo 3: Vínculos (Condicionais) */}
+            <TabsContent value="passo3" className="mt-0 space-y-4 p-4 rounded-lg border border-border/50 bg-primary/10">
                 <h4 className="font-semibold text-sm text-primary flex items-center gap-2">
                     <ArrowLeftRight className="w-4 h-4" /> Vínculo / Contraparte
                 </h4>
@@ -747,16 +807,31 @@ export function MovimentarContaModal({
                         </div>
                     </div>
                 )}
-            </div>
-          )}
+            </TabsContent>
+          </Tabs>
 
-          <DialogFooter className="pt-4">
+          <DialogFooter className="pt-4 flex justify-between items-center">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit">
-              {isEditing ? "Salvar Alterações" : "Registrar"}
-            </Button>
+            
+            <div className="flex gap-2">
+                {activeTab !== 'passo1' && (
+                    <Button type="button" variant="secondary" onClick={handleBack}>
+                        <ChevronLeft className="w-4 h-4 mr-2" /> Voltar
+                    </Button>
+                )}
+                
+                {isLastStep ? (
+                    <Button type="submit" onClick={handleSubmit}>
+                        <CheckCircle2 className="w-4 h-4 mr-2" /> {isEditing ? "Salvar Alterações" : "Registrar"}
+                    </Button>
+                ) : (
+                    <Button type="button" onClick={handleNext}>
+                        Próximo <ChevronRight className="w-4 h-4 ml-2" />
+                    </Button>
+                )}
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
