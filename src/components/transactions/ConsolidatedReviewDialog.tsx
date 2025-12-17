@@ -226,7 +226,7 @@ export function ConsolidatedReviewDialog({
         const toAccount = accounts.find(a => a.id === tx.destinationAccountId);
         const isToCreditCard = toAccount?.accountType === 'cartao_credito';
         
-        // Transação de Saída (Conta Origem)
+        // Transação de Saída (Conta Origem - a conta do extrato)
         const outTx: TransacaoCompleta = {
           ...baseTx,
           flow: 'transfer_out',
@@ -234,18 +234,21 @@ export function ConsolidatedReviewDialog({
         };
         newTransactions.push(outTx);
         
-        // Transação de Entrada (Conta Destino)
+        // Transação de Entrada (Conta Destino - a contraparte)
         const inTx: TransacaoCompleta = {
           ...baseTx,
           id: generateTransactionId(),
           accountId: tx.destinationAccountId,
-          flow: isToCreditCard ? 'in' : 'transfer_in', // CC payment is 'in'
+          // CORREÇÃO APLICADA AQUI: Se o destino é CC, o fluxo é 'in' (pagamento de fatura)
+          flow: isToCreditCard ? 'in' : 'transfer_in', 
           operationType: 'transferencia' as const,
           description: isToCreditCard ? `Pagamento de fatura CC ${toAccount?.name}` : tx.description || `Transferência recebida de ${fromAccount?.name}`,
           links: {
             ...baseTx.links,
             transferGroupId: groupId,
-          }
+          },
+          // A transação de contraparte não é considerada conciliada, pois não veio do extrato dela.
+          conciliated: false, 
         };
         newTransactions.push(inTx);
         
@@ -272,7 +275,8 @@ export function ConsolidatedReviewDialog({
             ...baseTx.links,
             investmentId: baseTx.accountId, // Link de volta para a conta corrente
           },
-          meta: { ...baseTx.meta, createdBy: 'system' }
+          meta: { ...baseTx.meta, createdBy: 'system' },
+          conciliated: false, // Contraparte não conciliada
         };
         newTransactions.push(secondaryTx);
       }
@@ -295,6 +299,7 @@ export function ConsolidatedReviewDialog({
       else if (tx.operationType === 'pagamento_emprestimo' && tx.tempLoanId) {
         newTransactions.push(baseTx);
         const loanIdNum = parseInt(tx.tempLoanId.replace('loan_', ''));
+        // Nota: Não temos o parcelaId aqui, então a marcação de pagamento é simplificada.
         if (!isNaN(loanIdNum)) {
             markLoanParcelPaid(loanIdNum, tx.amount, tx.date);
         }

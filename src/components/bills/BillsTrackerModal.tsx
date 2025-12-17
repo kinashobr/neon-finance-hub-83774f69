@@ -204,7 +204,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     
     // 1. Filtra o billsTracker original, removendo APENAS as contas que foram carregadas no localBills
     // Isso garante que contas de outros meses (futuras não pagas, ou passadas) permaneçam.
-    let finalBillsTracker: BillTracker[] = billsTracker.filter(b => !localBillIds.has(b.id));
+    let finalBillsTracker: BillTracker[] = billsTracker.filter(b => {
+        // Se a conta não está no localBills, ela é de outro mês ou é uma conta fixa futura/passada que não foi carregada.
+        // Se a conta está no localBills, ela será tratada no loop abaixo.
+        return !localBillIds.has(b.id);
+    });
     
     // 2. Processa as contas locais (do mês atual, incluindo adiantadas)
     localBills.forEach(localVersion => {
@@ -245,12 +249,19 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             }
 
             if (bill.sourceType === "insurance_installment" && bill.sourceRef) {
+                // Para seguro, a transação é uma despesa normal, mas com link
+                operationType = "despesa";
                 vehicleTransactionId = `${bill.sourceRef}_${bill.parcelaNumber}`;
                 markSeguroParcelPaid(
                     Number(bill.sourceRef),
                     bill.parcelaNumber!,
                     transactionId
                 );
+            }
+            
+            // Se for despesa fixa/variável, garante que a operação seja 'despesa'
+            if (bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense' || bill.sourceType === 'ad_hoc') {
+                operationType = 'despesa';
             }
 
             newTransactions.push({
