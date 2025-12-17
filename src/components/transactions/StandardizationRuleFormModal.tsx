@@ -38,27 +38,49 @@ export function StandardizationRuleFormModal({
   onSave,
 }: StandardizationRuleFormModalProps) {
   const [pattern, setPattern] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null); // Allow null
   const [operationType, setOperationType] = useState<OperationType | ''>('');
   const [descriptionTemplate, setDescriptionTemplate] = useState("");
+
+  const NON_CATEGORY_OPERATIONS: OperationType[] = [
+    'transferencia', 
+    'aplicacao', 
+    'resgate', 
+    'pagamento_emprestimo', 
+    'liberacao_emprestimo', 
+    'veiculo'
+  ];
+  
+  const categoryRequired = operationType && !NON_CATEGORY_OPERATIONS.includes(operationType as OperationType);
 
   useEffect(() => {
     if (open && initialTransaction) {
       setPattern(initialTransaction.originalDescription);
-      setCategoryId(initialTransaction.categoryId || "");
       setOperationType(initialTransaction.operationType || "");
       setDescriptionTemplate(initialTransaction.description);
+      
+      // Set categoryId based on initial transaction, allowing null
+      setCategoryId(initialTransaction.categoryId || null);
+      
+      // If the initial operation type doesn't require a category, clear it locally
+      if (initialTransaction.operationType && NON_CATEGORY_OPERATIONS.includes(initialTransaction.operationType)) {
+          setCategoryId(null);
+      }
+      
     } else if (!open) {
       // Reset state on close
       setPattern("");
-      setCategoryId("");
+      setCategoryId(null);
       setOperationType("");
       setDescriptionTemplate("");
     }
   }, [open, initialTransaction]);
 
   const getCategoryOptions = useMemo(() => {
-    if (!operationType || operationType === 'transferencia') return categories;
+    if (!operationType) return categories;
+    
+    // If category is not required, we don't need to filter options, but we keep the existing logic for required ones.
+    if (!categoryRequired) return categories; 
     
     const isIncome = operationType === 'receita' || operationType === 'rendimento' || operationType === 'liberacao_emprestimo';
     
@@ -66,17 +88,25 @@ export function StandardizationRuleFormModal({
       (isIncome && c.nature === 'receita') || 
       (!isIncome && c.nature !== 'receita')
     );
-  }, [categories, operationType]);
+  }, [categories, operationType, categoryRequired]);
 
   const handleSubmit = () => {
-    if (!pattern.trim() || !categoryId || !operationType || !descriptionTemplate.trim()) {
-      toast.error("Preencha todos os campos obrigatórios.");
+    if (!pattern.trim() || !operationType || !descriptionTemplate.trim()) {
+      toast.error("Preencha o padrão, operação e descrição padronizada.");
       return;
     }
     
+    if (categoryRequired && !categoryId) {
+        toast.error("A categoria é obrigatória para esta operação.");
+        return;
+    }
+    
+    // If category is not required, save null
+    const finalCategoryId = categoryRequired ? categoryId : null;
+
     onSave({
       pattern: pattern.trim(),
-      categoryId,
+      categoryId: finalCategoryId,
       operationType: operationType as OperationType,
       descriptionTemplate: descriptionTemplate.trim(),
     });
@@ -119,7 +149,13 @@ export function StandardizationRuleFormModal({
               <Label htmlFor="operationType">Tipo de Operação *</Label>
               <Select
                 value={operationType}
-                onValueChange={(v) => setOperationType(v as OperationType)}
+                onValueChange={(v) => {
+                    setOperationType(v as OperationType);
+                    // Clear category if the new operation type doesn't require one
+                    if (NON_CATEGORY_OPERATIONS.includes(v as OperationType)) {
+                        setCategoryId(null);
+                    }
+                }}
               >
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue placeholder="Selecione..." />
@@ -137,14 +173,14 @@ export function StandardizationRuleFormModal({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="categoryId">Categoria *</Label>
+              <Label htmlFor="categoryId">Categoria {categoryRequired ? '*' : '(Opcional)'}</Label>
               <Select
-                value={categoryId}
+                value={categoryId || ''}
                 onValueChange={setCategoryId}
-                disabled={operationType === 'transferencia' || operationType === ''}
+                disabled={!categoryRequired}
               >
                 <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Selecione..." />
+                  <SelectValue placeholder={categoryRequired ? "Selecione..." : "Não aplicável"} />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
                   {getCategoryOptions.map(cat => (
