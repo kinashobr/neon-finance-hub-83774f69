@@ -30,10 +30,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // Remove all previous theme classes
     document.documentElement.classList.remove(
       "theme-brown-light",
-      "theme-dark-neon",
-      "theme-blue-minimal",
-      "theme-green-accounting",
-      "theme-high-contrast"
+      "theme-dark-neon"
     );
     // Add current theme class
     document.documentElement.classList.add(`theme-${theme}`);

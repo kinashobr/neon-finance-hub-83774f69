@@ -375,24 +375,6 @@ interface FinanceContextType {
   // Exportação e Importação
   exportData: () => void;
   importData: (file: File) => Promise<{ success: boolean; message: string }>;
-  
-  // Removidos: Investimentos RF, Criptomoedas, Stablecoins, Movimentações de Investimento
-  investimentosRF: any[];
-  criptomoedas: any[];
-  stablecoins: any[];
-  movimentacoesInvestimento: any[];
-  addInvestimentoRF: () => void;
-  updateInvestimentoRF: () => void;
-  deleteInvestimentoRF: () => void;
-  addCriptomoeda: () => void;
-  updateCriptomoeda: () => void;
-  deleteCriptomoeda: () => void;
-  addStablecoin: () => void;
-  updateStablecoin: () => void;
-  deleteStablecoin: () => void;
-  addMovimentacaoInvestimento: () => void;
-  updateMovimentacaoInvestimento: () => void;
-  deleteMovimentacaoInvestimento: () => void;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
@@ -1629,24 +1611,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     calculatePaidInstallmentsUpToDate,
     exportData,
     importData,
-    
-    // Placeholders para V1 removidos (mantidos para evitar erros de tipagem)
-    investimentosRF: [],
-    criptomoedas: [],
-    stablecoins: [],
-    movimentacoesInvestimento: [],
-    addInvestimentoRF: () => { console.warn("Função V1 removida"); },
-    updateInvestimentoRF: () => { console.warn("Função V1 removida"); },
-    deleteInvestimentoRF: () => { console.warn("Função V1 removida"); },
-    addCriptomoeda: () => { console.warn("Função V1 removida"); },
-    updateCriptomoeda: () => { console.warn("Função V1 removida"); },
-    deleteCriptomoeda: () => { console.warn("Função V1 removida"); },
-    addStablecoin: () => { console.warn("Função V1 removida"); },
-    updateStablecoin: () => { console.warn("Função V1 removida"); },
-    deleteStablecoin: () => { console.warn("Função V1 removida"); },
-    addMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
-    updateMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
-    deleteMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
   };
 
   return (

@@ -92,11 +92,7 @@ const ReceitasDespesas = () => {
   // NEW STATE: Standardization Rule Manager
   const [showRuleManagerModal, setShowRuleManagerModal] = useState(false);
 
-  // Filter state (mantido para filtros internos da tabela, mas datas são controladas pelo PeriodSelector)
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedAccountId, setSelectedAccountId] = useState("all");
-  const [selectedCategoryId, setSelectedCategoryId] = useState("all");
-  const [selectedTypes, setSelectedTypes] = useState<OperationType[]>(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'rendimento', 'initial_balance']);
+  // Filter state (REMOVIDOS: searchTerm, selectedAccountId, selectedCategoryId, selectedTypes)
   
   const dateFrom = dateRanges.range1.from ? dateRanges.range1.from.toISOString().split('T')[0] : "";
   const dateTo = dateRanges.range1.to ? dateRanges.range1.to.toISOString().split('T')[0] : "";

@@ -68,27 +68,11 @@ const Investimentos = () => {
     getValorFipeTotal,
     getTotalReceitas,
     getTotalDespesas,
-    categoriasV2, // Adicionado categoriasV2
-    addTransacaoV2, // Adicionado addTransacaoV2
-    // Funções V1 mantidas para evitar erros de compilação, mas não usadas aqui
-    investimentosRF, 
-    criptomoedas, 
-    stablecoins, 
-    objetivos, 
-    addInvestimentoRF, 
-    updateInvestimentoRF, 
-    deleteInvestimentoRF, 
-    addCriptomoeda, 
-    updateCriptomoeda, 
-    deleteCriptomoeda, 
-    addStablecoin, 
-    updateStablecoin, 
-    deleteStablecoin, 
-    addMovimentacaoInvestimento,
-    deleteMovimentacaoInvestimento,
-    calculateBalanceUpToDate, // Importado do contexto
-    dateRanges, // <-- Use context state
-    setDateRanges, // <-- Use context setter
+    categoriasV2,
+    addTransacaoV2,
+    calculateBalanceUpToDate,
+    dateRanges,
+    setDateRanges,
   } = useFinance();
   
   const [activeTab, setActiveTab] = useState("carteira");
