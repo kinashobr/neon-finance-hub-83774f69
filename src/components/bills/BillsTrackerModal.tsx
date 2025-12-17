@@ -32,6 +32,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     updateBill, 
     deleteBill, 
     getBillsForMonth, 
+    generateInstallmentBills, // NEW IMPORT
     dateRanges,
     monthlyRevenueForecast,
     setMonthlyRevenueForecast,
@@ -69,17 +70,38 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   useEffect(() => {
     if (!open) return;
     
-    // 1. Carrega a lista de contas persistidas para o mês
+    // 1. Carrega a lista de contas persistidas para o mês (ad-hoc e salvas)
     const persistedBills = getBillsForMonth(referenceDate);
+    const persistedMap = new Map(persistedBills.map(b => [b.id, b]));
     
-    // 2. Define o estado local e o snapshot imutável
-    setLocalBills(persistedBills);
-    setOriginalMonthBills(persistedBills.map(b => ({ ...b }))); 
+    // 2. Gera as parcelas de empréstimos e seguros para o mês
+    const generatedInstallments = generateInstallmentBills(referenceDate);
     
-    // 3. Define a previsão de receita
+    // 3. Mescla: As contas persistidas (incluindo pagamentos/modificações) têm prioridade.
+    const mergedBills: BillTracker[] = [];
+    const processedIds = new Set<string>();
+    
+    // Adiciona as contas persistidas (ad-hoc e modificações salvas)
+    persistedBills.forEach(bill => {
+        mergedBills.push(bill);
+        processedIds.add(bill.id);
+    });
+    
+    // Adiciona as parcelas geradas, exceto se já estiverem na lista persistida
+    generatedInstallments.forEach(generatedBill => {
+        if (!processedIds.has(generatedBill.id)) {
+            mergedBills.push(generatedBill);
+        }
+    });
+    
+    // 4. Define o estado local e o snapshot imutável
+    setLocalBills(mergedBills);
+    setOriginalMonthBills(mergedBills.map(b => ({ ...b }))); 
+    
+    // 5. Define a previsão de receita
     setLocalRevenueForecast(monthlyRevenueForecast || previousMonthRevenue);
     
-  }, [open, referenceDate, getBillsForMonth, monthlyRevenueForecast, previousMonthRevenue]); // Dependência em 'open' e 'referenceDate'
+  }, [open, referenceDate, getBillsForMonth, generateInstallmentBills, monthlyRevenueForecast, previousMonthRevenue]); // Dependência em 'open' e 'referenceDate'
 
   // Totais baseados no estado local
   const totalExpectedExpense = useMemo(() => 
@@ -177,6 +199,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         const isNowPaid = localVersion.isPaid;
         
         // Verifica se houve qualquer alteração que precise ser persistida
+        const isInstallment = localVersion.sourceType === 'loan_installment' || localVersion.sourceType === 'insurance_installment';
+        
+        // Para parcelas, só precisamos persistir se houver pagamento/estorno ou exclusão
         const hasNonPaymentChanges = 
             localVersion.isExcluded !== original?.isExcluded || 
             localVersion.expectedAmount !== original?.expectedAmount || 
@@ -245,7 +270,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 }
             });
             
-            // Persiste a versão paga no billsTracker global
+            // Persiste a versão paga no billsTracker global (necessário para histórico e desmarcar)
             const updatedBill = { ...localVersion, transactionId };
             finalBillsTracker.push(updatedBill);
             
@@ -274,18 +299,23 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 paymentDate: undefined,
                 transactionId: undefined
             };
-            finalBillsTracker.push(updatedBill);
+            
+            // Se for uma parcela, só a persistimos se ela foi modificada (excluída ou valor/conta alterada)
+            // Caso contrário, ela será gerada novamente como template na próxima abertura.
+            if (isInstallment && !hasNonPaymentChanges) {
+                // Não persiste a parcela não paga e não modificada.
+            } else {
+                finalBillsTracker.push(updatedBill);
+            }
         } 
         // --- C. Handle Non-Payment Changes (Exclusion/Value/Account) ---
-        else if (hasNonPaymentChanges || isNowPaid) {
-            // Se houve qualquer alteração ou se está pago, salva a versão local
+        else if (hasNonPaymentChanges) {
+            // Se houve qualquer alteração (exclusão, valor, conta), salva a versão local
             finalBillsTracker.push(localVersion);
         }
         // --- D. Handle Unmodified Bills ---
-        // Se não houve alteração e não é um pagamento/estorno, a conta não precisa ser salva,
-        // a menos que seja uma conta ad-hoc que não foi modificada (mas como só temos ad-hoc agora,
-        // todas as contas locais precisam ser salvas se não forem excluídas permanentemente).
-        else if (localVersion.sourceType === 'ad_hoc' && !localVersion.isExcluded) {
+        // Se for ad-hoc e não modificada, salva. Se for parcela e não modificada/paga, descarta (será regenerada).
+        else if (localVersion.sourceType === 'ad_hoc') {
              finalBillsTracker.push(localVersion);
         }
     });
@@ -351,7 +381,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                       netForecast={netForecast}
                       isMobile={true}
                       onSaveAndClose={handleSaveAndClose}
-                      // onRefreshList={handleRefreshList} // REMOVIDO
                     />
                   </div>
                 </DrawerContent>
@@ -401,7 +430,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
               pendingCount={pendingCount}
               netForecast={netForecast}
               onSaveAndClose={handleSaveAndClose}
-              // onRefreshList={handleRefreshList} // REMOVIDO
             />
           </ResizableSidebar>
 

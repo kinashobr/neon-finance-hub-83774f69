@@ -302,6 +302,7 @@ interface FinanceContextType {
   updateBill: (id: string, updates: Partial<BillTracker>) => void;
   deleteBill: (id: string) => void;
   getBillsForMonth: (date: Date) => BillTracker[]; // REMOVIDO includeTemplates
+  generateInstallmentBills: (date: Date) => BillTracker[]; // NEW: Function to generate installments
   
   // Contas Movimento (new integrated system)
   contasMovimento: ContaCorrente[];
@@ -977,7 +978,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   // SIMPLIFICADO: Retorna apenas contas persistidas (ad-hoc ou modificações salvas)
   const getBillsForMonth = useCallback((date: Date): BillTracker[] => {
-    const monthYear = format(date, 'yyyy-MM');
     
     // 1. Filtra todas as contas persistidas (ad-hoc ou modificações de templates)
     const filteredBills = billsTracker.filter(bill => {
@@ -988,7 +988,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             return false;
         }
         
-        // Inclui todas as contas ad-hoc e todas as contas que foram salvas (modificadas ou pagas)
+        // Inclui todas as contas persistidas
         return true;
     });
     
@@ -999,6 +999,67 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // 3. Ordena
     return finalBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
   }, [billsTracker]);
+  
+  // NOVO: Geração de parcelas de Empréstimos e Seguros para o mês
+  const generateInstallmentBills = useCallback((date: Date): BillTracker[] => {
+    const generatedBills: BillTracker[] = [];
+    const targetMonth = format(date, 'yyyy-MM');
+    
+    // 1. Empréstimos
+    emprestimos.filter(e => e.status === 'ativo').forEach(loan => {
+        if (!loan.dataInicio || loan.meses === 0) return;
+        
+        for (let i = 1; i <= loan.meses; i++) {
+            const dueDate = getDueDate(loan.dataInicio, i);
+            const dueDateStr = format(dueDate, 'yyyy-MM-dd');
+            
+            if (dueDateStr.startsWith(targetMonth)) {
+                const billId = `loan_${loan.id}_${i}`;
+                
+                generatedBills.push({
+                    id: billId,
+                    description: `Parcela ${i}/${loan.meses} - ${loan.contrato}`,
+                    dueDate: dueDateStr,
+                    expectedAmount: loan.parcela,
+                    isPaid: false, // Será sobrescrito pela lógica de mesclagem no modal
+                    sourceType: 'loan_installment',
+                    sourceRef: String(loan.id),
+                    parcelaNumber: i,
+                    suggestedAccountId: loan.contaCorrenteId,
+                    suggestedCategoryId: categoriasV2.find(c => c.label === 'Pagamento de Empréstimo')?.id,
+                });
+                break; // Apenas uma parcela por mês
+            }
+        }
+    });
+    
+    // 2. Seguros de Veículo
+    segurosVeiculo.forEach(seguro => {
+        seguro.parcelas.forEach(parcela => {
+            const dueDate = parseDateLocal(parcela.vencimento);
+            const dueDateStr = parcela.vencimento;
+            
+            if (dueDateStr.startsWith(targetMonth)) {
+                const billId = `insurance_${seguro.id}_${parcela.numero}`;
+                
+                generatedBills.push({
+                    id: billId,
+                    description: `Seguro ${seguro.numeroApolice} Parcela ${parcela.numero}/${seguro.numeroParcelas}`,
+                    dueDate: dueDateStr,
+                    expectedAmount: parcela.valor,
+                    isPaid: parcela.paga, // Usa o status do seguro como base
+                    sourceType: 'insurance_installment',
+                    sourceRef: String(seguro.id),
+                    parcelaNumber: parcela.numero,
+                    suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
+                    suggestedCategoryId: categoriasV2.find(c => c.label === 'Seguro')?.id,
+                });
+            }
+        });
+    });
+    
+    return generatedBills;
+  }, [emprestimos, segurosVeiculo, categoriasV2, contasMovimento]);
 
 
   // ============================================
@@ -1381,6 +1442,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     updateBill,
     deleteBill,
     getBillsForMonth, // RENOMEADO
+    generateInstallmentBills, // NEW
     
     contasMovimento,
     setContasMovimento,
