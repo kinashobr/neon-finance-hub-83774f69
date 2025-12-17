@@ -786,7 +786,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const segurosAPagar = Math.max(0, seguro.valorTotal - totalPaid);
         
         return acc + Math.round(segurosAPagar * 100) / 100;
-    }, 0); // <-- FIX: Adicionado valor inicial 0
+    }, 0); 
   }, [segurosVeiculo, transacoesV2]);
 
   // ============================================
