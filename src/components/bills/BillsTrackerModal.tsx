@@ -36,15 +36,15 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     monthlyRevenueForecast,
     setMonthlyRevenueForecast,
     getRevenueForPreviousMonth,
-    addTransacaoV2,
+    // REMOVIDO: addTransacaoV2
     markLoanParcelPaid,
     unmarkLoanParcelPaid,
     markSeguroParcelPaid,
-    unmarkSeguroParcelPaid, // <-- FIX: Corrected spelling
+    unmarkSeguroParcelPaid,
     setTransacoesV2,
     contasMovimento, 
     categoriasV2, 
-    transacoesV2, // <-- ADDED: Need access to global transactions for deletion
+    transacoesV2,
   } = useFinance();
   
   const referenceDate = dateRanges.range1.to || new Date();
@@ -342,13 +342,14 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     // 5. Persiste o billsTracker atualizado
     setBillsTracker(finalBillsTracker);
     
-    // 6. Remove transações estornadas do contexto global
-    setTransacoesV2(prev =>
-        prev.filter(t => !transactionsToRemove.includes(t.id))
-    );
-    
-    // 7. Adiciona novas transações ao contexto
-    newTransactions.forEach(t => addTransacaoV2(t));
+    // 6. ATOMIZAÇÃO: Remove transações estornadas e adiciona novas em um único setState
+    setTransacoesV2(prev => {
+        // Filtra as transações a serem removidas
+        const filtered = prev.filter(t => !transactionsToRemove.includes(t.id));
+        
+        // Adiciona as novas transações
+        return [...filtered, ...newTransactions];
+    });
 
     onOpenChange(false);
     toast.success("Contas salvas com sucesso.");
