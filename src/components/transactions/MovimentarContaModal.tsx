@@ -145,7 +145,6 @@ export function MovimentarContaModal({
   // Available Parcels for selected Seguro
   const availableSeguroParcelas = useMemo(() => {
       if (!tempSeguroId) return [];
-      // FIX: Corrected typo from segurosVeurosVeiculo to segurosVeiculo
       const seguro = segurosVeiculo.find(s => s.id === parseInt(tempSeguroId));
       if (!seguro) return [];
       
@@ -192,12 +191,14 @@ export function MovimentarContaModal({
         }
         
       } else {
+        // NEW TRANSACTION INITIALIZATION
         setAccountId(selectedAccountId || accounts[0]?.id || '');
         setDate(new Date().toISOString().split('T')[0]);
         setAmount("");
-        setOperationType(availableOperations[0] || null);
+        // Initialize operationType based on available operations for the selected account
+        const initialAccountOps = getAvailableOperationTypes(accounts.find(a => a.id === (selectedAccountId || accounts[0]?.id))?.accountType || 'corrente');
+        setOperationType(initialAccountOps[0] || null); 
         setCategoryId(null);
-        setDescription("");
         
         setDestinationAccountId(null);
         setTempInvestmentId(null);
@@ -209,7 +210,7 @@ export function MovimentarContaModal({
         setTempSeguroParcelaId(null); // NEW RESET
       }
     }
-  }, [open, editingTransaction, selectedAccountId, accounts, availableOperations]);
+  }, [open, editingTransaction, selectedAccountId, accounts]); // Removed availableOperations from dependency array
 
   // Auto-select category if only one is available AND it's categorizable
   useEffect(() => {
@@ -225,12 +226,15 @@ export function MovimentarContaModal({
     }
   }, [availableCategories, isCategorizable, isInsurancePayment, categoryId]);
 
-  // Auto-select operation type if account changes
+  // Auto-select operation type if account changes (only for new transactions)
   useEffect(() => {
     if (selectedAccount && !isEditing) {
-      setOperationType(availableOperations[0] || null);
+      // Only update operation type if it hasn't been set yet or if the account type forces a change
+      if (!operationType || !availableOperations.includes(operationType)) {
+        setOperationType(availableOperations[0] || null);
+      }
     }
-  }, [selectedAccount, availableOperations, isEditing]);
+  }, [selectedAccount, availableOperations, isEditing, operationType]);
   
   // Auto-fill amount and description for loan payment
   useEffect(() => {
