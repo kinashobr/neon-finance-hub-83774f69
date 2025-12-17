@@ -42,17 +42,17 @@ interface MovimentarContaModalProps {
 }
 
 // Define a configuração de cores e ícones para cada operação
-const OPERATION_CONFIG: Record<OperationType, { label: string; icon: React.ElementType; colorClass: string; baseColor: string }> = {
-  receita: { label: 'Receita', icon: Plus, colorClass: 'text-success', baseColor: 'hsl(142, 76%, 36%)' },
-  despesa: { label: 'Despesa', icon: Minus, colorClass: 'text-destructive', baseColor: 'hsl(0, 72%, 51%)' },
-  transferencia: { label: 'Transferência', icon: ArrowLeftRight, colorClass: 'text-primary', baseColor: 'hsl(199, 89%, 48%)' },
-  aplicacao: { label: 'Aplicação', icon: TrendingUp, colorClass: 'text-purple-500', baseColor: 'hsl(270, 100%, 65%)' },
-  resgate: { label: 'Resgate', icon: TrendingDown, colorClass: 'text-warning', baseColor: 'hsl(38, 92%, 50%)' },
-  pagamento_emprestimo: { label: 'Pag. Empréstimo', icon: CreditCard, colorClass: 'text-orange-500', baseColor: 'hsl(25, 95%, 53%)' },
-  liberacao_emprestimo: { label: 'Liberação Empréstimo', icon: DollarSign, colorClass: 'text-emerald-500', baseColor: 'hsl(142, 76%, 36%)' },
-  veiculo: { label: 'Veículo', icon: Car, colorClass: 'text-indigo-500', baseColor: 'hsl(240, 70%, 50%)' },
-  rendimento: { label: 'Rendimento', icon: Coins, colorClass: 'text-teal-500', baseColor: 'hsl(170, 70%, 50%)' },
-  initial_balance: { label: 'Saldo Inicial', icon: CheckCircle2, colorClass: 'text-muted-foreground', baseColor: 'hsl(215, 20%, 55%)' },
+const OPERATION_CONFIG: Record<OperationType, { label: string; icon: React.ElementType; colorClass: string; baseColor: string; tailwindColor: string }> = {
+  receita: { label: 'Receita', icon: Plus, colorClass: 'text-success', baseColor: 'hsl(142, 76%, 36%)', tailwindColor: 'green-500' },
+  despesa: { label: 'Despesa', icon: Minus, colorClass: 'text-destructive', baseColor: 'hsl(0, 72%, 51%)', tailwindColor: 'red-500' },
+  transferencia: { label: 'Transferência', icon: ArrowLeftRight, colorClass: 'text-primary', baseColor: 'hsl(199, 89%, 48%)', tailwindColor: 'blue-500' },
+  aplicacao: { label: 'Aplicação', icon: TrendingUp, colorClass: 'text-purple-500', baseColor: 'hsl(270, 100%, 65%)', tailwindColor: 'purple-500' },
+  resgate: { label: 'Resgate', icon: TrendingDown, colorClass: 'text-warning', baseColor: 'hsl(38, 92%, 50%)', tailwindColor: 'amber-500' },
+  pagamento_emprestimo: { label: 'Pag. Empréstimo', icon: CreditCard, colorClass: 'text-orange-500', baseColor: 'hsl(25, 95%, 53%)', tailwindColor: 'orange-500' },
+  liberacao_emprestimo: { label: 'Liberação Empréstimo', icon: DollarSign, colorClass: 'text-emerald-500', baseColor: 'hsl(142, 76%, 36%)', tailwindColor: 'emerald-500' },
+  veiculo: { label: 'Veículo', icon: Car, colorClass: 'text-indigo-500', baseColor: 'hsl(240, 70%, 50%)', tailwindColor: 'indigo-500' },
+  rendimento: { label: 'Rendimento', icon: Coins, colorClass: 'text-teal-500', baseColor: 'hsl(170, 70%, 50%)', tailwindColor: 'teal-500' },
+  initial_balance: { label: 'Saldo Inicial', icon: CheckCircle2, colorClass: 'text-muted-foreground', baseColor: 'hsl(215, 20%, 55%)', tailwindColor: 'gray-500' },
 };
 
 const getAvailableOperationTypes = (accountType: AccountType): OperationType[] => {
@@ -98,7 +98,7 @@ const FloatingInputWithIcon = ({ label, Icon, colorClass, error, ...props }: Flo
             {...props}
             placeholder=" "
             className={cn(
-                "h-12 pl-10 pt-4 pb-2 bg-muted/50 border-border focus-visible:ring-offset-0 transition-all duration-200 peer",
+                "h-12 pl-10 pt-4 pb-2 bg-muted/50 border-border focus-visible:ring-offset-0 transition-all duration-200 peer text-base",
                 error && "border-destructive focus-visible:ring-destructive/50",
                 props.disabled && "opacity-70 cursor-not-allowed"
             )}
@@ -137,7 +137,7 @@ const FloatingSelectWithIcon = ({ label, Icon, colorClass, value, onValueChange,
         <Select value={value} onValueChange={onValueChange} disabled={disabled}>
             <SelectTrigger 
                 className={cn(
-                    "h-12 pl-10 pt-4 pb-2 bg-muted/50 border-border focus-visible:ring-offset-0 transition-all duration-200 peer",
+                    "h-12 pl-10 pt-4 pb-2 bg-muted/50 border-border focus-visible:ring-offset-0 transition-all duration-200 peer text-base",
                     error && "border-destructive focus-visible:ring-destructive/50",
                     disabled && "opacity-70 cursor-not-allowed"
                 )}
@@ -149,7 +149,7 @@ const FloatingSelectWithIcon = ({ label, Icon, colorClass, value, onValueChange,
                     const OptIcon = opt.icon;
                     return (
                         <SelectItem key={opt.value} value={opt.value}>
-                            <span className={cn("flex items-center gap-2", opt.color)}>
+                            <span className={cn("flex items-center gap-2 text-sm", opt.color)}>
                                 {OptIcon && <OptIcon className="w-4 h-4" />}
                                 {opt.label}
                             </span>
@@ -167,7 +167,7 @@ const FloatingSelectWithIcon = ({ label, Icon, colorClass, value, onValueChange,
                 error && "peer-focus:text-destructive"
             )}
         >
-            {label}
+            label
         </Label>
     </div>
 );
@@ -234,6 +234,7 @@ export function MovimentarContaModal({
   const HeaderIcon = selectedOperationConfig?.icon || DollarSign;
   const headerColorClass = selectedOperationConfig?.colorClass || 'text-primary';
   const headerBaseColor = selectedOperationConfig?.baseColor || 'hsl(var(--primary))';
+  const headerTailwindColor = selectedOperationConfig?.tailwindColor || 'blue-500';
   
   const isAmountAutoFilled = (isLoanPayment && tempLoanId && tempParcelaId) || (isInsurancePayment && tempSeguroId && tempSeguroParcelaId);
   
@@ -258,7 +259,6 @@ export function MovimentarContaModal({
   // Available Parcels for selected Seguro
   const availableSeguroParcelas = useMemo(() => {
       if (!tempSeguroId) return [];
-      // CORREÇÃO: Usar 'segurosVeiculo' em vez de 'segurosVeurosVeiculo'
       const seguro = segurosVeiculo.find(s => s.id === parseInt(tempSeguroId));
       if (!seguro) return [];
       
@@ -577,11 +577,11 @@ export function MovimentarContaModal({
         <DialogHeader className="p-6 pb-0 shrink-0 border-b border-border/50">
           <DialogTitle className="flex items-center gap-3">
             <div className={cn("p-2 rounded-lg", headerColorClass.replace('text-', 'bg-') + '/10')}>
-              <HeaderIcon className={cn("w-5 h-5", headerColorClass)} />
+              <HeaderIcon className={cn("w-6 h-6", headerColorClass)} />
             </div>
-            <span className="text-xl">{isEditing ? "Editar Transação" : "Nova Movimentação"}</span>
+            <span className="text-2xl font-bold">{isEditing ? "Editar Transação" : "Nova Movimentação"}</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm">
             {isEditing ? "Atualize os detalhes da transação." : "Registre uma nova entrada, saída ou transferência."}
           </DialogDescription>
         </DialogHeader>
@@ -668,13 +668,13 @@ export function MovimentarContaModal({
           {/* SEÇÃO 3: SISTEMA DE ABAS */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
             <TabsList className="bg-muted/50 w-full grid grid-cols-2 shrink-0">
-              <TabsTrigger value="simples" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors duration-300">
+              <TabsTrigger value="simples" className="text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors duration-300">
                 <Tags className="w-4 h-4 mr-2" /> Classificação Simples
               </TabsTrigger>
               <TabsTrigger 
                 value="vinculado" 
                 className={cn(
-                    "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors duration-300",
+                    "text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors duration-300",
                     !isVinculoRequired && "opacity-50 cursor-not-allowed"
                 )}
                 disabled={!isVinculoRequired}
@@ -687,7 +687,7 @@ export function MovimentarContaModal({
             <TabsContent value="simples" className="mt-4 flex-1 overflow-y-auto pr-1 space-y-4 animate-slide-in-left">
                 {/* Categoria Selector */}
                 <div className="space-y-2">
-                    <Label htmlFor="categoryId">Categoria {isCategorizable || isInsurancePayment ? '*' : ''}</Label>
+                    <Label htmlFor="categoryId" className="text-sm">Categoria {isCategorizable || isInsurancePayment ? '*' : ''}</Label>
                     <Select 
                         value={categoryId || ''} 
                         onValueChange={(v) => {
@@ -700,7 +700,7 @@ export function MovimentarContaModal({
                         }}
                         disabled={isCategoryDisabled}
                     >
-                        <SelectTrigger className={cn("h-10", errors.categoryId && "border-destructive")}>
+                        <SelectTrigger className={cn("h-10 text-base", errors.categoryId && "border-destructive")}>
                             <SelectValue placeholder="Selecione a categoria" />
                         </SelectTrigger>
                         <SelectContent>
@@ -716,13 +716,13 @@ export function MovimentarContaModal({
                 
                 {/* Descrição */}
                 <div className="space-y-2">
-                    <Label htmlFor="description">Descrição</Label>
+                    <Label htmlFor="description" className="text-sm">Descrição</Label>
                     <Input
                         id="description"
                         placeholder="Descrição da transação"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="h-10"
+                        className="h-10 text-base"
                         maxLength={150}
                     />
                     <p className="text-xs text-muted-foreground text-right">{description.length}/150</p>
@@ -734,12 +734,12 @@ export function MovimentarContaModal({
                 
                 {/* Transferência */}
                 {isTransfer && (
-                    <div className="glass-card p-4 space-y-3 border-l-4 border-primary shadow-md">
-                        <h5 className="font-semibold text-primary flex items-center gap-2"><ArrowLeftRight className="w-4 h-4" /> Transferência</h5>
+                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md", `border-${OPERATION_CONFIG.transferencia.tailwindColor}`)}>
+                        <h5 className={cn("font-semibold text-base flex items-center gap-2", OPERATION_CONFIG.transferencia.colorClass)}><ArrowLeftRight className="w-4 h-4" /> Transferência</h5>
                         <FloatingSelectWithIcon
                             label="Conta Destino"
                             Icon={Building2}
-                            colorClass={errors.destinationAccountId ? 'text-destructive' : 'text-primary'}
+                            colorClass={errors.destinationAccountId ? 'text-destructive' : OPERATION_CONFIG.transferencia.colorClass}
                             value={destinationAccountId || ''}
                             onValueChange={(v) => {
                                 setDestinationAccountId(v);
@@ -754,12 +754,12 @@ export function MovimentarContaModal({
                 
                 {/* Fluxo de Investimento */}
                 {isInvestmentFlow && (
-                    <div className="glass-card p-4 space-y-3 border-l-4 border-purple-500 shadow-md">
-                        <h5 className="font-semibold text-purple-500 flex items-center gap-2"><TrendingUp className="w-4 h-4" /> {operationType === 'aplicacao' ? 'Aplicação' : 'Resgate'}</h5>
+                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md", `border-${OPERATION_CONFIG.aplicacao.tailwindColor}`)}>
+                        <h5 className={cn("font-semibold text-base flex items-center gap-2", OPERATION_CONFIG.aplicacao.colorClass)}><TrendingUp className="w-4 h-4" /> {operationType === 'aplicacao' ? 'Aplicação' : 'Resgate'}</h5>
                         <FloatingSelectWithIcon
                             label="Conta de Investimento"
                             Icon={PiggyBank}
-                            colorClass={errors.tempInvestmentId ? 'text-destructive' : 'text-purple-500'}
+                            colorClass={errors.tempInvestmentId ? 'text-destructive' : OPERATION_CONFIG.aplicacao.colorClass}
                             value={tempInvestmentId || ''}
                             onValueChange={(v) => {
                                 setTempInvestmentId(v);
@@ -774,13 +774,13 @@ export function MovimentarContaModal({
                 
                 {/* Pagamento Empréstimo */}
                 {isLoanPayment && (
-                    <div className="glass-card p-4 space-y-3 border-l-4 border-orange-500 shadow-md">
-                        <h5 className="font-semibold text-orange-500 flex items-center gap-2"><CreditCard className="w-4 h-4" /> Pagamento de Empréstimo</h5>
+                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md", `border-${OPERATION_CONFIG.pagamento_emprestimo.tailwindColor}`)}>
+                        <h5 className={cn("font-semibold text-base flex items-center gap-2", OPERATION_CONFIG.pagamento_emprestimo.colorClass)}><CreditCard className="w-4 h-4" /> Pagamento de Empréstimo</h5>
                         <div className="grid grid-cols-2 gap-4">
                             <FloatingSelectWithIcon
                                 label="Contrato de Empréstimo"
                                 Icon={Building2}
-                                colorClass={errors.tempLoanId ? 'text-destructive' : 'text-orange-500'}
+                                colorClass={errors.tempLoanId ? 'text-destructive' : OPERATION_CONFIG.pagamento_emprestimo.colorClass}
                                 value={tempLoanId || ''}
                                 onValueChange={(v) => {
                                     setTempLoanId(v);
@@ -794,7 +794,7 @@ export function MovimentarContaModal({
                             <FloatingSelectWithIcon
                                 label="Parcela"
                                 Icon={Calendar}
-                                colorClass={errors.tempParcelaId ? 'text-destructive' : 'text-orange-500'}
+                                colorClass={errors.tempParcelaId ? 'text-destructive' : OPERATION_CONFIG.pagamento_emprestimo.colorClass}
                                 value={tempParcelaId || ''}
                                 onValueChange={(v) => {
                                     setTempParcelaId(v);
@@ -812,7 +812,7 @@ export function MovimentarContaModal({
                 {/* Pagamento Seguro */}
                 {isInsurancePayment && (
                     <div className="glass-card p-4 space-y-3 border-l-4 border-blue-500 shadow-md">
-                        <h5 className="font-semibold text-blue-500 flex items-center gap-2"><Shield className="w-4 h-4" /> Pagamento de Seguro</h5>
+                        <h5 className="font-semibold text-base text-blue-500 flex items-center gap-2"><Shield className="w-4 h-4" /> Pagamento de Seguro</h5>
                         <div className="grid grid-cols-2 gap-4">
                             <FloatingSelectWithIcon
                                 label="Seguro"
@@ -848,13 +848,13 @@ export function MovimentarContaModal({
                 
                 {/* Liberação Empréstimo */}
                 {isLoanLiberation && (
-                    <div className="glass-card p-4 space-y-3 border-l-4 border-emerald-500 shadow-md">
-                        <h5 className="font-semibold text-emerald-500 flex items-center gap-2"><DollarSign className="w-4 h-4" /> Liberação de Empréstimo</h5>
+                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md", `border-${OPERATION_CONFIG.liberacao_emprestimo.tailwindColor}`)}>
+                        <h5 className={cn("font-semibold text-base flex items-center gap-2", OPERATION_CONFIG.liberacao_emprestimo.colorClass)}><DollarSign className="w-4 h-4" /> Liberação de Empréstimo</h5>
                         <FloatingInputWithIcon
                             id="numeroContrato"
                             label="Número do Contrato"
                             Icon={StickyNote}
-                            colorClass={errors.tempNumeroContrato ? 'text-destructive' : 'text-emerald-500'}
+                            colorClass={errors.tempNumeroContrato ? 'text-destructive' : OPERATION_CONFIG.liberacao_emprestimo.colorClass}
                             placeholder="Ex: Contrato 12345"
                             value={tempNumeroContrato}
                             onChange={(e) => {
@@ -868,13 +868,13 @@ export function MovimentarContaModal({
                 
                 {/* Veículo */}
                 {isVehicle && (
-                    <div className="glass-card p-4 space-y-3 border-l-4 border-indigo-500 shadow-md">
-                        <h5 className="font-semibold text-indigo-500 flex items-center gap-2"><Car className="w-4 h-4" /> Operação de Veículo</h5>
+                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md", `border-${OPERATION_CONFIG.veiculo.tailwindColor}`)}>
+                        <h5 className={cn("font-semibold text-base flex items-center gap-2", OPERATION_CONFIG.veiculo.colorClass)}><Car className="w-4 h-4" /> Operação de Veículo</h5>
                         <div className="grid grid-cols-2 gap-4">
                             <FloatingSelectWithIcon
                                 label="Operação"
                                 Icon={RefreshCw}
-                                colorClass={errors.tempVehicleOperation ? 'text-destructive' : 'text-indigo-500'}
+                                colorClass={errors.tempVehicleOperation ? 'text-destructive' : OPERATION_CONFIG.veiculo.colorClass}
                                 value={tempVehicleOperation || ''}
                                 onValueChange={(v) => {
                                     setTempVehicleOperation(v as 'compra' | 'venda');
@@ -890,7 +890,7 @@ export function MovimentarContaModal({
                             <FloatingSelectWithIcon
                                 label="Tipo de Veículo"
                                 Icon={Car}
-                                colorClass={'text-indigo-500'}
+                                colorClass={OPERATION_CONFIG.veiculo.colorClass}
                                 value={tempTipoVeiculo}
                                 onValueChange={(v) => setTempTipoVeiculo(v as 'carro' | 'moto' | 'caminhao')}
                                 options={[
@@ -908,7 +908,7 @@ export function MovimentarContaModal({
                 {!isTransfer && !isInvestmentFlow && !isFinancingFlow && !isVehicle && !isInsurancePayment && (
                     <div className="text-center p-8 text-muted-foreground">
                         <Info className="w-6 h-6 mx-auto mb-2" />
-                        <p>Selecione um tipo de operação que requer vínculo (Transferência, Investimento, Empréstimo, Veículo ou Pagamento de Seguro) para preencher esta seção.</p>
+                        <p className="text-sm">Selecione um tipo de operação que requer vínculo (Transferência, Investimento, Empréstimo, Veículo ou Pagamento de Seguro) para preencher esta seção.</p>
                     </div>
                 )}
             </TabsContent>
