@@ -119,7 +119,7 @@ export function BillsContextSidebar({
             Atualizar Lista
           </Button>
           <p className="text-xs text-muted-foreground">
-            Gere ou atualize a lista com base nos templates e pagamentos.
+            Recarrega a lista com base nos templates e pagamentos mais recentes.
           </p>
         </div>
 

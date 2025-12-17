@@ -64,11 +64,23 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     toast.info("Lista de contas atualizada manualmente.");
   }, [getBillsForMonth, referenceDate, monthlyRevenueForecast, previousMonthRevenue]);
 
+  // Initial load when modal opens
+  useEffect(() => {
+    if (open) {
+      // Inicializa o estado local com a lista gerada automaticamente
+      const generatedBills = getBillsForMonth(referenceDate, true);
+      setLocalBills(generatedBills);
+      setLocalRevenueForecast(monthlyRevenueForecast || previousMonthRevenue);
+    }
+  }, [open, monthlyRevenueForecast, previousMonthRevenue, getBillsForMonth, referenceDate]);
+
   // NEW: Handler for adding ad-hoc bills directly to context
   const handleAddBillAndRefresh = useCallback((bill: Omit<BillTracker, "id" | "isPaid">) => {
     addBill(bill);
-    // REMOVIDO: Chamada automática de refresh. O usuário deve clicar em "Atualizar Lista".
-  }, [addBill]);
+    // Since addBill updates the global state, we need to refresh the local list immediately
+    // to reflect the new ad-hoc bill.
+    handleRefreshList();
+  }, [addBill, handleRefreshList]);
 
   // Totais baseados no estado local
   const totalExpectedExpense = useMemo(() => 
@@ -278,15 +290,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     onOpenChange(false);
     toast.success("Contas pagas e alterações salvas!");
   };
-
-  // Initial load when modal opens
-  useEffect(() => {
-    if (open) {
-      // Inicializa o estado local com uma lista vazia, forçando o usuário a clicar em "Atualizar Lista"
-      setLocalBills([]);
-      setLocalRevenueForecast(monthlyRevenueForecast || previousMonthRevenue);
-    }
-  }, [open, monthlyRevenueForecast, previousMonthRevenue]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
