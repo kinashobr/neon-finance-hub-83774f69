@@ -364,7 +364,7 @@ export function BillsTrackerList({
                 // Apenas contas ad-hoc, fixed_expense ou variable_expense podem ter valor alterado
                 const isAmountEditable = bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
                 
-                // A data de vencimento pode ser alterada se não estiver paga
+                // A data de vencimento pode ser alterada se não estiver paga (para qualquer tipo de conta)
                 const isDateEditable = !isPaid;
                 
                 return (
@@ -393,7 +393,6 @@ export function BillsTrackerList({
                                 value={bill.dueDate}
                                 type="date"
                                 onSave={(v) => handleUpdateDueDate(bill, String(v))}
-                                displayValue={formatDate(bill.dueDate)}
                                 className={cn("text-base", isOverdue && "text-destructive")}
                             />
                         ) : (
