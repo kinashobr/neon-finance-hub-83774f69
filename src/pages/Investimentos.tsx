@@ -19,7 +19,7 @@ import { EditableCell } from "@/components/EditableCell";
 import { toast } from "sonner";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { DateRange, ComparisonDateRanges } from "@/types/finance";
-import { startOfMonth, endOfMonth, subDays } from "date-fns";
+import { startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
 import { InvestmentEvolutionChart } from "@/components/investments/InvestmentEvolutionChart";
 
@@ -73,6 +73,7 @@ const Investimentos = () => {
     calculateBalanceUpToDate,
     dateRanges,
     setDateRanges,
+    calculateTotalInvestmentBalanceAtDate,
   } = useFinance();
   
   const [activeTab, setActiveTab] = useState("carteira");
@@ -89,6 +90,23 @@ const Investimentos = () => {
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
   }, [setDateRanges]);
+
+  // Helper para filtrar transações por um range específico
+  const filterTransactionsByRange = useCallback((range: DateRange) => {
+    if (!range.from || !range.to) return transacoesV2;
+    
+    // Normaliza os limites do período para garantir que o dia inteiro seja incluído
+    const rangeFrom = startOfDay(range.from);
+    const rangeTo = endOfDay(range.to);
+    
+    return transacoesV2.filter(t => {
+      const transactionDate = parseDateLocal(t.date);
+      return isWithinInterval(transactionDate, { start: rangeFrom, end: rangeTo });
+    });
+  }, [transacoesV2]);
+
+  // Transações do Período 1 (Principal)
+  const transacoesPeriodo1 = useMemo(() => filterTransactionsByRange(dateRanges.range1), [filterTransactionsByRange, dateRanges.range1]);
 
   // Helper para calcular saldo atual de uma conta (usando a data final do período P1)
   const calculateAccountBalance = useCallback((accountId: string, targetDate: Date | undefined): number => {
@@ -133,6 +151,7 @@ const Investimentos = () => {
   // Cálculos padronizados
   const calculosPatrimonio = useMemo(() => {
     const targetDate = dateRanges.range1.to;
+    const periodStart = dateRanges.range1.from;
 
     // Totais das Contas Movimento (V2)
     const totalRF = rfAccounts.reduce((acc, c) => acc + calculateAccountBalance(c.id, targetDate), 0);
@@ -147,12 +166,29 @@ const Investimentos = () => {
     
     const exposicaoCripto = patrimonioInvestimentos > 0 ? (totalCripto / patrimonioInvestimentos) * 100 : 0;
     
-    // Rentabilidade Média (Simplificada, pois dados de rentabilidade V1 foram removidos)
-    const rentabilidadeMedia = 5.0; // Valor placeholder
+    // 1. Calcular Rendimentos no Período 1
+    const totalRendimentosPeriodo1 = transacoesPeriodo1
+        .filter(t => t.operationType === 'rendimento')
+        .reduce((acc, t) => acc + t.amount, 0);
+        
+    // 2. Calcular Patrimônio Inicial Investido (dia anterior ao início do período)
+    let patrimonioInicialInvestido = 0;
+    if (periodStart) {
+        const dayBeforeStart = subDays(periodStart, 1);
+        patrimonioInicialInvestido = calculateTotalInvestmentBalanceAtDate(dayBeforeStart);
+    }
+    
+    // 3. Calcular Rentabilidade Média (simplificada: Rendimentos / Saldo Inicial)
+    let rentabilidadeMedia = 0;
+    if (patrimonioInicialInvestido > 0) {
+        rentabilidadeMedia = (totalRendimentosPeriodo1 / patrimonioInicialInvestido) * 100;
+    } else if (patrimonioInvestimentos > 0 && totalRendimentosPeriodo1 > 0) {
+        // Fallback: Se o saldo inicial for zero, mas houver rendimentos e saldo final, usa o saldo final como proxy.
+        rentabilidadeMedia = (totalRendimentosPeriodo1 / patrimonioInvestimentos) * 100;
+    }
     
     // Nota: getTotalReceitas e getTotalDespesas não são period-aware por padrão, mas são usados aqui
     // para métricas mensais. Se o PeriodSelector for usado para filtrar o mês, eles devem ser ajustados.
-    // Por enquanto, mantemos a chamada original, mas o cálculo de saldo está correto.
     const receitasMes = getTotalReceitas();
     const despesasMes = getTotalDespesas();
     const variacaoMensal = receitasMes > 0 ? ((receitasMes - despesasMes) / receitasMes) * 100 : 0;
@@ -169,7 +205,7 @@ const Investimentos = () => {
       variacaoMensal,
       patrimonioInvestimentos,
     };
-  }, [contasMovimento, transacoesV2, rfAccounts, cryptoAccounts, stablecoinAccounts, objetivosAccounts, calculateAccountBalance, getValorFipeTotal, getTotalReceitas, getTotalDespesas, dateRanges.range1.to]);
+  }, [contasMovimento, transacoesV2, rfAccounts, cryptoAccounts, stablecoinAccounts, objetivosAccounts, calculateAccountBalance, getValorFipeTotal, getTotalReceitas, getTotalDespesas, dateRanges.range1.to, dateRanges.range1.from, transacoesPeriodo1, calculateTotalInvestmentBalanceAtDate]);
 
   const distribuicaoCarteira = useMemo(() => [
     { name: "Renda Fixa", value: calculosPatrimonio.totalRF },
