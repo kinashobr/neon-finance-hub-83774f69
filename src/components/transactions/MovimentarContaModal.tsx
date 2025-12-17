@@ -29,7 +29,7 @@ interface LoanInfo {
 
 interface MovimentarContaModalProps {
   open: boolean;
-  onOpenChange: (open: (open: boolean) => void) => void;
+  onOpenChange: (open: boolean) => void;
   accounts: ContaCorrente[];
   categories: Categoria[];
   investments: InvestmentInfo[];
