@@ -19,6 +19,7 @@ import { BillTracker, BillSourceType, formatCurrency } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale"; // ADDED IMPORT
 import { EditableCell } from "../EditableCell";
 
 interface BillsTrackerListProps {
@@ -249,7 +250,7 @@ export function BillsTrackerList({
 
   const formatDate = (dateStr: string) => {
     const date = parseDateLocal(dateStr);
-    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+    return format(date, 'dd/MMM', { locale: ptBR }); // Use ptBR locale
   };
   
   const availableAccounts = useMemo(() => 

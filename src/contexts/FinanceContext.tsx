@@ -27,6 +27,7 @@ import {
   PotentialFixedBill, // <-- NEW IMPORT
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns"; // Import date-fns helpers
+import { ptBR } from "date-fns/locale"; // <-- ADDED IMPORT
 import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
 
 // ============================================
@@ -1056,13 +1057,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // SIMPLIFICADO: Retorna apenas contas persistidas (ad-hoc ou modificações salvas)
   const getBillsForMonth = useCallback((date: Date): BillTracker[] => {
     
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+    
     // Retorna as contas que:
     // 1. Têm vencimento no mês de referência (dueDate)
     // OU
     // 2. Estão pagas E a data de pagamento (paymentDate) é no mês de referência.
     const filteredBills = billsTracker.filter(bill => {
         const billDueDate = parseDateLocal(bill.dueDate);
-        const isSameMonthDate = isSameMonth(billDueDate, date);
+        const isDueInMonth = isSameMonth(billDueDate, date);
         
         let isPaidInMonth = false;
         if (bill.isPaid && bill.paymentDate) {
@@ -1070,7 +1074,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             isPaidInMonth = isSameMonth(billPaymentDate, date);
         }
         
-        return isSameMonthDate || isPaidInMonth;
+        return isDueInMonth || isPaidInMonth;
     });
     
     // Remove contas que foram explicitamente excluídas (isExcluded) E não estão pagas
@@ -1235,360 +1239,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     
     return futureBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
   }, [emprestimos, segurosVeiculo, transacoesV2, calculateLoanSchedule]);
-
-
-  // ============================================
-  // OPERAÇÕES DE ENTIDADES V2
-  // ============================================
-
-  const addEmprestimo = (emprestimo: Omit<Emprestimo, "id">) => {
-    const newId = Math.max(0, ...emprestimos.map(e => e.id)) + 1;
-    setEmprestimos([...emprestimos, { ...emprestimo, id: newId, status: emprestimo.status || 'ativo', parcelasPagas: 0 }]);
-  };
-
-  const updateEmprestimo = (id: number, updates: Partial<Emprestimo>) => {
-    setEmprestimos(emprestimos.map(e => e.id === id ? { ...e, ...updates } : e));
-  };
-
-  const deleteEmprestimo = (id: number) => {
-    setEmprestimos(emprestimos.filter(e => e.id !== id));
-  };
-
-  const getPendingLoans = useCallback(() => {
-    return emprestimos.filter(e => e.status === 'pendente_config');
-  }, [emprestimos]);
-
-  const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumero?: number) => {
-    setEmprestimos(prev => prev.map(e => {
-      if (e.id !== loanId) return e;
-      
-      // Simplificação: Apenas marca o status como ativo/quitado
-      const isQuitado = (e.parcelasPagas || 0) + 1 >= e.meses;
-      
-      return {
-        ...e,
-        status: isQuitado ? 'quitado' : 'ativo',
-      };
-    }));
-  }, []);
-  
-  const unmarkLoanParcelPaid = useCallback((loanId: number) => {
-    setEmprestimos(prev => prev.map(e => {
-      if (e.id !== loanId) return e;
-      
-      return {
-        ...e,
-        status: 'ativo',
-      };
-    }));
-  }, []);
-
-  const addVeiculo = (veiculo: Omit<Veiculo, "id">) => {
-    const newId = Math.max(0, ...veiculos.map(v => v.id)) + 1;
-    setVeiculos([...veiculos, { ...veiculo, id: newId, status: veiculo.status || 'ativo' }]);
-  };
-
-  const updateVeiculo = (id: number, updates: Partial<Veiculo>) => {
-    setVeiculos(veiculos.map(v => v.id === id ? { ...v, ...updates } : v));
-  };
-
-  const deleteVeiculo = (id: number) => {
-    setVeiculos(veiculos.filter(v => v.id !== id));
-  };
-
-  const getPendingVehicles = useCallback(() => {
-    return veiculos.filter(v => v.status === 'pendente_cadastro');
-  }, [veiculos]);
-
-  const addSeguroVeiculo = (seguro: Omit<SeguroVeiculo, "id">) => {
-    const newId = Math.max(0, ...segurosVeiculo.map(s => s.id)) + 1;
-    setSegurosVeiculo([...segurosVeiculo, { ...seguro, id: newId }]);
-  };
-
-  const updateSeguroVeiculo = (id: number, updates: Partial<SeguroVeiculo>) => {
-    setSegurosVeiculo(segurosVeiculo.map(s => s.id === id ? { ...s, ...updates } : s));
-  };
-
-  const deleteSeguroVeiculo = (id: number) => {
-    setSegurosVeiculo(segurosVeiculo.filter(s => s.id !== id));
-  };
-  
-  const markSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number, transactionId: string) => {
-    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
-      if (seguro.id !== seguroId) return seguro;
-      
-      const updatedParcelas = seguro.parcelas.map(parcela => {
-        if (parcela.numero === parcelaNumero) {
-          return { ...parcela, paga: true, transactionId };
-        }
-        return parcela;
-      });
-      
-      return { ...seguro, parcelas: updatedParcelas };
-    }));
-  }, []);
-  
-  const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => {
-    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
-      if (seguro.id !== seguroId) return seguro;
-      
-      const updatedParcelas = seguro.parcelas.map(parcela => {
-        if (parcela.numero === parcelaNumero) {
-          return { ...parcela, paga: false, transactionId: undefined };
-        }
-        return parcela;
-      });
-      
-      return { ...seguro, parcelas: updatedParcelas };
-    }));
-  }, []);
-
-  const addObjetivo = (obj: Omit<ObjetivoFinanceiro, "id">) => {
-    const newId = Math.max(0, ...objetivos.map(o => o.id)) + 1;
-    setObjetivos([...objetivos, { ...obj, id: newId }]);
-  };
-
-  const updateObjetivo = (id: number, updates: Partial<ObjetivoFinanceiro>) => {
-    setObjetivos(objetivos.map(o => o.id === id ? { ...o, ...updates } : o));
-  };
-
-  const deleteObjetivo = (id: number) => {
-    setObjetivos(objetivos.filter(o => o.id !== id));
-  };
-
-  // ============================================
-  // OPERAÇÕES TRANSAÇÕES V2
-  // ============================================
-
-  const addTransacaoV2 = (transaction: TransacaoCompleta) => {
-    setTransacoesV2(prev => [...prev, transaction]);
-  };
-  
-  // ============================================
-  // OPERAÇÕES DE REGRAS DE PADRONIZAÇÃO
-  // ============================================
-  
-  const addStandardizationRule = useCallback((rule: Omit<StandardizationRule, "id">) => {
-    const newRule: StandardizationRule = {
-        ...rule,
-        id: generateRuleId(),
-    };
-    setStandardizationRules(prev => [...prev, newRule]);
-  }, []);
-
-  const deleteStandardizationRule = useCallback((id: string) => {
-    setStandardizationRules(prev => prev.filter(r => r.id !== id));
-  }, []);
-
-  // ============================================
-  // FUNÇÕES DE CONTAS MOVIMENTO
-  // ============================================
-
-  const getContasCorrentesTipo = useCallback(() => {
-    return contasMovimento.filter(c => c.accountType === 'corrente');
-  }, [contasMovimento]);
-  
-  // ============================================
-  // CÁLCULOS - Baseados em TransacoesV2
-  // ============================================
-
-  const getTotalReceitas = (mes?: string): number => {
-    const receitas = transacoesV2.filter(t => {
-      const isReceita = t.operationType === 'receita' || t.operationType === 'rendimento';
-      if (!mes) return isReceita;
-      return isReceita && t.date.startsWith(mes);
-    });
-    return receitas.reduce((acc, t) => acc + t.amount, 0);
-  };
-
-  const getTotalDespesas = (mes?: string): number => {
-    const despesas = transacoesV2.filter(t => {
-      const isDespesa = t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo';
-      if (!mes) return isDespesa;
-      return isDespesa && t.date.startsWith(mes);
-    });
-    return despesas.reduce((acc, t) => acc + t.amount, 0);
-  };
-
-  const getTotalDividas = () => {
-    return emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
-  };
-
-  const getCustoVeiculos = () => {
-    return veiculos.filter(v => v.status !== 'vendido').reduce((acc, v) => acc + v.valorSeguro, 0);
-  };
-
-  const getSaldoAtual = useCallback(() => {
-    let totalBalance = 0;
-
-    contasMovimento.forEach(conta => {
-      const balance = calculateBalanceUpToDate(conta.id, undefined, transacoesV2, contasMovimento);
-      
-      totalBalance += balance;
-    });
-
-    return totalBalance;
-  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
-
-  const getValorFipeTotal = useCallback((targetDate?: Date) => {
-    const date = targetDate || new Date(9999, 11, 31);
-    return veiculos
-        .filter(v => v.status !== 'vendido' && parseDateLocal(v.dataCompra) <= date)
-        .reduce((acc, v) => acc + v.valorFipe, 0);
-  }, [veiculos]);
-
-  const getLoanPrincipalRemaining = useCallback((targetDate?: Date) => {
-    const date = targetDate || new Date(9999, 11, 31);
-
-    return emprestimos.reduce((acc, e) => {
-      if (e.status === 'quitado' || e.status === 'pendente_config') return acc;
-      
-      const paidUpToDate = calculatePaidInstallmentsUpToDate(e.id, date);
-      let currentSaldo = e.valorTotal;
-      
-      if (paidUpToDate > 0) {
-          const schedule = calculateLoanSchedule(e.id);
-          const lastPaidItem = schedule.find(item => item.parcela === paidUpToDate);
-          if (lastPaidItem) {
-              currentSaldo = lastPaidItem.saldoDevedor;
-          }
-      }
-      
-      return acc + Math.max(0, currentSaldo);
-    }, 0);
-  }, [emprestimos, calculatePaidInstallmentsUpToDate, calculateLoanSchedule]);
-
-  const getCreditCardDebt = useCallback((targetDate?: Date) => {
-    const date = targetDate || new Date(9999, 11, 31);
-
-    return contasMovimento
-      .filter(c => c.accountType === 'cartao_credito')
-      .reduce((acc, c) => {
-        const balance = calculateBalanceUpToDate(c.id, date, transacoesV2, contasMovimento);
-        return acc + Math.abs(Math.min(0, balance));
-      }, 0);
-  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
-
-  const getSaldoDevedor = useCallback((targetDate?: Date) => {
-    const saldoEmprestimos = getLoanPrincipalRemaining(targetDate);
-    const saldoCartoes = getCreditCardDebt(targetDate);
-    return saldoEmprestimos + saldoCartoes;
-  }, [getLoanPrincipalRemaining, getCreditCardDebt]);
-
-  const getJurosTotais = () => {
-    return emprestimos.reduce((acc, e) => {
-      const custoTotal = e.parcela * e.meses;
-      const juros = custoTotal - e.valorTotal;
-      return acc + juros;
-    }, 0);
-  };
-
-  const getDespesasFixas = () => {
-    const despesasFixas = transacoesV2.filter(t => {
-      const category = categoriasV2.find(c => c.id === t.categoryId);
-      return category?.nature === 'despesa_fixa';
-    });
-    return despesasFixas.reduce((acc, t) => acc + t.amount, 0);
-  };
-
-  const getAtivosTotal = useCallback((targetDate?: Date) => {
-    const date = targetDate || new Date(9999, 11, 31);
-
-    const saldoContasAtivas = contasMovimento
-      .filter(c => c.accountType !== 'cartao_credito')
-      .reduce((acc, c) => {
-        const balance = calculateBalanceUpToDate(c.id, date, transacoesV2, contasMovimento);
-        return acc + Math.max(0, balance);
-      }, 0);
-      
-    const valorVeiculos = getValorFipeTotal(date);
-    const segurosAApropriar = getSegurosAApropriar(date); 
-                          
-    return saldoContasAtivas + valorVeiculos + segurosAApropriar; 
-  }, [contasMovimento, transacoesV2, getValorFipeTotal, calculateBalanceUpToDate, getSegurosAApropriar]); 
-
-  const getPassivosTotal = useCallback((targetDate?: Date) => {
-    const saldoDevedor = getSaldoDevedor(targetDate);
-    const segurosAPagar = getSegurosAPagar(targetDate); 
-    
-    return saldoDevedor + segurosAPagar; 
-  }, [getSaldoDevedor, getSegurosAPagar]); 
-
-  const getPatrimonioLiquido = useCallback((targetDate?: Date) => {
-    return getAtivosTotal(targetDate) - getPassivosTotal(targetDate);
-  }, [getAtivosTotal, getPassivosTotal]);
-
-  // ============================================
-  // EXPORTAÇÃO E IMPORTAÇÃO
-  // ============================================
-
-  const exportData = () => {
-    const data: FinanceExportV2 = {
-      schemaVersion: "2.0",
-      exportedAt: new Date().toISOString(),
-      data: {
-        // Core Data
-        accounts: contasMovimento,
-        categories: categoriasV2,
-        transactions: transacoesV2,
-        transferGroups: [],
-        
-        // V2 Entities
-        emprestimos,
-        veiculos,
-        segurosVeiculo,
-        objetivos,
-        billsTracker,
-        standardizationRules,
-        importedStatements,
-        
-        // Configuration/Context States
-        monthlyRevenueForecast,
-        alertStartDate,
-      }
-    };
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `finance_backup_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const importData = async (file: File): Promise<{ success: boolean; message: string }> => {
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-
-      if (data.schemaVersion === '2.0' && data.data) {
-        if (data.data.accounts) {
-            setContasMovimento(data.data.accounts);
-        }
-        if (data.data.categories) setCategoriasV2(data.data.categories);
-        if (data.data.transactions) setTransacoesV2(data.data.transactions);
-        
-        if (data.data.emprestimos) setEmprestimos(data.data.emprestimos);
-        if (data.data.veiculos) setVeiculos(data.data.veiculos);
-        if (data.data.segurosVeiculo) setSegurosVeiculo(data.data.segurosVeiculo);
-        if (data.data.objetivos) setObjetivos(data.data.objetivos);
-        if (data.data.billsTracker) setBillsTracker(data.data.billsTracker);
-        if (data.data.standardizationRules) setStandardizationRules(data.data.standardizationRules);
-        if (data.data.importedStatements) setImportedStatements(data.data.importedStatements);
-        
-        // NEW CONFIGURATION STATES
-        if (data.data.monthlyRevenueForecast !== undefined) setMonthlyRevenueForecast(data.data.monthlyRevenueForecast);
-        if (data.data.alertStartDate) setAlertStartDate(data.data.alertStartDate);
-        
-        return { success: true, message: "Dados V2 importados com sucesso!" };
-      } else {
-        return { success: false, message: "Erro ao importar dados. Versão do schema incompatível." };
-      }
-    } catch (error) {
-      return { success: false, message: "Erro ao importar dados. Verifique o formato do arquivo." };
-    }
-  };
 
   // ============================================
   // VALOR DO CONTEXTO

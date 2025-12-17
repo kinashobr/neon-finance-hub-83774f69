@@ -1,16 +1,17 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Tags, Plus, CalendarCheck } from "lucide-react";
+import { RefreshCw, Tags, Plus, CalendarCheck, Repeat, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
-import { isWithinInterval, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, addMonths, format } from "date-fns";
+import { isWithinInterval, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, addMonths, format, isSameMonth } from "date-fns";
 
 // Types
 import { 
   ContaCorrente, Categoria, TransacaoCompleta, TransferGroup,
   AccountSummary, OperationType, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, 
   generateTransactionId, formatCurrency, generateTransferGroupId,
-  DateRange, ComparisonDateRanges, TransactionLinks
+  DateRange, ComparisonDateRanges, TransactionLinks, BillTracker, BillSourceType,
+  getFlowTypeFromOperation, getDomainFromOperation
 } from "@/types/finance";
 
 // Components
@@ -23,10 +24,13 @@ import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
 import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
-import { BillsTrackerModal } from "@/components/bills/BillsTrackerModal";
 import { StatementManagerDialog } from "@/components/transactions/StatementManagerDialog"; 
 import { ConsolidatedReviewDialog } from "@/components/transactions/ConsolidatedReviewDialog"; 
 import { StandardizationRuleManagerModal } from "@/components/transactions/StandardizationRuleManagerModal";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // NEW IMPORT
+import { BillsTrackerList } from "@/components/bills/BillsTrackerList"; // NEW IMPORT
+import { BillsTrackerSidebar } from "@/components/bills/BillsTrackerSidebar"; // NEW IMPORT
+import { FixedBillsManagerModal } from "@/components/bills/FixedBillsManagerModal"; // NEW IMPORT
 
 // Context
 import { useFinance } from "@/contexts/FinanceContext";
@@ -55,13 +59,21 @@ const ReceitasDespesas = () => {
     unmarkSeguroParcelPaid, 
     standardizationRules, 
     deleteStandardizationRule, 
-    uncontabilizeImportedTransaction, // <-- NOVO
+    uncontabilizeImportedTransaction,
+    billsTracker, // NEW
+    setBillsTracker, // NEW
+    updateBill, // NEW
+    deleteBill, // NEW
+    getBillsForMonth, // NEW
+    calculateLoanAmortizationAndInterest, // NEW
+    segurosVeiculo, // NEW
   } = useFinance();
 
   // Local state for transfer groups
   const [transferGroups, setTransferGroups] = useState<TransferGroup[]>([]);
 
   // UI state
+  const [activeTab, setActiveTab] = useState("transactions"); // NEW TAB STATE
   const [showMovimentarModal, setShowMovimentarModal] = useState(false);
   const [selectedAccountForModal, setSelectedAccountForModal] = useState<string>();
   const [showReconciliation, setShowReconciliation] = useState(false);
@@ -78,8 +90,9 @@ const ReceitasDespesas = () => {
   const [viewingAccountId, setViewingAccountId] = useState<string | null>(null);
   const [showStatementDialog, setShowStatementDialog] = useState(false);
   
-  // Bills Tracker Modal (NEW STATE)
-  const [showBillsTrackerModal, setShowBillsTrackerModal] = useState(false);
+  // Bills Tracker Modal (UPDATED STATE)
+  const [showFixedBillsManagerModal, setShowFixedBillsManagerModal] = useState(false);
+  const [currentBillDate, setCurrentBillDate] = useState(startOfMonth(new Date())); // Date for Bills Tab
   
   // Import Modal State (UPDATED)
   const [showStatementManagerModal, setShowStatementManagerModal] = useState(false);
@@ -92,8 +105,6 @@ const ReceitasDespesas = () => {
   // NEW STATE: Standardization Rule Manager
   const [showRuleManagerModal, setShowRuleManagerModal] = useState(false);
 
-  // Filter state (REMOVIDOS: searchTerm, selectedAccountId, selectedCategoryId, selectedTypes)
-  
   const dateFrom = dateRanges.range1.from ? dateRanges.range1.from.toISOString().split('T')[0] : "";
   const dateTo = dateRanges.range1.to ? dateRanges.range1.to.toISOString().split('T')[0] : "";
 
@@ -760,6 +771,144 @@ const ReceitasDespesas = () => {
     });
     return counts;
   }, [transactions]);
+  
+  // ============================================
+  // BILLS TRACKER LOGIC (NEW)
+  // ============================================
+  
+  const currentMonthBills = useMemo(() => getBillsForMonth(currentBillDate), [getBillsForMonth, currentBillDate]);
+  
+  const totalPendingBills = useMemo(() => 
+    currentMonthBills.filter(b => !b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0)
+  , [currentMonthBills]);
+  
+  const handleBillMonthChange = (direction: 'prev' | 'next') => {
+    setCurrentBillDate(prev => direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1));
+  };
+  
+  const handleAddAdHocBill = useCallback((bill: Omit<BillTracker, "id" | "isPaid">) => {
+    const newBill: BillTracker = {
+      ...bill,
+      id: generateTransactionId(), // Reusing tx ID generator for unique ID
+      isPaid: false,
+      isExcluded: false,
+    };
+    setBillsTracker(prev => [...prev, newBill]);
+  }, [setBillsTracker]);
+  
+  const handleUpdateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
+    updateBill(id, updates);
+  }, [updateBill]);
+
+  const handleDeleteBill = useCallback((id: string) => {
+    deleteBill(id);
+  }, [deleteBill]);
+  
+  const handleTogglePaid = useCallback((bill: BillTracker, isChecked: boolean) => {
+    if (isChecked) {
+      // Mark as paid and create transaction
+      const account = accounts.find(c => c.id === bill.suggestedAccountId);
+      const category = categories.find(c => c.id === bill.suggestedCategoryId);
+      
+      if (!account) {
+        toast.error("Conta de pagamento sugerida não encontrada.");
+        return;
+      }
+      if (!category) {
+        toast.error("Categoria sugerida não encontrada.");
+        return;
+      }
+      
+      const transactionId = generateTransactionId();
+      
+      const baseLinks: Partial<TransactionLinks> = {};
+      let description = bill.description;
+      
+      const operationType: OperationType = bill.sourceType === 'loan_installment' ? 'pagamento_emprestimo' : 'despesa';
+      const domain = getDomainFromOperation(operationType);
+      const flow = getFlowTypeFromOperation(operationType);
+      
+      if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
+        const loanId = parseInt(bill.sourceRef);
+        const scheduleItem = calculateLoanAmortizationAndInterest(loanId, bill.parcelaNumber);
+        
+        if (scheduleItem) {
+            baseLinks.loanId = `loan_${loanId}`;
+            baseLinks.parcelaId = String(bill.parcelaNumber);
+            
+            const loan = emprestimos.find(e => e.id === loanId);
+            description = `Pagamento Empréstimo ${loan?.contrato || 'N/A'} - P${bill.parcelaNumber}/${loan?.meses || 'N/A'}`;
+        }
+      }
+      
+      if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
+        baseLinks.vehicleTransactionId = `${bill.sourceRef}_${bill.parcelaNumber}`;
+        
+        const seguro = segurosVeiculo.find(s => s.id === parseInt(bill.sourceRef));
+        description = `Pagamento Seguro ${seguro?.numeroApolice || 'N/A'} - P${bill.parcelaNumber}/${seguro?.numeroParcelas || 'N/A'}`;
+      }
+      
+      const newTransaction: TransacaoCompleta = {
+        id: transactionId,
+        date: format(new Date(), 'yyyy-MM-dd'), // Use today's date as payment date
+        accountId: account.id,
+        flow: flow,
+        operationType: operationType,
+        domain: domain,
+        amount: bill.expectedAmount,
+        categoryId: category.id,
+        description: description,
+        links: {
+          investmentId: baseLinks.investmentId || null,
+          transferGroupId: baseLinks.transferGroupId || null,
+          vehicleTransactionId: baseLinks.vehicleTransactionId || null,
+          loanId: baseLinks.loanId || null,
+          parcelaId: baseLinks.parcelaId || null,
+        },
+        conciliated: false,
+        attachments: [],
+        meta: {
+          createdBy: 'bill_tracker',
+          source: 'bill_tracker' as const,
+          createdAt: new Date().toISOString(),
+          notes: `Gerado pelo Contas a Pagar. Bill ID: ${bill.id}`,
+        }
+      };
+      
+      addTransacaoV2(newTransaction);
+      
+      // Update Bill Tracker
+      updateBill(bill.id, { 
+        isPaid: true, 
+        transactionId, 
+        paymentDate: format(new Date(), 'yyyy-MM-dd') 
+      });
+      
+      toast.success(`Conta "${bill.description}" paga e transação criada!`);
+      
+    } else {
+      // Unmark as paid and delete transaction
+      if (bill.transactionId) {
+        // Delete the transaction from the main list
+        handleDeleteTransaction(bill.transactionId);
+        
+        // Update Bill Tracker
+        updateBill(bill.id, { 
+          isPaid: false, 
+          transactionId: undefined, 
+          paymentDate: undefined,
+          // If it was a fixed bill, ensure it's not marked as excluded
+          isExcluded: (bill.sourceType === 'loan_installment' || bill.sourceType === 'insurance_installment') ? false : bill.isExcluded,
+        });
+        
+        toast.warning("Pagamento estornado e transação excluída.");
+        
+      } else {
+        updateBill(bill.id, { isPaid: false, paymentDate: undefined });
+      }
+    }
+  }, [updateBill, addTransacaoV2, accounts, categories, emprestimos, segurosVeiculo, calculateLoanAmortizationAndInterest, handleDeleteTransaction]);
+
 
   return (
     <MainLayout>
@@ -775,7 +924,7 @@ const ReceitasDespesas = () => {
               initialRanges={dateRanges}
               onDateRangeChange={handlePeriodChange} 
             />
-            <Button variant="outline" size="sm" onClick={() => setShowBillsTrackerModal(true)} className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setActiveTab('bills')} className="gap-2">
               <CalendarCheck className="w-4 h-4" />
               Contas a Pagar
             </Button>
@@ -788,31 +937,90 @@ const ReceitasDespesas = () => {
           </div>
         </div>
 
-        {/* Accounts Carousel */}
-        <div className="glass-card p-4">
-          <AccountsCarousel
-            accounts={accountSummaries}
-            onMovimentar={handleMovimentar}
-            onViewHistory={handleViewStatement}
-            onAddAccount={() => { setEditingAccount(undefined); setShowAccountModal(true); }}
-            onEditAccount={handleEditAccount}
-            onImportAccount={handleImportExtrato}
-          />
-        </div>
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="bg-muted/50">
+            <TabsTrigger value="transactions">Movimentações & KPIs</TabsTrigger>
+            <TabsTrigger value="bills">Contas a Pagar</TabsTrigger>
+          </TabsList>
 
-        {/* Reconciliation Panel */}
-        {showReconciliation && (
-          <ReconciliationPanel
-            accounts={visibleAccounts}
-            transactions={transactions}
-            onReconcile={handleReconcile}
-          />
-        )}
+          {/* Tab 1: Movimentações & KPIs */}
+          <TabsContent value="transactions" className="space-y-6">
+            {/* Accounts Carousel */}
+            <div className="glass-card p-4">
+              <AccountsCarousel
+                accounts={accountSummaries}
+                onMovimentar={handleMovimentar}
+                onViewHistory={handleViewStatement}
+                onAddAccount={() => { setEditingAccount(undefined); setShowAccountModal(true); }}
+                onEditAccount={handleEditAccount}
+                onImportAccount={handleImportExtrato}
+              />
+            </div>
 
-        {/* KPI Sidebar - full width */}
-        <div className="glass-card p-4">
-          <KPISidebar transactions={transacoesPeriodo1} categories={categories} />
-        </div>
+            {/* Reconciliation Panel */}
+            {showReconciliation && (
+              <ReconciliationPanel
+                accounts={visibleAccounts}
+                transactions={transactions}
+                onReconcile={handleReconcile}
+              />
+            )}
+
+            {/* KPI Sidebar - full width */}
+            <div className="glass-card p-4">
+              <KPISidebar transactions={transacoesPeriodo1} categories={categories} />
+            </div>
+          </TabsContent>
+
+          {/* Tab 2: Contas a Pagar */}
+          <TabsContent value="bills" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Sidebar de Métricas (Coluna 1) */}
+              <div className="lg:col-span-1 space-y-4">
+                <BillsTrackerSidebar 
+                  currentDate={currentBillDate}
+                  totalPendingBills={totalPendingBills}
+                />
+                
+                {/* Botão para Gerenciar Contas Fixas */}
+                <Button 
+                  variant="outline" 
+                  className="w-full gap-2"
+                  onClick={() => setShowFixedBillsManagerModal(true)}
+                >
+                  <Repeat className="w-4 h-4" />
+                  Gerenciar Contas Fixas
+                </Button>
+                
+                {/* Navegação de Mês */}
+                <div className="flex items-center justify-between gap-2 pt-2">
+                  <Button variant="outline" size="sm" onClick={() => handleBillMonthChange('prev')}>
+                    Anterior
+                  </Button>
+                  <h4 className="font-semibold text-lg text-center">
+                    {format(currentBillDate, 'MMMM yyyy', { locale: ptBR })}
+                  </h4>
+                  <Button variant="outline" size="sm" onClick={() => handleBillMonthChange('next')}>
+                    Próximo
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Lista de Contas (Colunas 2-4) */}
+              <div className="lg:col-span-3">
+                <BillsTrackerList
+                  bills={currentMonthBills}
+                  onUpdateBill={handleUpdateBill}
+                  onDeleteBill={handleDeleteBill}
+                  onAddBill={handleAddAdHocBill}
+                  onTogglePaid={handleTogglePaid}
+                  currentDate={currentBillDate}
+                />
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Modals */}
@@ -871,10 +1079,11 @@ const ReceitasDespesas = () => {
         />
       )}
       
-      {/* Bills Tracker Modal */}
-      <BillsTrackerModal
-        open={showBillsTrackerModal}
-        onOpenChange={setShowBillsTrackerModal}
+      {/* Bills Tracker Modal (REPLACED BY NEW COMPONENT) */}
+      <FixedBillsManagerModal
+        open={showFixedBillsManagerModal}
+        onOpenChange={setShowFixedBillsManagerModal}
+        currentDate={currentBillDate}
       />
       
       {/* Statement Manager Dialog (Fase 1) */}
