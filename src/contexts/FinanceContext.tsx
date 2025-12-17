@@ -298,7 +298,6 @@ interface FinanceContextType {
   // NEW: Bill Tracker
   billsTracker: BillTracker[];
   setBillsTracker: Dispatch<SetStateAction<BillTracker[]>>;
-  addBill: (bill: Omit<BillTracker, "id" | "isPaid">) => void;
   updateBill: (id: string, updates: Partial<BillTracker>) => void;
   deleteBill: (id: string) => void;
   getBillsForMonth: (date: Date) => BillTracker[]; // REMOVIDO includeTemplates
@@ -947,15 +946,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // OPERAÇÕES DE BILL TRACKER (REESCRITAS)
   // ============================================
   
-  const addBill = useCallback((bill: Omit<BillTracker, "id" | "isPaid">) => {
-    const newBill: BillTracker = {
-        ...bill,
-        id: generateBillId(),
-        isPaid: false,
-    };
-    // Adiciona apenas contas ad-hoc ao billsTracker global
-    setBillsTracker(prev => [...prev, newBill]);
-  }, []);
+  // A função addBill foi removida, pois a adição de contas avulsas é feita diretamente no setBillsTracker em handleSaveAndClose.
 
   const updateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
     setBillsTracker(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
@@ -1377,7 +1368,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     
     billsTracker,
     setBillsTracker,
-    addBill,
     updateBill,
     deleteBill,
     getBillsForMonth, // RENOMEADO
