@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { TrendingUp, TrendingDown, DollarSign, Calculator, CheckCircle2, Clock, Target, Info, Save, LogOut } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Calculator, CheckCircle2, Clock, Target, Info, Save, LogOut, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/types/finance";
 import { EditableCell } from "../EditableCell";
@@ -17,7 +17,9 @@ interface BillsContextSidebarProps {
   pendingCount: number;
   netForecast: number; // Saldo Previsto (Receita - Total PENDENTE)
   isMobile?: boolean;
-  onSaveAndClose: () => void; // NEW PROP
+  onSaveAndClose: () => void;
+  onGenerateList: () => void; // NEW PROP
+  isListGenerated: boolean; // NEW PROP
 }
 
 export function BillsContextSidebar({
@@ -30,6 +32,8 @@ export function BillsContextSidebar({
   netForecast,
   isMobile = false,
   onSaveAndClose,
+  onGenerateList, // USED
+  isListGenerated, // USED
 }: BillsContextSidebarProps) {
   
   const formatValue = (value: number) => {
@@ -99,6 +103,31 @@ export function BillsContextSidebar({
             {formatCurrency(netForecast)}
           </p>
         </Card>
+
+        <Separator />
+
+        {/* Botão de Geração Manual */}
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+            <RefreshCw className="w-3 h-3" />
+            Lista de Contas
+          </Label>
+          <Button 
+            onClick={onGenerateList} 
+            className="w-full gap-2"
+            variant={isListGenerated ? "outline" : "default"}
+            disabled={isListGenerated}
+          >
+            <RefreshCw className="w-4 h-4" />
+            {isListGenerated ? "Lista Gerada" : "Gerar Lista do Mês"}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            {isListGenerated 
+              ? "Lista gerada. Faça ajustes e salve."
+              : "Gere a lista com base nos templates e mês anterior."
+            }
+          </p>
+        </div>
 
         <Separator />
 

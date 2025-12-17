@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Dialog, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Calendar, CheckCircle2, Clock, TrendingUp, TrendingDown, DollarSign, Calculator, Menu, LogOut, X, Save } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, TrendingUp, TrendingDown, DollarSign, Calculator, Menu, LogOut, X, Save, RefreshCw } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillsTrackerList } from "./BillsTrackerList";
 import { BillsContextSidebar } from "./BillsContextSidebar";
@@ -12,6 +12,7 @@ import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 import { toast } from "sonner";
 import { ResizableSidebar } from "../transactions/ResizableSidebar";
 import { ResizableDialogContent } from "../ui/ResizableDialogContent"; // NEW IMPORT
+import { parseDateLocal } from "@/lib/utils";
 
 interface BillsTrackerModalProps {
   open: boolean;
@@ -24,7 +25,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     addBill, 
     updateBill, 
     deleteBill, 
-    getBillsForPeriod, 
+    getBillsForMonth, // <-- UPDATED
     dateRanges,
     monthlyRevenueForecast,
     setMonthlyRevenueForecast,
@@ -41,13 +42,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   
   const referenceDate = dateRanges.range1.to || new Date();
   
-  // Geração da lista de contas a pagar para o mês de referência
-  const billsForPeriod = useMemo(() => {
-    return getBillsForPeriod(referenceDate);
-  }, [getBillsForPeriod, referenceDate]);
-  
   // Estado local para manipulação (inicializa com o estado do contexto)
   const [localBills, setLocalBills] = useState<BillTracker[]>([]);
+  const [isListGenerated, setIsListGenerated] = useState(false); // NEW STATE
   
   // Receita do mês anterior (para sugestão)
   const previousMonthRevenue = useMemo(() => {
@@ -57,14 +54,42 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   // Estado local para a previsão de receita
   const [localRevenueForecast, setLocalRevenueForecast] = useState(monthlyRevenueForecast || previousMonthRevenue);
   
+  // --- Initialization Logic ---
+  const initializeLocalBills = useCallback(() => {
+    // Load only user-modified bills (ad-hoc, paid, excluded) on open.
+    const initialBills = getBillsForMonth(referenceDate, false); 
+    setLocalBills(initialBills);
+    
+    // Check if any templates were previously generated and saved (i.e., if any generated bill exists in billsTracker)
+    const monthYear = format(referenceDate, 'yyyy-MM');
+    const hasGeneratedBillsSaved = billsTracker.some(b => 
+        b.sourceType !== 'ad_hoc' && 
+        b.sourceRef && // Must have a sourceRef if generated
+        format(parseDateLocal(b.dueDate), 'yyyy-MM') === monthYear
+    );
+    
+    // If there are saved templates for this month, assume the list is generated.
+    setIsListGenerated(hasGeneratedBillsSaved);
+    
+  }, [getBillsForMonth, referenceDate, billsTracker, monthlyRevenueForecast, previousMonthRevenue]);
+
   // Sincroniza o estado local ao abrir o modal
   useEffect(() => {
     if (open) {
-        setLocalBills(billsForPeriod);
+        initializeLocalBills();
         setLocalRevenueForecast(monthlyRevenueForecast || previousMonthRevenue);
     }
-  }, [open, billsForPeriod, monthlyRevenueForecast, previousMonthRevenue]);
+  }, [open, initializeLocalBills, monthlyRevenueForecast, previousMonthRevenue]);
 
+  // --- Manual Generation Handler ---
+  const handleGenerateList = useCallback(() => {
+    // Generate the full list including templates
+    const generatedBills = getBillsForMonth(referenceDate, true);
+    setLocalBills(generatedBills);
+    setIsListGenerated(true);
+    toast.info("Lista de contas gerada com base nos templates e mês anterior.");
+  }, [getBillsForMonth, referenceDate]);
+  
   // Totais baseados no estado local
   const totalExpectedExpense = useMemo(() => 
     localBills.filter(b => !b.isExcluded).reduce((acc, b) => acc + b.expectedAmount, 0),
@@ -95,7 +120,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const handleAddBillLocal = useCallback((bill: Omit<BillTracker, "id" | "isPaid">) => {
     const newBill: BillTracker = {
         ...bill,
-        id: `bill_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        id: generateBillId(),
         isPaid: false,
     };
     setLocalBills(prev => [...prev, newBill]);
@@ -126,29 +151,40 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     
     // 2. Sincroniza o estado local com o estado global (BillsTracker)
     
-    // Bills do contexto original (para comparação)
     const originalBillsMap = new Map(billsTracker.map(b => [b.id, b]));
-    
     const newTransactions: TransacaoCompleta[] = [];
     
-    // Itera sobre as contas locais para ver o que mudou
+    // Bills que pertencem ao mês atual (para exclusão/atualização)
+    const monthYear = format(referenceDate, 'yyyy-MM');
+    
+    // IDs de bills que devem ser mantidos no billsTracker (pagos, ad-hoc de outros meses, templates de outros meses)
+    const billsToKeepIds = new Set(billsTracker
+        .filter(b => {
+            const isCurrentMonth = format(parseDateLocal(b.dueDate), 'yyyy-MM') === monthYear;
+            // Keep bills from other months OR paid bills OR ad-hoc bills from other months
+            return !isCurrentMonth || b.isPaid || b.sourceType === 'ad_hoc';
+        })
+        .map(b => b.id)
+    );
+    
+    // Lista de bills que serão o novo billsTracker
+    let updatedBillsTracker = billsTracker.filter(b => billsToKeepIds.has(b.id));
+    
+    // Itera sobre as contas locais para ver o que mudou/adicionou
     localBills.forEach(localVersion => {
         const originalBill = originalBillsMap.get(localVersion.id);
         
         const wasPaid = originalBill?.isPaid || false;
         const isNowPaid = localVersion.isPaid;
+        const isGeneratedTemplate = localVersion.sourceType !== 'ad_hoc' && localVersion.sourceRef;
         
-        // Determina se é uma conta gerada automaticamente (parcela, fixa, variável)
-        const isGenerated = localVersion.sourceType !== 'ad_hoc';
-        
-        // --- A. Handle Payment/Unpayment (Requires Transaction/Context Update) ---
+        // --- A. Handle Payment/Unpayment ---
         if (isNowPaid && !wasPaid) {
             const bill = localVersion;
             const paymentDate = bill.paymentDate || format(new Date(), 'yyyy-MM-dd'); 
             const transactionId = bill.transactionId || generateTransactionId();
             
             const suggestedAccount = contasMovimento.find(c => c.id === bill.suggestedAccountId);
-            
             if (!suggestedAccount) {
                 toast.error(`Erro: Conta de débito para ${bill.description} não encontrada.`);
                 return;
@@ -210,12 +246,16 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             }
             
             // Atualiza o Bill Tracker global para persistir o status de pagamento/exclusão/ajustes
-            updateBill(localVersion.id, { ...localVersion, transactionId });
+            // Se for um template gerado, adicionamos ele ao billsTracker para persistir o status de pago
+            if (isGeneratedTemplate || localVersion.sourceType === 'ad_hoc') {
+                updatedBillsTracker = updatedBillsTracker.filter(b => b.id !== localVersion.id);
+                updatedBillsTracker.push({ ...localVersion, transactionId });
+            }
             
         } 
-        // --- B. Processamento de Estorno (Remove Transação) ---
+        // --- B. Processamento de Estorno ---
         else if (!isNowPaid && wasPaid) {
-            const bill = originalBill!; // Deve existir se wasPaid for true
+            const bill = originalBill!; 
             
             if (bill.transactionId) {
                 // Remove do contexto (Empréstimo/Seguro)
@@ -236,41 +276,48 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             }
             
             // Atualiza o Bill Tracker global
-            updateBill(localVersion.id, { ...localVersion, isPaid: false, paymentDate: undefined, transactionId: undefined });
+            const updatedBill = { ...localVersion, isPaid: false, paymentDate: undefined, transactionId: undefined };
             
+            if (isGeneratedTemplate) {
+                // Se for template, atualiza o status de pago/transactionId
+                updatedBillsTracker = updatedBillsTracker.filter(b => b.id !== localVersion.id);
+                updatedBillsTracker.push(updatedBill);
+            } else if (localVersion.sourceType === 'ad_hoc') {
+                // Se for ad-hoc, atualiza
+                updatedBillsTracker = updatedBillsTracker.filter(b => b.id !== localVersion.id);
+                updatedBillsTracker.push(updatedBill);
+            }
         } 
         // --- C. Processamento de Alterações (Exclusão/Valor/Conta) ---
-        else if (originalBill) {
-            
+        else {
             const hasNonPaymentChanges = 
-                localVersion.isExcluded !== originalBill.isExcluded || 
-                localVersion.expectedAmount !== originalBill.expectedAmount || 
-                localVersion.suggestedAccountId !== originalBill.suggestedAccountId;
+                localVersion.isExcluded !== originalBill?.isExcluded || 
+                localVersion.expectedAmount !== originalBill?.expectedAmount || 
+                localVersion.suggestedAccountId !== originalBill?.suggestedAccountId ||
+                localVersion.sourceType === 'ad_hoc' && !originalBill; // New ad-hoc bill
                 
             if (hasNonPaymentChanges) {
                 
                 if (localVersion.sourceType === 'ad_hoc') {
                     // Se for ad-hoc e excluído, deleta permanentemente
                     if (localVersion.isExcluded) {
-                        deleteBill(localVersion.id);
+                        deleteBill(localVersion.id); // Use context delete to remove from billsTracker
                     } else {
-                        // Se for ad-hoc e modificado, atualiza
-                        updateBill(localVersion.id, localVersion);
+                        // Se for ad-hoc e modificado/novo, atualiza/adiciona
+                        updatedBillsTracker = updatedBillsTracker.filter(b => b.id !== localVersion.id);
+                        updatedBillsTracker.push(localVersion);
                     }
-                } else if (isGenerated) {
-                    // Se for gerado (fixa/variável/parcela) e modificado/excluído, atualiza o registro existente
-                    // Isso garante que o status isExcluded seja persistido para o mês atual
-                    updateBill(localVersion.id, localVersion);
+                } else if (isGeneratedTemplate) {
+                    // Se for template gerado e modificado (ex: isExcluded, expectedAmount), persistimos a modificação
+                    updatedBillsTracker = updatedBillsTracker.filter(b => b.id !== localVersion.id);
+                    updatedBillsTracker.push(localVersion);
                 }
             }
         }
-        // --- D. Adicionar novas contas Ad-Hoc ---
-        else if (!originalBill && localVersion.sourceType === 'ad_hoc') {
-            // Adiciona a conta se ela for ad-hoc e não existir
-            const { id, isPaid, ...rest } = localVersion;
-            addBill(rest);
-        }
     });
+    
+    // 3. Persiste o billsTracker atualizado
+    setBillsTracker(updatedBillsTracker);
     
     // 4. Adiciona novas transações ao contexto
     newTransactions.forEach(t => addTransacaoV2(t));
@@ -290,6 +337,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       pendingCount={pendingCount}
       netForecast={netForecast}
       onSaveAndClose={handleSaveAndClose}
+      // NEW PROP: Manual Generation Button
+      onGenerateList={handleGenerateList} 
+      isListGenerated={isListGenerated}
     />
   );
 
@@ -333,6 +383,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                       netForecast={netForecast}
                       isMobile={true}
                       onSaveAndClose={handleSaveAndClose}
+                      onGenerateList={handleGenerateList} // NEW PROP
+                      isListGenerated={isListGenerated} // NEW PROP
                     />
                   </div>
                 </DrawerContent>
@@ -378,14 +430,24 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
           {/* Coluna 2: Lista de Transações (Ocupa o espaço restante) */}
           <div className="flex-1 overflow-y-auto px-4 pt-2 pb-2">
-            <BillsTrackerList
-              bills={localBills} // Usa o estado local
-              onUpdateBill={handleUpdateBillLocal}
-              onDeleteBill={handleDeleteBillLocal}
-              onAddBill={handleAddBillLocal}
-              onTogglePaid={handleTogglePaidLocal} // Novo handler
-              currentDate={referenceDate}
-            />
+            {isListGenerated ? (
+                <BillsTrackerList
+                  bills={localBills} // Usa o estado local
+                  onUpdateBill={handleUpdateBillLocal}
+                  onDeleteBill={handleDeleteBillLocal}
+                  onAddBill={handleAddBillLocal}
+                  onTogglePaid={handleTogglePaidLocal} // Novo handler
+                  currentDate={referenceDate}
+                />
+            ) : (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
+                    <Calendar className="w-12 h-12 mb-4" />
+                    <p className="text-lg font-semibold">Lista de Contas Pendente</p>
+                    <p className="text-sm text-center mt-2">
+                        Clique em "Gerar Lista do Mês" na barra lateral para carregar as contas recorrentes e estimativas para o mês.
+                    </p>
+                </div>
+            )}
           </div>
         </div>
       </ResizableDialogContent>

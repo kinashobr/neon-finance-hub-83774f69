@@ -76,7 +76,7 @@ function parseDateRanges(storedRanges: any): ComparisonDateRanges {
 }
 
 // Helper function to calculate the due date of an installment
-const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
+export const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
   // Uses parseDateLocal to ensure the start date is interpreted locally
   const startDate = parseDateLocal(startDateStr);
   const dueDate = new Date(startDate);
@@ -295,7 +295,7 @@ interface FinanceContextType {
   addBill: (bill: Omit<BillTracker, "id" | "isPaid">) => void;
   updateBill: (id: string, updates: Partial<BillTracker>) => void;
   deleteBill: (id: string) => void;
-  getBillsForPeriod: (date: Date) => BillTracker[];
+  getBillsForMonth: (date: Date, includeTemplates: boolean) => BillTracker[]; // RENOMEADO E MODIFICADO
   
   // Contas Movimento (new integrated system)
   contasMovimento: ContaCorrente[];
@@ -372,18 +372,18 @@ interface FinanceContextType {
   criptomoedas: any[];
   stablecoins: any[];
   movimentacoesInvestimento: any[];
-  addInvestimentoRF: (inv: any) => void;
-  updateInvestimentoRF: (id: number, inv: any) => void;
-  deleteInvestimentoRF: (id: number, inv: any) => void;
-  addCriptomoeda: (cripto: any) => void;
-  updateCriptomoeda: (id: number, cripto: any) => void;
-  deleteCriptomoeda: (id: number, cripto: any) => void;
-  addStablecoin: (stable: any) => void;
-  updateStablecoin: (id: number, stable: any) => void;
-  deleteStablecoin: (id: number, stable: any) => void;
-  addMovimentacaoInvestimento: (mov: any) => void;
-  updateMovimentacaoInvestimento: (id: number, mov: any) => void;
-  deleteMovimentacaoInvestimento: (id: number, mov: any) => void;
+  addInvestimentoRF: () => void;
+  updateInvestimentoRF: () => void;
+  deleteInvestimentoRF: () => void;
+  addCriptomoeda: () => void;
+  updateCriptomoeda: () => void;
+  deleteCriptomoeda: () => void;
+  addStablecoin: () => void;
+  updateStablecoin: () => void;
+  deleteStablecoin: () => void;
+  addMovimentacaoInvestimento: () => void;
+  updateMovimentacaoInvestimento: () => void;
+  deleteMovimentacaoInvestimento: () => void;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
@@ -597,7 +597,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     });
 
     return balance;
-  }, [contasMovimento, transacoesV2]);
+  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
 
   const calculateTotalInvestmentBalanceAtDate = useCallback((date: Date | undefined): number => {
     const targetDate = date || new Date(9999, 11, 31);
@@ -968,7 +968,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     ).reduce((acc, t) => acc + t.amount, 0);
 }, [transacoesV2]);
 
-  const getBillsForPeriod = useCallback((date: Date): BillTracker[] => {
+  const getBillsForMonth = useCallback((date: Date, includeTemplates: boolean): BillTracker[] => {
     const monthYear = format(date, 'yyyy-MM');
     const prevMonth = subMonths(date, 1);
     const prevMonthYear = format(prevMonth, 'yyyy-MM');
@@ -985,6 +985,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             existingBillsMap.set(bill.id, bill);
         }
     });
+    
+    // Se não for para incluir templates, retorna apenas as contas ad-hoc e pagas
+    if (!includeTemplates) {
+        return Array.from(existingBillsMap.values())
+            .filter(b => b.isPaid || b.sourceType === 'ad_hoc' || b.isExcluded) // Inclui excluídas para que o modal possa carregá-las e o usuário desmarcar a exclusão
+            .sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
+    }
     
     // 2. Função auxiliar para verificar se uma despesa já foi paga por uma transação
     const checkTransactionPayment = (categoryId: string, monthYear: string): TransacaoCompleta | undefined => {
@@ -1040,7 +1047,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 };
                 existingBillsMap.set(billId, newBill);
                 
-                break;
+                // Since loan installments are fixed, we don't break here, we check all installments in the month
             }
         }
     });
@@ -1539,7 +1546,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     addBill,
     updateBill,
     deleteBill,
-    getBillsForPeriod,
+    getBillsForMonth, // RENOMEADO
     
     contasMovimento,
     setContasMovimento,
