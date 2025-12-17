@@ -34,6 +34,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     getFutureFixedBills,
     contasMovimento,
     addTransacaoV2,
+    setTransacoesV2, // <-- ADICIONADO
     categoriasV2,
     emprestimos,
     segurosVeiculo,
