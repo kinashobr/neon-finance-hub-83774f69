@@ -982,12 +982,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     
     // 1. Carregar todas as MODIFICAÇÕES/AD-HOC persistidas
     const persistedModificationsMap = new Map<string, BillTracker>();
+    const adHocBills: BillTracker[] = []; // NEW: Separate storage for ad-hoc bills
     
     billsTracker.forEach(bill => {
         const billDate = parseDateLocal(bill.dueDate);
         
-        // Inclui contas ad-hoc (de qualquer mês) E templates modificados/excluídos do mês atual
-        if (bill.sourceType === 'ad_hoc' || isSameMonth(billDate, date)) {
+        // NEW LOGIC: Separate ad-hoc bills
+        if (bill.sourceType === 'ad_hoc') {
+            adHocBills.push(bill);
+            return;
+        }
+
+        // Only store template modifications for the current month
+        if (isSameMonth(billDate, date)) {
             persistedModificationsMap.set(bill.id, bill);
         }
     });
@@ -996,9 +1003,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     let allBills: BillTracker[] = [];
     
     // 2. Adicionar Contas Ad-Hoc (sempre incluídas)
-    Array.from(persistedModificationsMap.values())
-        .filter(b => b.sourceType === 'ad_hoc')
-        .forEach(b => allBills.push(b));
+    adHocBills.forEach(b => allBills.push(b)); // UPDATED USAGE
         
     if (!includeTemplates) {
         // Se não for para incluir templates, retorna apenas as contas ad-hoc e as pagas
