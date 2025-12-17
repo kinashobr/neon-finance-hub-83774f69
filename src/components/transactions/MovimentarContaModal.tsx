@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, ArrowLeftRight, Car, DollarSign, Plus, Minus, RefreshCw, Coins, TrendingDown, Tags, ChevronRight, ChevronLeft, CheckCircle2, Calendar, StickyNote, Info } from "lucide-react";
+import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, ArrowLeftRight, Car, DollarSign, Plus, Minus, RefreshCw, Coins, TrendingDown, Tags, ChevronRight, ChevronLeft, CheckCircle2, Calendar, StickyNote, Info, Check, ArrowRight } from "lucide-react";
 import { ContaCorrente, Categoria, AccountType, ACCOUNT_TYPE_LABELS, generateTransactionId, formatCurrency, OperationType, TransacaoCompleta, TransactionLinks, generateTransferGroupId, getFlowTypeFromOperation, getDomainFromOperation, InvestmentInfo, SeguroVeiculo, Veiculo, OPERATION_TYPE_LABELS } from "@/types/finance";
 import { toast } from "sonner";
 import { parseDateLocal, cn } from "@/lib/utils";
@@ -83,68 +83,73 @@ const getCategoryOptions = (operationType: OperationType | null, categories: Cat
   );
 };
 
-// Local component for Floating Input with Icon
-interface FloatingInputWithIconProps extends React.InputHTMLAttributes<HTMLInputElement> {
+// --- Componentes Auxiliares para o Novo Design ---
+
+interface FormInputGroupProps extends React.InputHTMLAttributes<HTMLInputElement> {
     label: string;
     Icon: React.ElementType;
-    colorClass: string;
     error?: boolean;
+    helperText?: string;
 }
 
-const FloatingInputWithIcon = ({ label, Icon, colorClass, error, ...props }: FloatingInputWithIconProps) => (
-    <div className="relative pt-5">
-        <Icon className={cn("absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors z-10", colorClass)} />
-        <Input
-            {...props}
-            placeholder=" "
-            className={cn(
-                "h-12 pl-10 pt-4 pb-2 bg-muted/50 border-border focus-visible:ring-offset-0 transition-all duration-200 peer text-base",
-                error && "border-destructive focus-visible:ring-destructive/50",
-                props.disabled && "opacity-70 cursor-not-allowed"
-            )}
-        />
-        <Label
-            htmlFor={props.id}
-            className={cn(
-                "absolute left-10 top-1/2 -translate-y-1/2 text-sm text-muted-foreground transition-all duration-200 pointer-events-none",
-                "peer-placeholder-shown:top-1/2 peer-placeholder-shown:text-base",
-                "peer-focus:top-2 peer-focus:text-xs peer-focus:left-3 peer-focus:text-primary",
-                (props.value || props.type === 'date') && props.value !== "" && "top-2 text-xs left-3 text-primary",
-                error && "peer-focus:text-destructive"
-            )}
-        >
-            {label}
+const FormInputGroup = ({ label, Icon, error, helperText, ...props }: FormInputGroupProps) => (
+    <div className="space-y-1">
+        <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1 uppercase tracking-wider">
+            <Icon className="w-3 h-3" /> {label}
         </Label>
+        <div className="relative group">
+            <Input 
+                {...props}
+                className={cn(
+                    "h-12 pl-10 text-base font-medium border-2 border-border rounded-xl hover:border-primary/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all",
+                    props.type === 'text' && "text-base",
+                    props.type === 'date' && "text-base",
+                    props.type === 'number' && "text-lg font-semibold text-right",
+                    props.inputMode === 'decimal' && "text-lg font-semibold text-right",
+                    error && "border-destructive focus:border-destructive focus:ring-destructive/20"
+                )}
+                placeholder={props.placeholder || "Preencha aqui"}
+            />
+            <DollarSign className={cn(
+                "absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors",
+                error && "group-focus-within:text-destructive"
+            )} />
+        </div>
+        {helperText && <p className="text-xs text-muted-foreground mt-1">{helperText}</p>}
     </div>
 );
 
-// Local component for Floating Select with Icon
-interface FloatingSelectWithIconProps {
+interface FormSelectGroupProps {
     label: string;
     Icon: React.ElementType;
-    colorClass: string;
     value: string;
     onValueChange: (value: string) => void;
-    options: { value: string; label: string; icon?: React.ElementType; color?: string }[];
+    options: { value: string; label: string; icon?: React.ElementType; color?: string; subLabel?: string }[];
     placeholder: string;
-    disabled?: boolean;
     error?: boolean;
+    disabled?: boolean;
+    renderCustomValue?: (value: string) => React.ReactNode;
 }
 
-const FloatingSelectWithIcon = ({ label, Icon, colorClass, value, onValueChange, options, placeholder, disabled, error }: FloatingSelectWithIconProps) => (
-    <div className="relative pt-5">
-        <Icon className={cn("absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors z-10", colorClass)} />
+const FormSelectGroup = ({ label, Icon, value, onValueChange, options, placeholder, error, disabled, renderCustomValue }: FormSelectGroupProps) => (
+    <div className="space-y-1">
+        <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1 uppercase tracking-wider">
+            <Icon className="w-3 h-3" /> {label}
+        </Label>
         <Select value={value} onValueChange={onValueChange} disabled={disabled}>
             <SelectTrigger 
                 className={cn(
-                    "h-12 pl-10 pt-4 pb-2 bg-muted/50 border-border focus-visible:ring-offset-0 transition-all duration-200 peer text-base",
-                    error && "border-destructive focus-visible:ring-destructive/50",
-                    disabled && "opacity-70 cursor-not-allowed"
+                    "h-12 border-2 border-border rounded-xl hover:border-primary/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all",
+                    error && "border-destructive focus:border-destructive focus:ring-destructive/20"
                 )}
             >
-                <SelectValue placeholder={placeholder} />
+                {renderCustomValue && value ? (
+                    renderCustomValue(value)
+                ) : (
+                    <SelectValue placeholder={placeholder} />
+                )}
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-60">
                 {options.map(opt => {
                     const OptIcon = opt.icon;
                     return (
@@ -152,26 +157,17 @@ const FloatingSelectWithIcon = ({ label, Icon, colorClass, value, onValueChange,
                             <span className={cn("flex items-center gap-2 text-sm", opt.color)}>
                                 {OptIcon && <OptIcon className="w-4 h-4" />}
                                 {opt.label}
+                                {opt.subLabel && <span className="text-xs text-muted-foreground ml-2">({opt.subLabel})</span>}
                             </span>
                         </SelectItem>
                     );
                 })}
             </SelectContent>
         </Select>
-        <Label
-            className={cn(
-                "absolute left-10 top-1/2 -translate-y-1/2 text-sm text-muted-foreground transition-all duration-200 pointer-events-none",
-                "peer-placeholder-shown:top-1/2 peer-placeholder-shown:text-base",
-                "peer-focus:top-2 peer-focus:text-xs peer-focus:left-3 peer-focus:text-primary",
-                value && value !== "" && "top-2 text-xs left-3 text-primary",
-                error && "peer-focus:text-destructive"
-            )}
-        >
-            label
-        </Label>
     </div>
 );
 
+// --- Componente Principal ---
 
 export function MovimentarContaModal({
   open,
@@ -492,9 +488,10 @@ export function MovimentarContaModal({
   
   const accountOptions = accounts.map(a => ({
       value: a.id,
-      label: `${ACCOUNT_TYPE_LABELS[a.accountType]} - ${a.name}`,
+      label: a.name,
       icon: Wallet,
-      color: headerColorClass,
+      color: 'text-primary',
+      subLabel: ACCOUNT_TYPE_LABELS[a.accountType],
   }));
   
   const operationOptions = availableOperations.map(op => {
@@ -509,9 +506,10 @@ export function MovimentarContaModal({
   
   const destinationAccountOptions = accounts.filter(a => a.id !== accountId).map(a => ({
       value: a.id,
-      label: `${ACCOUNT_TYPE_LABELS[a.accountType]} - ${a.name}`,
+      label: a.name,
       icon: Building2,
       color: 'text-primary',
+      subLabel: ACCOUNT_TYPE_LABELS[a.accountType],
   }));
   
   const investmentOptions = investments.map(i => ({
@@ -530,9 +528,10 @@ export function MovimentarContaModal({
   
   const installmentOptions = availableInstallments.map(p => ({
       value: String(p.numero),
-      label: `P${p.numero} - ${formatCurrency(p.valor)} (${parseDateLocal(p.vencimento).toLocaleDateString("pt-BR")})`,
+      label: `P${p.numero} - ${formatCurrency(p.valor)}`,
       icon: Calendar,
       color: 'text-orange-500',
+      subLabel: parseDateLocal(p.vencimento).toLocaleDateString("pt-BR"),
   }));
   
   const seguroOptions = availableSeguros.map(s => ({
@@ -544,9 +543,10 @@ export function MovimentarContaModal({
   
   const seguroParcelaOptions = availableSeguroParcelas.map(p => ({
       value: String(p.numero),
-      label: `P${p.numero} - ${formatCurrency(p.valor)} (${parseDateLocal(p.vencimento).toLocaleDateString("pt-BR")})`,
+      label: `P${p.numero} - ${formatCurrency(p.valor)}`,
       icon: Calendar,
       color: 'text-blue-500',
+      subLabel: parseDateLocal(p.vencimento).toLocaleDateString("pt-BR"),
   }));
   
   const categoryOptions = availableCategories.map(c => ({
@@ -554,7 +554,43 @@ export function MovimentarContaModal({
       label: `${c.icon} ${c.label}`,
       icon: Tags,
       color: c.nature === 'receita' ? 'text-success' : 'text-destructive',
+      subLabel: c.nature === 'receita' ? 'Receita' : c.nature === 'despesa_fixa' ? 'Fixa' : 'Variável',
   }));
+  
+  // Custom render for Account Select
+  const renderAccountValue = useCallback((id: string) => {
+    const account = accounts.find(a => a.id === id);
+    if (!account) return null;
+    const Icon = Wallet;
+    return (
+        <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Icon className="w-4 h-4 text-primary" />
+            </div>
+            <div className="text-left truncate">
+                <div className="font-medium text-sm">{account.name}</div>
+                <div className="text-xs text-muted-foreground">{ACCOUNT_TYPE_LABELS[account.accountType]}</div>
+            </div>
+        </div>
+    );
+  }, [accounts]);
+  
+  // Custom render for Operation Type Select
+  const renderOperationValue = useCallback((op: string) => {
+    const config = OPERATION_CONFIG[op as OperationType];
+    if (!config) return null;
+    const Icon = config.icon;
+    return (
+        <div className="flex items-center gap-3">
+            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", config.colorClass.replace('text-', 'bg-') + '/10')}>
+                <Icon className={cn("w-4 h-4", config.colorClass)} />
+            </div>
+            <div className="text-left">
+                <div className="font-medium text-sm">{config.label}</div>
+            </div>
+        </div>
+    );
+  }, []);
   
   // Set default tab based on requirement
   useEffect(() => {
@@ -573,16 +609,18 @@ export function MovimentarContaModal({
         minHeight={500}
         className="max-w-lg bg-card border-border overflow-hidden flex flex-col p-0 shadow-lg animate-fade-in"
       >
-        {/* SEÇÃO 1: HEADER DINÂMICO */}
-        <DialogHeader className="p-6 pb-0 shrink-0 border-b border-border/50">
+        {/* SEÇÃO 1: CABEÇALHO COM IDENTIDADE VISUAL */}
+        <DialogHeader className="p-6 pb-4 shrink-0 border-b border-border/50 bg-gradient-to-r from-primary/5 to-transparent">
           <DialogTitle className="flex items-center gap-3">
-            <div className={cn("p-2 rounded-lg", headerColorClass.replace('text-', 'bg-') + '/10')}>
-              <HeaderIcon className={cn("w-6 h-6", headerColorClass)} />
+            <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+              <DollarSign className="w-6 h-6 text-primary" />
             </div>
-            <span className="text-2xl font-bold">{isEditing ? "Editar Transação" : "Nova Movimentação"}</span>
+            <span className="text-xl font-semibold">
+                {isEditing ? "Editar Transação" : "Nova Movimentação"}
+            </span>
           </DialogTitle>
-          <DialogDescription className="text-sm">
-            {isEditing ? "Atualize os detalhes da transação." : "Registre uma nova entrada, saída ou transferência."}
+          <DialogDescription className="text-sm text-muted-foreground ml-11">
+            {isEditing ? "Atualize os detalhes da transação." : "Registre uma nova transação financeira."}
           </DialogDescription>
         </DialogHeader>
 
@@ -592,10 +630,9 @@ export function MovimentarContaModal({
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* 1. Conta */}
-                <FloatingSelectWithIcon
+                <FormSelectGroup
                     label="Conta"
                     Icon={Wallet}
-                    colorClass={errors.accountId ? 'text-destructive' : 'text-primary'}
                     value={accountId}
                     onValueChange={(v) => {
                         setAccountId(v);
@@ -605,14 +642,14 @@ export function MovimentarContaModal({
                     placeholder="Selecione a conta"
                     disabled={isEditing}
                     error={errors.accountId}
+                    renderCustomValue={renderAccountValue}
                 />
                 
                 {/* 2. Data */}
-                <FloatingInputWithIcon
+                <FormInputGroup
                     id="date"
                     label="Data"
                     Icon={Calendar}
-                    colorClass={errors.date ? 'text-destructive' : 'text-primary'}
                     type="date"
                     value={date}
                     onChange={(e) => {
@@ -623,10 +660,9 @@ export function MovimentarContaModal({
                 />
                 
                 {/* 3. Tipo Operação */}
-                <FloatingSelectWithIcon
-                    label="Tipo de Operação"
+                <FormSelectGroup
+                    label="Tipo Operação"
                     Icon={HeaderIcon}
-                    colorClass={errors.operationType ? 'text-destructive' : headerColorClass}
                     value={operationType || ''}
                     onValueChange={(v) => {
                         setOperationType(v as OperationType);
@@ -644,50 +680,87 @@ export function MovimentarContaModal({
                     placeholder="Selecione a operação"
                     disabled={isEditing}
                     error={errors.operationType}
+                    renderCustomValue={renderOperationValue}
                 />
                 
                 {/* 4. Valor */}
-                <FloatingInputWithIcon
-                    id="amount"
-                    label="Valor (R$)"
-                    Icon={DollarSign}
-                    colorClass={errors.amount ? 'text-destructive' : headerColorClass}
-                    type="text"
-                    inputMode="decimal"
-                    value={amount}
-                    onChange={(e) => {
-                        handleAmountChange(e.target.value);
-                        setErrors(p => ({ ...p, amount: false }));
-                    }}
-                    disabled={!!isAmountAutoFilled}
-                    error={errors.amount}
-                />
+                <div className="space-y-1">
+                    <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1 uppercase tracking-wider">
+                        <DollarSign className="w-3 h-3" /> Valor (R$)
+                    </Label>
+                    <div className="relative group">
+                        <DollarSign className={cn(
+                            "absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors",
+                            errors.amount && "group-focus-within:text-destructive"
+                        )} />
+                        <Input
+                            id="amount"
+                            type="text"
+                            inputMode="decimal"
+                            value={amount}
+                            onChange={(e) => {
+                                handleAmountChange(e.target.value);
+                                setErrors(p => ({ ...p, amount: false }));
+                            }}
+                            disabled={!!isAmountAutoFilled}
+                            placeholder="0,00"
+                            className={cn(
+                                "h-14 pl-10 pr-4 text-2xl font-bold text-right border-2 border-border rounded-xl hover:border-primary/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all",
+                                errors.amount && "border-destructive focus:border-destructive focus:ring-destructive/20"
+                            )}
+                        />
+                        {/* Botões de atalho (Exemplo) */}
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => setAmount('100')}
+                            >
+                                +100
+                            </Button>
+                            <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => setAmount('1000')}
+                            >
+                                +1k
+                            </Button>
+                        </div>
+                    </div>
+                    {errors.amount && <p className="text-xs text-destructive mt-1">Valor é obrigatório e deve ser maior que zero.</p>}
+                </div>
             </div>
           </div>
           
-          {/* SEÇÃO 3: SISTEMA DE ABAS */}
+          {/* SEÇÃO 3: SISTEMA DE ABAS MODERNO */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-            <TabsList className="bg-muted/50 w-full grid grid-cols-2 shrink-0">
-              <TabsTrigger value="simples" className="text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors duration-300">
-                <Tags className="w-4 h-4 mr-2" /> Classificação Simples
-              </TabsTrigger>
-              <TabsTrigger 
-                value="vinculado" 
-                className={cn(
-                    "text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors duration-300",
-                    !isVinculoRequired && "opacity-50 cursor-not-allowed"
-                )}
-                disabled={!isVinculoRequired}
-              >
-                <ArrowLeftRight className="w-4 h-4 mr-2" /> Vínculo / Contraparte
-              </TabsTrigger>
-            </TabsList>
+            <div className="p-1 bg-muted/50 rounded-xl flex gap-1 shrink-0">
+                <TabsTrigger value="simples" className="flex-1 py-2 px-4 rounded-lg data-[state=active]:bg-card data-[state=active]:text-foreground font-medium shadow-sm hover:bg-card/80 transition-all">
+                    <Tags className="w-4 h-4 mr-2" /> Classificação Simples
+                </TabsTrigger>
+                <TabsTrigger 
+                    value="vinculado" 
+                    className={cn(
+                        "flex-1 py-2 px-4 rounded-lg font-medium shadow-sm transition-all",
+                        !isVinculoRequired ? "opacity-50 cursor-not-allowed text-muted-foreground" : "data-[state=active]:bg-card data-[state=active]:text-foreground hover:bg-card/80",
+                    )}
+                    disabled={!isVinculoRequired}
+                >
+                    <ArrowLeftRight className="w-4 h-4 mr-2" /> Vínculo / Contraparte
+                </TabsTrigger>
+            </div>
 
             {/* CONTEÚDO ABA "SIMPLES" */}
-            <TabsContent value="simples" className="mt-4 flex-1 overflow-y-auto pr-1 space-y-4 animate-slide-in-left">
+            <TabsContent value="simples" className="mt-4 flex-1 overflow-y-auto pr-1 space-y-6 animate-slide-in-left">
                 {/* Categoria Selector */}
                 <div className="space-y-2">
-                    <Label htmlFor="categoryId" className="text-sm">Categoria {isCategorizable || isInsurancePayment ? '*' : ''}</Label>
+                    <Label htmlFor="categoryId" className="text-xs font-medium text-muted-foreground flex items-center gap-1 uppercase tracking-wider">
+                        <Tags className="w-3 h-3" /> Categoria {isCategorizable || isInsurancePayment ? '*' : ''}
+                    </Label>
                     <Select 
                         value={categoryId || ''} 
                         onValueChange={(v) => {
@@ -700,29 +773,31 @@ export function MovimentarContaModal({
                         }}
                         disabled={isCategoryDisabled}
                     >
-                        <SelectTrigger className={cn("h-10 text-base", errors.categoryId && "border-destructive")}>
+                        <SelectTrigger className={cn("h-12 text-base border-2 rounded-xl", errors.categoryId && "border-destructive")}>
                             <SelectValue placeholder="Selecione a categoria" />
                         </SelectTrigger>
                         <SelectContent>
                             {categoryOptions.map(c => (
                                 <SelectItem key={c.value} value={c.value}>
-                                    {c.label}
+                                    {c.label} <span className="text-xs text-muted-foreground ml-2">({c.subLabel})</span>
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                    {errors.categoryId && <p className="text-xs text-destructive">Categoria é obrigatória.</p>}
+                    {errors.categoryId && <p className="text-xs text-destructive mt-1">Categoria é obrigatória.</p>}
                 </div>
                 
                 {/* Descrição */}
                 <div className="space-y-2">
-                    <Label htmlFor="description" className="text-sm">Descrição</Label>
+                    <Label htmlFor="description" className="text-xs font-medium text-muted-foreground flex items-center gap-1 uppercase tracking-wider">
+                        <StickyNote className="w-3 h-3" /> Descrição
+                    </Label>
                     <Input
                         id="description"
-                        placeholder="Descrição da transação"
+                        placeholder="Ex: Supermercado mensal"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="h-10 text-base"
+                        className="h-12 text-base border-2 rounded-xl"
                         maxLength={150}
                     />
                     <p className="text-xs text-muted-foreground text-right">{description.length}/150</p>
@@ -730,16 +805,15 @@ export function MovimentarContaModal({
             </TabsContent>
 
             {/* CONTEÚDO ABA "VINCULADO" */}
-            <TabsContent value="vinculado" className="mt-4 flex-1 overflow-y-auto pr-1 space-y-4 animate-slide-in-right">
+            <TabsContent value="vinculado" className="mt-4 flex-1 overflow-y-auto pr-1 space-y-6 animate-slide-in-right">
                 
                 {/* Transferência */}
                 {isTransfer && (
-                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md", `border-${OPERATION_CONFIG.transferencia.tailwindColor}`)}>
-                        <h5 className={cn("font-semibold text-base flex items-center gap-2", OPERATION_CONFIG.transferencia.colorClass)}><ArrowLeftRight className="w-4 h-4" /> Transferência</h5>
-                        <FloatingSelectWithIcon
+                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md hover-lift", `border-${OPERATION_CONFIG.transferencia.tailwindColor}`)}>
+                        <h5 className={cn("font-semibold text-base flex items-center gap-2", OPERATION_CONFIG.transferencia.colorClass)}><ArrowLeftRight className="w-4 h-4" /> Transferência entre contas</h5>
+                        <FormSelectGroup
                             label="Conta Destino"
                             Icon={Building2}
-                            colorClass={errors.destinationAccountId ? 'text-destructive' : OPERATION_CONFIG.transferencia.colorClass}
                             value={destinationAccountId || ''}
                             onValueChange={(v) => {
                                 setDestinationAccountId(v);
@@ -754,12 +828,11 @@ export function MovimentarContaModal({
                 
                 {/* Fluxo de Investimento */}
                 {isInvestmentFlow && (
-                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md", `border-${OPERATION_CONFIG.aplicacao.tailwindColor}`)}>
+                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md hover-lift", `border-${OPERATION_CONFIG.aplicacao.tailwindColor}`)}>
                         <h5 className={cn("font-semibold text-base flex items-center gap-2", OPERATION_CONFIG.aplicacao.colorClass)}><TrendingUp className="w-4 h-4" /> {operationType === 'aplicacao' ? 'Aplicação' : 'Resgate'}</h5>
-                        <FloatingSelectWithIcon
+                        <FormSelectGroup
                             label="Conta de Investimento"
                             Icon={PiggyBank}
-                            colorClass={errors.tempInvestmentId ? 'text-destructive' : OPERATION_CONFIG.aplicacao.colorClass}
                             value={tempInvestmentId || ''}
                             onValueChange={(v) => {
                                 setTempInvestmentId(v);
@@ -774,13 +847,12 @@ export function MovimentarContaModal({
                 
                 {/* Pagamento Empréstimo */}
                 {isLoanPayment && (
-                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md", `border-${OPERATION_CONFIG.pagamento_emprestimo.tailwindColor}`)}>
+                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md hover-lift", `border-${OPERATION_CONFIG.pagamento_emprestimo.tailwindColor}`)}>
                         <h5 className={cn("font-semibold text-base flex items-center gap-2", OPERATION_CONFIG.pagamento_emprestimo.colorClass)}><CreditCard className="w-4 h-4" /> Pagamento de Empréstimo</h5>
                         <div className="grid grid-cols-2 gap-4">
-                            <FloatingSelectWithIcon
-                                label="Contrato de Empréstimo"
+                            <FormSelectGroup
+                                label="Contrato"
                                 Icon={Building2}
-                                colorClass={errors.tempLoanId ? 'text-destructive' : OPERATION_CONFIG.pagamento_emprestimo.colorClass}
                                 value={tempLoanId || ''}
                                 onValueChange={(v) => {
                                     setTempLoanId(v);
@@ -791,10 +863,9 @@ export function MovimentarContaModal({
                                 placeholder="Selecione o contrato"
                                 error={errors.tempLoanId}
                             />
-                            <FloatingSelectWithIcon
+                            <FormSelectGroup
                                 label="Parcela"
                                 Icon={Calendar}
-                                colorClass={errors.tempParcelaId ? 'text-destructive' : OPERATION_CONFIG.pagamento_emprestimo.colorClass}
                                 value={tempParcelaId || ''}
                                 onValueChange={(v) => {
                                     setTempParcelaId(v);
@@ -811,13 +882,12 @@ export function MovimentarContaModal({
                 
                 {/* Pagamento Seguro */}
                 {isInsurancePayment && (
-                    <div className="glass-card p-4 space-y-3 border-l-4 border-blue-500 shadow-md">
+                    <div className="glass-card p-4 space-y-3 border-l-4 border-blue-500 shadow-md hover-lift">
                         <h5 className="font-semibold text-base text-blue-500 flex items-center gap-2"><Shield className="w-4 h-4" /> Pagamento de Seguro</h5>
                         <div className="grid grid-cols-2 gap-4">
-                            <FloatingSelectWithIcon
+                            <FormSelectGroup
                                 label="Seguro"
                                 Icon={Shield}
-                                colorClass={errors.tempSeguroId ? 'text-destructive' : 'text-blue-500'}
                                 value={tempSeguroId || ''}
                                 onValueChange={(v) => {
                                     setTempSeguroId(v);
@@ -828,10 +898,9 @@ export function MovimentarContaModal({
                                 placeholder="Selecione o seguro"
                                 error={errors.tempSeguroId}
                             />
-                            <FloatingSelectWithIcon
+                            <FormSelectGroup
                                 label="Parcela"
                                 Icon={Calendar}
-                                colorClass={errors.tempSeguroParcelaId ? 'text-destructive' : 'text-blue-500'}
                                 value={tempSeguroParcelaId || ''}
                                 onValueChange={(v) => {
                                     setTempSeguroParcelaId(v);
@@ -848,13 +917,12 @@ export function MovimentarContaModal({
                 
                 {/* Liberação Empréstimo */}
                 {isLoanLiberation && (
-                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md", `border-${OPERATION_CONFIG.liberacao_emprestimo.tailwindColor}`)}>
+                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md hover-lift", `border-${OPERATION_CONFIG.liberacao_emprestimo.tailwindColor}`)}>
                         <h5 className={cn("font-semibold text-base flex items-center gap-2", OPERATION_CONFIG.liberacao_emprestimo.colorClass)}><DollarSign className="w-4 h-4" /> Liberação de Empréstimo</h5>
-                        <FloatingInputWithIcon
+                        <FormInputGroup
                             id="numeroContrato"
                             label="Número do Contrato"
                             Icon={StickyNote}
-                            colorClass={errors.tempNumeroContrato ? 'text-destructive' : OPERATION_CONFIG.liberacao_emprestimo.colorClass}
                             placeholder="Ex: Contrato 12345"
                             value={tempNumeroContrato}
                             onChange={(e) => {
@@ -868,13 +936,12 @@ export function MovimentarContaModal({
                 
                 {/* Veículo */}
                 {isVehicle && (
-                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md", `border-${OPERATION_CONFIG.veiculo.tailwindColor}`)}>
+                    <div className={cn("glass-card p-4 space-y-3 border-l-4 shadow-md hover-lift", `border-${OPERATION_CONFIG.veiculo.tailwindColor}`)}>
                         <h5 className={cn("font-semibold text-base flex items-center gap-2", OPERATION_CONFIG.veiculo.colorClass)}><Car className="w-4 h-4" /> Operação de Veículo</h5>
                         <div className="grid grid-cols-2 gap-4">
-                            <FloatingSelectWithIcon
+                            <FormSelectGroup
                                 label="Operação"
                                 Icon={RefreshCw}
-                                colorClass={errors.tempVehicleOperation ? 'text-destructive' : OPERATION_CONFIG.veiculo.colorClass}
                                 value={tempVehicleOperation || ''}
                                 onValueChange={(v) => {
                                     setTempVehicleOperation(v as 'compra' | 'venda');
@@ -887,10 +954,9 @@ export function MovimentarContaModal({
                                 placeholder="Compra/Venda"
                                 error={errors.tempVehicleOperation}
                             />
-                            <FloatingSelectWithIcon
+                            <FormSelectGroup
                                 label="Tipo de Veículo"
                                 Icon={Car}
-                                colorClass={OPERATION_CONFIG.veiculo.colorClass}
                                 value={tempTipoVeiculo}
                                 onValueChange={(v) => setTempTipoVeiculo(v as 'carro' | 'moto' | 'caminhao')}
                                 options={[
@@ -917,16 +983,18 @@ export function MovimentarContaModal({
 
         {/* SEÇÃO 4: FOOTER COM AÇÕES */}
         <DialogFooter className="p-6 pt-0 flex justify-end gap-2 shrink-0 border-t border-border/50">
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="h-12 px-6 text-base">
             Cancelar
           </Button>
           <Button 
             type="submit" 
             onClick={handleSubmit}
             style={{ backgroundColor: headerBaseColor }}
-            className="hover:opacity-90 transition-all duration-300"
+            className="h-12 px-8 text-base font-semibold bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all"
           >
+            <Check className="w-5 h-5 mr-2" />
             {isEditing ? "Salvar Alterações" : "Registrar"}
+            <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </DialogFooter>
       </ResizableDialogContent>
