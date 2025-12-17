@@ -95,7 +95,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         // Adiciona bills que estavam no estado anterior mas não foram regeneradas (ex: ad-hoc)
         // Nota: getBillsForMonth já inclui ad-hoc, então este passo é mais para garantir
         // que nenhuma bill 'ad-hoc' que foi adicionada localmente e ainda não persistida seja perdida.
-        // Mas como handleAddBillAndRefresh já atualiza o global, isso é menos crítico.
         
         return mergedBills;
     });
@@ -168,6 +167,19 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         return b;
     }));
   }, []);
+  
+  // NEW HANDLER: Add Bill and Refresh Local State
+  const handleAddBillAndRefresh = useCallback((bill: Omit<BillTracker, "id" | "isPaid">) => {
+    // 1. Add to global state (context handles ID generation and persistence)
+    addBill(bill);
+    
+    // 2. Wait for the state update and refresh the local list.
+    // Use a small timeout to allow the global state update to propagate before re-reading.
+    setTimeout(() => {
+        handleRefreshList();
+    }, 50); 
+    
+  }, [addBill, handleRefreshList]);
 
   // Lógica de Persistência (Salvar e Sair)
   const handleSaveAndClose = () => {
