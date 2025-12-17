@@ -5,9 +5,10 @@ import { Calendar, CheckCircle2, Clock, TrendingUp, TrendingDown, DollarSign, Ca
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillsTrackerList } from "./BillsTrackerList";
 import { BillsContextSidebar } from "./BillsContextSidebar";
+import { FixedInstallmentSelector } from "./FixedInstallmentSelector";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { BillTracker, formatCurrency, TransacaoCompleta, getDomainFromOperation, generateTransactionId, generateBillId } from "@/types/finance";
+import { BillTracker, formatCurrency, TransacaoCompleta, getDomainFromOperation, generateTransactionId, generateBillId, PotentialFixedBill } from "@/types/finance";
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 import { toast } from "sonner";
 import { ResizableSidebar } from "../transactions/ResizableSidebar";
@@ -20,7 +21,6 @@ interface BillsTrackerModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// Helper para verificar se é um template gerado automaticamente (agora, apenas ad_hoc é esperado)
 const isGeneratedTemplate = (bill: BillTracker) => 
     bill.sourceType !== 'ad_hoc' && bill.sourceRef;
 
@@ -31,6 +31,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     updateBill, 
     deleteBill, 
     getBillsForMonth, 
+    getPotentialFixedBillsForMonth,
     dateRanges,
     monthlyRevenueForecast,
     setMonthlyRevenueForecast,
@@ -47,40 +48,32 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   
   const referenceDate = dateRanges.range1.to || new Date();
   
-  // Estado local para manipulação
   const [localBills, setLocalBills] = useState<BillTracker[]>([]);
-  
-  // NOVO ESTADO: Snapshot imutável das contas do mês na abertura
   const [originalMonthBills, setOriginalMonthBills] = useState<BillTracker[]>([]);
   
-  // Receita do mês anterior (para sugestão)
   const previousMonthRevenue = useMemo(() => {
     return getRevenueForPreviousMonth(referenceDate);
   }, [getRevenueForPreviousMonth, referenceDate]);
   
-  // Estado local para a previsão de receita
   const [localRevenueForecast, setLocalRevenueForecast] = useState(monthlyRevenueForecast || previousMonthRevenue);
   
-  // --- Refresh Logic (REMOVIDA) ---
-  // const handleRefreshList = useCallback(() => { ... }, [...]);
-
-  // Initial load when modal opens
   useEffect(() => {
     if (!open) return;
     
-    // 1. Carrega a lista de contas persistidas para o mês
     const persistedBills = getBillsForMonth(referenceDate);
     
-    // 2. Define o estado local e o snapshot imutável
     setLocalBills(persistedBills);
     setOriginalMonthBills(persistedBills.map(b => ({ ...b }))); 
     
-    // 3. Define a previsão de receita
     setLocalRevenueForecast(monthlyRevenueForecast || previousMonthRevenue);
     
-  }, [open, referenceDate, getBillsForMonth, monthlyRevenueForecast, previousMonthRevenue]); // Dependência em 'open' e 'referenceDate'
+  }, [open, referenceDate, getBillsForMonth, monthlyRevenueForecast, previousMonthRevenue]);
 
-  // Totais baseados no estado local
+  // Calcula as parcelas fixas potenciais (Empréstimos/Seguros)
+  const potentialFixedBills = useMemo(() => {
+    return getPotentialFixedBillsForMonth(referenceDate, localBills);
+  }, [getPotentialFixedBillsForMonth, referenceDate, localBills]);
+
   const totalExpectedExpense = useMemo(() => 
     localBills.filter(b => !b.isExcluded).reduce((acc, b) => acc + b.expectedAmount, 0),
     [localBills]
@@ -97,18 +90,15 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   
   const netForecast = localRevenueForecast - totalExpectedExpense;
 
-  // Handlers para BillsTrackerList (operam no estado local)
   const handleUpdateBillLocal = useCallback((id: string, updates: Partial<BillTracker>) => {
     setLocalBills(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
   }, []);
 
   const handleDeleteBillLocal = useCallback((id: string) => {
-    // Note: This handler is currently not used by BillsTrackerList, which uses handleExcludeBill
     setLocalBills(prev => prev.filter(b => b.id !== id));
   }, []);
 
   const handleTogglePaidLocal = useCallback((bill: BillTracker, isChecked: boolean) => {
-    // Uses the current system date for payment
     const today = new Date();
     
     setLocalBills(prev => prev.map(b => {
@@ -116,9 +106,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             return { 
                 ...b, 
                 isPaid: isChecked,
-                // Uses the current system date for payment
                 paymentDate: isChecked ? format(today, 'yyyy-MM-dd') : undefined,
-                // Preserve existing transactionId if available, otherwise generate a new one if paying
                 transactionId: isChecked ? b.transactionId || generateTransactionId() : undefined,
             };
         }
@@ -126,9 +114,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     }));
   }, []);
   
-  // NEW HANDLER: Add Bill and Refresh Local State
   const handleAddBillAndRefresh = useCallback((bill: Omit<BillTracker, "id" | "isPaid">) => {
-    // Generate a unique ID immediately for local tracking and eventual persistence
     const tempId = generateBillId();
     const newBill: BillTracker = {
         ...bill,
@@ -136,46 +122,89 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         isPaid: false,
     };
     
-    // Only update local state. Persistence happens in handleSaveAndClose.
     setLocalBills(prev => [...prev, newBill]);
     
     toast.success("Conta avulsa adicionada localmente. Salve para persistir.");
     
   }, []);
+  
+  const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
+    const existingBill = localBills.find(b => 
+        b.sourceType === potentialBill.sourceType &&
+        b.sourceRef === potentialBill.sourceRef &&
+        b.parcelaNumber === potentialBill.parcelaNumber
+    );
+    
+    if (isChecked) {
+        if (existingBill && existingBill.isPaid) {
+            toast.error("Esta parcela já foi paga e não pode ser removida.");
+            return;
+        }
+        
+        if (existingBill && existingBill.isExcluded) {
+            setLocalBills(prev => prev.map(b => 
+                b.id === existingBill.id ? { ...b, isExcluded: false } : b
+            ));
+            toast.info("Parcela reativada na lista.");
+            return;
+        }
+        
+        if (!existingBill) {
+            const newBill: BillTracker = {
+                id: generateBillId(),
+                description: potentialBill.description,
+                dueDate: potentialBill.dueDate,
+                expectedAmount: potentialBill.expectedAmount,
+                isPaid: false,
+                sourceType: potentialBill.sourceType,
+                sourceRef: potentialBill.sourceRef,
+                parcelaNumber: potentialBill.parcelaNumber,
+                suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
+                suggestedCategoryId: potentialBill.sourceType === 'loan_installment' 
+                    ? categoriasV2.find(c => c.nature === 'despesa_fixa' && c.label.toLowerCase().includes('empréstimo'))?.id || null
+                    : categoriasV2.find(c => c.nature === 'despesa_fixa' && c.label.toLowerCase().includes('seguro'))?.id || null,
+                isExcluded: false,
+            };
+            setLocalBills(prev => [...prev, newBill]);
+            toast.success("Parcela fixa incluída no planejamento.");
+        }
+        
+    } else {
+        if (existingBill) {
+            if (existingBill.isPaid) {
+                toast.error("Desmarque o pagamento na lista principal antes de excluir.");
+                return;
+            }
+            
+            // Marca como excluída (isExcluded: true) para que não reapareça ao reabrir o modal
+            setLocalBills(prev => prev.map(b => 
+                b.id === existingBill.id ? { ...b, isExcluded: true } : b
+            ));
+            toast.info("Parcela fixa excluída do planejamento deste mês.");
+        }
+    }
+  }, [localBills, contasMovimento, categoriasV2]);
 
-  // Lógica de Persistência (Salvar e Sair)
   const handleSaveAndClose = () => {
-    // 1. Persiste a previsão de receita
     setMonthlyRevenueForecast(localRevenueForecast);
     
-    // 2. Setup para comparação e persistência
     const originalBillsMap = new Map(originalMonthBills.map(b => [b.id, b]));
     
     const newTransactions: TransacaoCompleta[] = [];
     const transactionsToRemove: string[] = [];
     
-    // Filtra o billsTracker global para manter apenas contas de outros meses
     let finalBillsTracker: BillTracker[] = billsTracker.filter(b => {
         const billDate = parseDateLocal(b.dueDate);
         const isCurrentMonth = isSameMonth(billDate, referenceDate);
-        // Mantém contas de outros meses
         return !isCurrentMonth;
     });
     
-    // 3. Processa as contas LOCAIS (localBills)
     localBills.forEach(localVersion => {
         const original = originalBillsMap.get(localVersion.id);
         
         const wasPaid = original?.isPaid || false;
         const isNowPaid = localVersion.isPaid;
-        
-        // Verifica se houve qualquer alteração que precise ser persistida
-        const hasNonPaymentChanges = 
-            localVersion.isExcluded !== original?.isExcluded || 
-            localVersion.expectedAmount !== original?.expectedAmount || 
-            localVersion.suggestedAccountId !== original?.suggestedAccountId;
 
-        // --- A. Handle Payment (isNowPaid && !wasPaid) ---
         if (isNowPaid && !wasPaid) {
             const bill = localVersion;
             const transactionId = bill.transactionId || generateTransactionId();
@@ -241,12 +270,10 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 }
             });
             
-            // Persiste a versão paga no billsTracker global
             const updatedBill = { ...localVersion, transactionId };
             finalBillsTracker.push(updatedBill);
             
         } 
-        // --- B. Handle Unpayment (wasPaid && !isNowPaid) ---
         else if (wasPaid && !isNowPaid) {
             if (original?.transactionId) {
                 transactionsToRemove.push(original.transactionId);
@@ -263,7 +290,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 }
             }
 
-            // Persiste a versão pendente no billsTracker global
             const updatedBill = {
                 ...localVersion,
                 isPaid: false,
@@ -272,24 +298,17 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             };
             finalBillsTracker.push(updatedBill);
         } 
-        // --- C. Handle Non-Payment Changes, New Bills, or Unmodified Bills ---
         else {
-            // Se a conta não está excluída, ela deve ser salva (inclui novas, modificadas e não modificadas)
             if (!localVersion.isExcluded) {
                 finalBillsTracker.push(localVersion);
             }
         }
     });
     
-    // 5. Persiste o billsTracker atualizado
     setBillsTracker(finalBillsTracker);
     
-    // 6. ATOMIZAÇÃO: Remove transações estornadas e adiciona novas em um único setState
     setTransacoesV2(prev => {
-        // Filtra as transações a serem removidas
         const filtered = prev.filter(t => !transactionsToRemove.includes(t.id));
-        
-        // Adiciona as novas transações
         return [...filtered, ...newTransactions];
     });
 
@@ -308,7 +327,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         hideCloseButton={true} 
       >
         
-        {/* Header Principal - Ultra Compacto */}
         <DialogHeader className="border-b pb-2 pt-3 px-4 shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
@@ -317,7 +335,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             </DialogTitle>
             
             <div className="flex items-center gap-3 text-sm">
-              {/* Botão de Menu (Apenas em telas pequenas) */}
               <Drawer>
                 <DrawerTrigger asChild className="lg:hidden">
                   <Button variant="outline" size="sm" className="gap-1 h-8 text-xs">
@@ -337,13 +354,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                       netForecast={netForecast}
                       isMobile={true}
                       onSaveAndClose={handleSaveAndClose}
-                      // onRefreshList={handleRefreshList} // REMOVIDO
                     />
                   </div>
                 </DrawerContent>
               </Drawer>
               
-              {/* Contagem de Status (Visível em todas as telas) */}
               <div className="hidden sm:flex items-center gap-3">
                 <div className="flex items-center gap-1 text-destructive">
                   <Clock className="w-3 h-3" />
@@ -355,7 +370,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 </div>
               </div>
               
-              {/* Botão de fechar (Visível em todas as telas) */}
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -368,10 +382,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </div>
         </DialogHeader>
         
-        {/* Conteúdo Principal (2 Colunas) */}
         <div className="flex flex-1 overflow-hidden">
           
-          {/* Coluna 1: Sidebar de Contexto (Fixo em telas grandes) */}
           <ResizableSidebar
             initialWidth={240}
             minWidth={200}
@@ -387,18 +399,22 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
               pendingCount={pendingCount}
               netForecast={netForecast}
               onSaveAndClose={handleSaveAndClose}
-              // onRefreshList={handleRefreshList} // REMOVIDO
             />
           </ResizableSidebar>
 
-          {/* Coluna 2: Lista de Transações (Ocupa o espaço restante) */}
-          <div className="flex-1 overflow-y-auto px-4 pt-2 pb-2">
+          <div className="flex-1 overflow-y-auto px-4 pt-2 pb-2 space-y-4">
+            
+            <FixedInstallmentSelector
+                potentialBills={potentialFixedBills}
+                onToggleInstallment={handleToggleFixedBill}
+            />
+            
             <BillsTrackerList
-              bills={localBills} // Usa o estado local
+              bills={localBills}
               onUpdateBill={handleUpdateBillLocal}
               onDeleteBill={handleDeleteBillLocal}
-              onAddBill={handleAddBillAndRefresh} // Passa o novo handler
-              onTogglePaid={handleTogglePaidLocal} // Novo handler
+              onAddBill={handleAddBillAndRefresh}
+              onTogglePaid={handleTogglePaidLocal}
               currentDate={referenceDate}
             />
           </div>

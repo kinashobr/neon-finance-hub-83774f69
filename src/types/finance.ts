@@ -234,6 +234,19 @@ export interface BillTracker {
   isExcluded?: boolean; // NEW: Mark if excluded from current month's list
 }
 
+// NOVO: Parcela Fixa Potencial para Seleção
+export interface PotentialFixedBill {
+  key: string; // Unique key: sourceType_sourceRef_parcelaNumber
+  sourceType: 'loan_installment' | 'insurance_installment';
+  sourceRef: string; // ID do Empréstimo/Seguro
+  parcelaNumber: number;
+  dueDate: string; // YYYY-MM-DD
+  expectedAmount: number;
+  description: string;
+  isPaid: boolean;
+  isIncluded: boolean; // Se já está no localBills
+}
+
 // ============================================
 // NOVO: IMPORTAÇÃO E PADRONIZAÇÃO
 // ============================================

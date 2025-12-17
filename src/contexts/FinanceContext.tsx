@@ -24,6 +24,7 @@ import {
   getFlowTypeFromOperation, // <-- NEW IMPORT
   BillSourceType,
   TransactionLinks,
+  PotentialFixedBill, // <-- NEW IMPORT
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns"; // Import date-fns helpers
 import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
@@ -301,6 +302,7 @@ interface FinanceContextType {
   updateBill: (id: string, updates: Partial<BillTracker>) => void;
   deleteBill: (id: string) => void;
   getBillsForMonth: (date: Date) => BillTracker[]; // REMOVIDO includeTemplates
+  getPotentialFixedBillsForMonth: (date: Date, localBills: BillTracker[]) => PotentialFixedBill[]; // NEW
   
   // Contas Movimento (new integrated system)
   contasMovimento: ContaCorrente[];
@@ -946,8 +948,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // OPERAÇÕES DE BILL TRACKER (REESCRITAS)
   // ============================================
   
-  // A função addBill foi removida, pois a adição de contas avulsas é feita diretamente no setBillsTracker em handleSaveAndClose.
-
   const updateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
     setBillsTracker(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
   }, []);
@@ -990,6 +990,79 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // 3. Ordena
     return finalBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
   }, [billsTracker]);
+  
+  const getPotentialFixedBillsForMonth = useCallback((date: Date, localBills: BillTracker[]): PotentialFixedBill[] => {
+    const potentialBills: PotentialFixedBill[] = [];
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+    
+    const isBillIncluded = (sourceType: BillSourceType, sourceRef: string, parcelaNumber: number) => {
+        return localBills.some(b => 
+            b.sourceType === sourceType && 
+            b.sourceRef === sourceRef && 
+            b.parcelaNumber === parcelaNumber &&
+            !b.isExcluded
+        );
+    };
+    
+    // --- 1. Empréstimos ---
+    emprestimos.filter(e => e.status === 'ativo').forEach(loan => {
+        if (!loan.dataInicio || loan.meses === 0) return;
+        
+        const schedule = calculateLoanSchedule(loan.id);
+        
+        schedule.forEach(item => {
+            const dueDate = getDueDate(loan.dataInicio!, item.parcela);
+            
+            if (isWithinInterval(dueDate, { start: monthStart, end: monthEnd })) {
+                const isPaid = transacoesV2.some(t => 
+                    t.operationType === 'pagamento_emprestimo' &&
+                    t.links?.loanId === `loan_${loan.id}` &&
+                    t.links?.parcelaId === String(item.parcela)
+                );
+                
+                const sourceRef = String(loan.id);
+                
+                potentialBills.push({
+                    key: `loan_${sourceRef}_${item.parcela}`,
+                    sourceType: 'loan_installment',
+                    sourceRef,
+                    parcelaNumber: item.parcela,
+                    dueDate: format(dueDate, 'yyyy-MM-dd'),
+                    expectedAmount: loan.parcela,
+                    description: `Empréstimo ${loan.contrato} - Parcela ${item.parcela}/${loan.meses}`,
+                    isPaid,
+                    isIncluded: isBillIncluded('loan_installment', sourceRef, item.parcela),
+                });
+            }
+        });
+    });
+    
+    // --- 2. Seguros ---
+    segurosVeiculo.forEach(seguro => {
+        seguro.parcelas.forEach(parcela => {
+            const dueDate = parseDateLocal(parcela.vencimento);
+            
+            if (isWithinInterval(dueDate, { start: monthStart, end: monthEnd })) {
+                const sourceRef = String(seguro.id);
+                
+                potentialBills.push({
+                    key: `insurance_${sourceRef}_${parcela.numero}`,
+                    sourceType: 'insurance_installment',
+                    sourceRef,
+                    parcelaNumber: parcela.numero,
+                    dueDate: parcela.vencimento,
+                    expectedAmount: parcela.valor,
+                    description: `Seguro ${seguro.numeroApolice} - Parcela ${parcela.numero}/${seguro.numeroParcelas}`,
+                    isPaid: parcela.paga,
+                    isIncluded: isBillIncluded('insurance_installment', sourceRef, parcela.numero),
+                });
+            }
+        });
+    });
+    
+    return potentialBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
+  }, [emprestimos, segurosVeiculo, transacoesV2, calculateLoanSchedule, localBills]);
 
 
   // ============================================
@@ -1371,6 +1444,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     updateBill,
     deleteBill,
     getBillsForMonth, // RENOMEADO
+    getPotentialFixedBillsForMonth, // NEW
     
     contasMovimento,
     setContasMovimento,
