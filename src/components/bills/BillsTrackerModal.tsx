@@ -250,14 +250,14 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             if (original?.transactionId) {
                 transactionsToRemove.push(original.transactionId);
 
-                if (bill.sourceType === "loan_installment" && bill.sourceRef) {
-                    unmarkLoanParcelPaid(Number(bill.sourceRef));
+                if (localVersion.sourceType === "loan_installment" && localVersion.sourceRef) {
+                    unmarkLoanParcelPaid(Number(localVersion.sourceRef));
                 }
 
-                if (bill.sourceType === "insurance_installment" && bill.sourceRef) {
+                if (localVersion.sourceType === "insurance_installment" && localVersion.sourceRef) {
                     unmarkSeguroParcelPaid(
-                        Number(bill.sourceRef),
-                        bill.parcelaNumber!
+                        Number(localVersion.sourceRef),
+                        localVersion.parcelaNumber!
                     );
                 }
             }
