@@ -1181,12 +1181,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return emprestimos.filter(e => e.status === 'pendente_config');
   }, [emprestimos]);
 
+// FIX: markLoanParcelPaid - Updates loan status based on the installment number being paid.
   const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumero?: number) => {
     setEmprestimos(prev => prev.map(e => {
       if (e.id !== loanId) return e;
       
-      // Simplificação: Apenas marca o status como ativo/quitado
-      const isQuitado = (e.parcelasPagas || 0) + 1 >= e.meses;
+      // Check if this payment is the last one
+      const isQuitado = parcelaNumero && parcelaNumero >= e.meses;
       
       return {
         ...e,
@@ -1194,11 +1195,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       };
     }));
   }, []);
-  
+
+// FIX: unmarkLoanParcelPaid - Reverts loan status to 'ativo'.
   const unmarkLoanParcelPaid = useCallback((loanId: number) => {
     setEmprestimos(prev => prev.map(e => {
       if (e.id !== loanId) return e;
-      
       return {
         ...e,
         status: 'ativo',
@@ -1236,6 +1237,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setSegurosVeiculo(segurosVeiculo.filter(s => s.id !== id));
   };
   
+// FIX: markSeguroParcelPaid - Updates the specific installment in segurosVeiculo.
   const markSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number, transactionId: string) => {
     setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
       if (seguro.id !== seguroId) return seguro;
@@ -1251,6 +1253,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
   
+// FIX: unmarkSeguroParcelPaid - Reverts the specific installment in segurosVeiculo.
   const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => {
     setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
       if (seguro.id !== seguroId) return seguro;
