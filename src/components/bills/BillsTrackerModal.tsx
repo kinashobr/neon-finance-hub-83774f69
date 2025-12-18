@@ -5,10 +5,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { CalendarCheck, Clock, CheckCircle2, AlertTriangle, ArrowRight, Plus, X, RefreshCw, DollarSign } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { BillTracker, PotentialFixedBill, formatCurrency, BillSourceType, generateBillId } from "@/types/finance";
+import { BillTracker, PotentialFixedBill, formatCurrency, BillSourceType, generateBillId, TransacaoCompleta } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { format, isPast, isSameMonth, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
 import { toast } from "sonner";
@@ -35,7 +36,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     unmarkLoanParcelPaid,
     unmarkSeguroParcelPaid,
     transacoesV2,
+    setTransacoesV2,
     categoriasV2,
+    getTransactionsForMonth,
   } = useFinance();
   
   const [referenceDate, setReferenceDate] = useState(startOfMonth(new Date()));
