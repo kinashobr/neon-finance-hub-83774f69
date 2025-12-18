@@ -34,6 +34,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     unmarkLoanParcelPaid,
     unmarkSeguroParcelPaid,
     transacoesV2,
+    setTransacoesV2, // <-- CORRIGIDO: Adicionado setTransacoesV2
     categoriasV2,
     monthlyRevenueForecast,
     setMonthlyRevenueForecast,
