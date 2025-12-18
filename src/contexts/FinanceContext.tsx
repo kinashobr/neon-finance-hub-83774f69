@@ -25,6 +25,8 @@ import {
   BillSourceType,
   TransactionLinks,
   PotentialFixedBill, // <-- NEW IMPORT
+  ExternalPaidBill, // <-- NEW IMPORT
+  BillDisplayItem, // <-- NEW IMPORT
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns"; // Import date-fns helpers
 import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
@@ -306,6 +308,7 @@ interface FinanceContextType {
   getBillsForMonth: (date: Date) => BillTracker[]; // RENOMEADO
   getPotentialFixedBillsForMonth: (date: Date, localBills: BillTracker[]) => PotentialFixedBill[]; // NEW
   getFutureFixedBills: (referenceDate: Date, localBills: BillTracker[]) => PotentialFixedBill[]; // MODIFICADO
+  getOtherPaidExpensesForMonth: (date: Date) => ExternalPaidBill[]; // <-- NEW FUNCTION
   
   // Contas Movimento (new integrated system)
   contasMovimento: ContaCorrente[];
@@ -934,6 +937,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, []);
   
   const uncontabilizeImportedTransaction = useCallback((transactionId: string) => {
+    setTransacoesV2(prev => prev.filter(t => t.id !== transactionId)); // Remove a transação contabilizada
+    
     setImportedStatements(prev => prev.map(s => {
         let updated = false;
         const newRawTransactions = s.rawTransactions.map(t => {
@@ -965,7 +970,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }
         return s;
     }));
-  }, []);
+  }, [setTransacoesV2]);
   
   const getTransactionsForReview = useCallback((accountId: string, range: DateRange): ImportedTransaction[] => {
     const allRawTransactions: ImportedTransaction[] = [];
@@ -1239,6 +1244,58 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     
     return futureBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
   }, [emprestimos, segurosVeiculo, transacoesV2, calculateLoanSchedule]);
+  
+  // NEW: Função para obter despesas pagas que não estão no Bills Tracker
+  const getOtherPaidExpensesForMonth = useCallback((date: Date): ExternalPaidBill[] => {
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+    
+    // IDs das transações que foram criadas pelo Bills Tracker
+    const trackerTxIds = new Set(billsTracker
+        .filter(b => b.isPaid && b.transactionId)
+        .map(b => b.transactionId!)
+    );
+    
+    // 1. Filtrar transações de despesa no mês
+    const externalExpenses = transacoesV2.filter(t => {
+        const transactionDate = parseDateLocal(t.date);
+        
+        // Deve estar no mês de referência
+        const isWithinRefMonth = isWithinInterval(transactionDate, { start: monthStart, end: monthEnd });
+        if (!isWithinRefMonth) return false;
+        
+        // Deve ser uma despesa (outflow)
+        const isOutflow = t.flow === 'out' || t.flow === 'transfer_out';
+        if (!isOutflow) return false;
+        
+        // Deve ser uma despesa real (não aplicação, resgate, liberação, saldo inicial)
+        const isExpenseType = t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo';
+        if (!isExpenseType) return false;
+        
+        // Deve ter sido contabilizada (não é uma transação pendente de importação)
+        if (t.meta.source === 'import' && !t.conciliated) return false;
+        
+        // Deve ser uma transação externa (não gerenciada pelo Bills Tracker)
+        const isTrackerManaged = t.meta.source === 'bill_tracker' || trackerTxIds.has(t.id);
+        
+        return !isTrackerManaged;
+    });
+    
+    // 2. Mapear para ExternalPaidBill
+    return externalExpenses.map(t => ({
+        id: t.id,
+        type: 'external_paid',
+        dueDate: t.date, // Usamos a data da transação como data de vencimento/pagamento
+        paymentDate: t.date,
+        expectedAmount: t.amount,
+        description: t.description,
+        suggestedAccountId: t.accountId,
+        suggestedCategoryId: t.categoryId,
+        sourceType: 'external_expense',
+        isPaid: true,
+        isExcluded: false,
+    }));
+  }, [billsTracker, transacoesV2]);
 
 
   // ============================================
@@ -1633,6 +1690,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getBillsForMonth, // RENOMEADO
     getPotentialFixedBillsForMonth, // NEW
     getFutureFixedBills, // NEW
+    getOtherPaidExpensesForMonth, // <-- NEW FUNCTION
     
     contasMovimento,
     setContasMovimento,

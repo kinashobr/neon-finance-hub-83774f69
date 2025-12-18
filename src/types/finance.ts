@@ -253,6 +253,24 @@ export interface PotentialFixedBill {
   isIncluded: boolean; // Se já está no localBills
 }
 
+// NOVO: Tipo para Despesas Pagas Externamente (somente leitura)
+export interface ExternalPaidBill {
+  id: string; // Transaction ID
+  type: 'external_paid';
+  dueDate: string; // Transaction Date
+  paymentDate: string; // Transaction Date
+  expectedAmount: number; // Transaction Amount
+  description: string; // Transaction Description
+  suggestedAccountId: string; // Account ID
+  suggestedCategoryId: string | null; // Category ID
+  sourceType: 'external_expense';
+  isPaid: true;
+  isExcluded: false;
+}
+
+// Tipo unificado para exibição na lista
+export type BillDisplayItem = BillTracker | ExternalPaidBill;
+
 // ============================================
 // NOVO: IMPORTAÇÃO E PADRONIZAÇÃO
 // ============================================

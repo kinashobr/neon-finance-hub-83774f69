@@ -13,16 +13,16 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown } from "lucide-react";
+import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown, CheckCircle2 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { BillTracker, BillSourceType, formatCurrency, CATEGORY_NATURE_LABELS } from "@/types/finance";
+import { BillTracker, BillSourceType, formatCurrency, CATEGORY_NATURE_LABELS, BillDisplayItem, ExternalPaidBill } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { EditableCell } from "../EditableCell";
 
 interface BillsTrackerListProps {
-  bills: BillTracker[];
+  bills: BillDisplayItem[]; // <-- ALTERADO PARA BillDisplayItem[]
   onUpdateBill: (id: string, updates: Partial<BillTracker>) => void;
   onDeleteBill: (id: string) => void;
   onAddBill: (bill: Omit<BillTracker, "id" | "isPaid">) => void;
@@ -30,16 +30,16 @@ interface BillsTrackerListProps {
   currentDate: Date;
 }
 
-const SOURCE_CONFIG: Record<BillSourceType, { icon: React.ElementType; color: string; label: string }> = {
+const SOURCE_CONFIG: Record<BillSourceType | 'external_expense', { icon: React.ElementType; color: string; label: string }> = {
   loan_installment: { icon: Building2, color: 'text-orange-500', label: 'Empréstimo' },
   insurance_installment: { icon: Shield, color: 'text-blue-500', label: 'Seguro' },
   fixed_expense: { icon: Repeat, color: 'text-purple-500', label: 'Fixa' },
   variable_expense: { icon: DollarSign, color: 'text-warning', label: 'Variável' },
   ad_hoc: { icon: Info, color: 'text-primary', label: 'Avulsa' },
+  external_expense: { icon: CheckCircle2, color: 'text-success', label: 'Extrato' }, // NOVO
 };
 
 // Define column keys and initial widths (in pixels)
-// ADICIONANDO 'category'
 const COLUMN_KEYS = ['pay', 'due', 'paymentDate', 'description', 'account', 'type', 'category', 'amount', 'actions'] as const;
 type ColumnKey = typeof COLUMN_KEYS[number];
 
@@ -47,10 +47,10 @@ const INITIAL_WIDTHS: Record<ColumnKey, number> = {
   pay: 40,
   due: 80,
   paymentDate: 80,
-  description: 180, // Reduzido para dar espaço à categoria
+  description: 180,
   account: 112,
   type: 64,
-  category: 150, // NOVO
+  category: 150,
   amount: 80,
   actions: 40,
 };
@@ -62,7 +62,7 @@ const columnHeaders: { key: ColumnKey, label: string, align?: 'center' | 'right'
   { key: 'description', label: 'Descrição' },
   { key: 'account', label: 'Conta Pgto' },
   { key: 'type', label: 'Tipo' },
-  { key: 'category', label: 'Categoria' }, // NOVO
+  { key: 'category', label: 'Categoria' },
   { key: 'amount', label: 'Valor', align: 'right' },
   { key: 'actions', label: 'Ações', align: 'center' },
 ];
@@ -247,18 +247,24 @@ export function BillsTrackerList({
   };
 
   const sortedBills = useMemo(() => {
-    const filtered = bills.filter(b => !b.isExcluded);
+    // Filtra apenas BillTracker que não estão excluídos
+    const trackerBills = bills.filter((b): b is BillTracker => b.type !== 'external_paid' && !b.isExcluded);
+    // Filtra apenas ExternalPaidBill
+    const externalBills = bills.filter((b): b is ExternalPaidBill => b.type === 'external_paid');
     
-    const pending = filtered.filter(b => !b.isPaid);
-    const paid = filtered.filter(b => b.isPaid);
+    const pending = trackerBills.filter(b => !b.isPaid);
+    const paidTracker = trackerBills.filter(b => b.isPaid);
+    
+    // Combina pagas do tracker e externas
+    const allPaid: BillDisplayItem[] = [...paidTracker, ...externalBills];
     
     pending.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
-    paid.sort((a, b) => parseDateLocal(b.paymentDate || b.dueDate).getTime() - parseDateLocal(a.paymentDate || a.dueDate).getTime());
+    allPaid.sort((a, b) => parseDateLocal(b.paymentDate || b.dueDate).getTime() - parseDateLocal(a.paymentDate || a.dueDate).getTime());
     
-    return [...pending, ...paid];
+    return [...pending, ...allPaid];
   }, [bills]);
   
-  const totalPending = sortedBills.filter(b => !b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0);
+  const totalPending = sortedBills.filter(b => b.type !== 'external_paid' && !b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0);
 
   const formatDate = (dateStr: string) => {
     const date = parseDateLocal(dateStr);
@@ -383,6 +389,7 @@ export function BillsTrackerList({
             </TableHeader>
             <TableBody>
               {sortedBills.map((bill) => {
+                const isExternalPaid = bill.type === 'external_paid';
                 const config = SOURCE_CONFIG[bill.sourceType] || SOURCE_CONFIG.ad_hoc;
                 const Icon = config.icon;
                 const dueDate = parseDateLocal(bill.dueDate);
@@ -390,13 +397,13 @@ export function BillsTrackerList({
                 const isPaid = bill.isPaid;
                 
                 // Apenas contas ad-hoc, fixed_expense ou variable_expense podem ter valor alterado
-                const isAmountEditable = bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
+                const isAmountEditable = !isExternalPaid && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
                 
                 // A data de vencimento pode ser alterada se não estiver paga (para qualquer tipo de conta)
-                const isDateEditable = !isPaid;
+                const isDateEditable = !isExternalPaid && !isPaid;
                 
                 // A categoria é editável apenas para contas avulsas/fixas genéricas e se não estiver paga
-                const isCategoryEditable = isAmountEditable && !isPaid;
+                const isCategoryEditable = !isExternalPaid && (bill.sourceType === 'ad_hoc' || bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense') && !isPaid;
                 
                 const currentCategory = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
                 
@@ -405,16 +412,21 @@ export function BillsTrackerList({
                     key={bill.id} 
                     className={cn(
                       "hover:bg-muted/30 transition-colors h-12",
+                      isExternalPaid && "bg-muted/10 text-muted-foreground/80", // Estilo para externo
                       isOverdue && "bg-destructive/5 hover:bg-destructive/10",
-                      isPaid && "bg-success/5 hover:bg-success/10 border-l-4 border-success/50"
+                      isPaid && !isExternalPaid && "bg-success/5 hover:bg-success/10 border-l-4 border-success/50"
                     )}
                   >
                     <TableCell className="text-center p-2 text-base" style={{ width: columnWidths.pay }}>
-                      <Checkbox
-                        checked={isPaid}
-                        onCheckedChange={(checked) => onTogglePaid(bill, checked as boolean)}
-                        className={cn("w-5 h-5", isPaid && "border-success data-[state=checked]:bg-success")}
-                      />
+                      {isExternalPaid ? (
+                        <CheckCircle2 className="w-5 h-5 text-success mx-auto" />
+                      ) : (
+                        <Checkbox
+                          checked={isPaid}
+                          onCheckedChange={(checked) => onTogglePaid(bill as BillTracker, checked as boolean)}
+                          className={cn("w-5 h-5", isPaid && "border-success data-[state=checked]:bg-success")}
+                        />
+                      )}
                     </TableCell>
                     
                     <TableCell className={cn("font-medium whitespace-nowrap text-base p-2", isOverdue && "text-destructive")} style={{ width: columnWidths.due }}>
@@ -425,11 +437,11 @@ export function BillsTrackerList({
                             <EditableCell
                                 value={bill.dueDate}
                                 type="date"
-                                onSave={(v) => handleUpdateDueDate(bill, String(v))}
+                                onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))}
                                 className={cn("text-base", isOverdue && "text-destructive")}
                             />
                         ) : (
-                            <span className="text-base">
+                            <span className={cn("text-base", isExternalPaid && "text-muted-foreground")}>
                                 {formatDate(bill.dueDate)}
                             </span>
                         )}
@@ -439,12 +451,16 @@ export function BillsTrackerList({
                     {/* Payment Date Cell */}
                     <TableCell className="font-medium whitespace-nowrap text-base p-2" style={{ width: columnWidths.paymentDate }}>
                         {isPaid && bill.paymentDate ? (
-                            <EditableCell
-                                value={bill.paymentDate}
-                                type="date"
-                                onSave={(v) => handleUpdatePaymentDate(bill, String(v))}
-                                className="text-base text-success"
-                            />
+                            isExternalPaid ? (
+                                <span className="text-base text-muted-foreground">{formatDate(bill.paymentDate)}</span>
+                            ) : (
+                                <EditableCell
+                                    value={bill.paymentDate}
+                                    type="date"
+                                    onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))}
+                                    className="text-base text-success"
+                                />
+                            )
                         ) : (
                             <span className="text-muted-foreground">—</span>
                         )}
@@ -455,22 +471,28 @@ export function BillsTrackerList({
                     </TableCell>
                     
                     <TableCell className="text-base p-2" style={{ width: columnWidths.account }}>
-                      <Select 
-                        value={bill.suggestedAccountId || ''} 
-                        onValueChange={(v) => handleUpdateSuggestedAccount(bill, v)}
-                        disabled={isPaid}
-                      >
-                        <SelectTrigger className="h-9 text-base p-2 w-full">
-                          <SelectValue placeholder="Conta..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {accountOptions.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value} className="text-base">
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {isExternalPaid ? (
+                        <span className="text-sm text-muted-foreground">
+                          {contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}
+                        </span>
+                      ) : (
+                        <Select 
+                          value={bill.suggestedAccountId || ''} 
+                          onValueChange={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}
+                          disabled={isPaid}
+                        >
+                          <SelectTrigger className="h-9 text-base p-2 w-full">
+                            <SelectValue placeholder="Conta..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {accountOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value} className="text-base">
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </TableCell>
                     
                     <TableCell className="p-2 text-base" style={{ width: columnWidths.type }}>
@@ -480,24 +502,30 @@ export function BillsTrackerList({
                       </Badge>
                     </TableCell>
                     
-                    {/* NOVO: Categoria Cell */}
+                    {/* Categoria Cell */}
                     <TableCell className="p-2 text-base" style={{ width: columnWidths.category }}>
-                        <Select 
-                            value={bill.suggestedCategoryId || ''} 
-                            onValueChange={(v) => handleUpdateSuggestedCategory(bill, v)}
-                            disabled={!isCategoryEditable}
-                        >
-                            <SelectTrigger className="h-9 text-base p-2 w-full">
-                                <SelectValue placeholder={currentCategory?.label || "Selecione..."} />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-60">
-                                {expenseCategories.map(cat => (
-                                    <SelectItem key={cat.id} value={cat.id} className="text-base">
-                                        {cat.icon} {cat.label} ({CATEGORY_NATURE_LABELS[cat.nature]})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        {isExternalPaid ? (
+                            <span className="text-sm text-muted-foreground">
+                                {currentCategory?.icon} {currentCategory?.label || 'N/A'}
+                            </span>
+                        ) : (
+                            <Select 
+                                value={bill.suggestedCategoryId || ''} 
+                                onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}
+                                disabled={!isCategoryEditable}
+                            >
+                                <SelectTrigger className="h-9 text-base p-2 w-full">
+                                    <SelectValue placeholder={currentCategory?.label || "Selecione..."} />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                    {expenseCategories.map(cat => (
+                                        <SelectItem key={cat.id} value={cat.id} className="text-base">
+                                            {cat.icon} {cat.label} ({CATEGORY_NATURE_LABELS[cat.nature]})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
                     </TableCell>
                     
                     <TableCell className={cn("text-right font-semibold whitespace-nowrap p-2", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
@@ -505,27 +533,39 @@ export function BillsTrackerList({
                         <EditableCell 
                           value={bill.expectedAmount} 
                           type="currency" 
-                          onSave={(v) => handleUpdateExpectedAmount(bill, Number(v))}
+                          onSave={(v) => handleUpdateExpectedAmount(bill as BillTracker, Number(v))}
                           className={cn("text-right text-base", isPaid ? "text-success" : "text-destructive")}
                         />
                       ) : (
-                        <span className="text-base">{formatCurrency(bill.expectedAmount)}</span>
+                        <span className={cn("text-base", isExternalPaid && "text-muted-foreground")}>{formatCurrency(bill.expectedAmount)}</span>
                       )}
                     </TableCell>
                     
                     <TableCell className="text-center p-2 text-base" style={{ width: columnWidths.actions }}>
-                      {isAmountEditable && !isPaid && (
+                      {isExternalPaid ? (
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleExcludeBill(bill)}
-                          title="Excluir da lista deste mês"
+                          className="h-8 w-8 text-muted-foreground"
+                          onClick={() => toast.info(`Transação ID: ${bill.id}`)}
+                          title="Transação do Extrato (Somente Leitura)"
                         >
-                          <X className="w-4 h-4" />
+                          <Info className="w-4 h-4" />
                         </Button>
+                      ) : (
+                        isAmountEditable && !isPaid && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleExcludeBill(bill as BillTracker)}
+                            title="Excluir da lista deste mês"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        )
                       )}
-                      {isPaid && (
+                      {isPaid && !isExternalPaid && (
                           <Button 
                             variant="ghost" 
                             size="icon" 
