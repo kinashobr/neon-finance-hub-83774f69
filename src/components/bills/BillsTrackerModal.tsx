@@ -1,23 +1,27 @@
-import { useState, useMemo, useCallback } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { CalendarCheck, Clock, CheckCircle2, AlertTriangle, ArrowRight, Plus, X, RefreshCw, DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, X, Settings } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { BillTracker, PotentialFixedBill, formatCurrency, BillSourceType, generateBillId } from "@/types/finance";
-import { cn, parseDateLocal } from "@/lib/utils";
-import { format, isPast, isSameMonth, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
+import { BillTracker, PotentialFixedBill, BillSourceType, formatCurrency, generateBillId, TransactionLinks, OperationType } from "@/types/finance";
+import { BillsTrackerList } from "./BillsTrackerList";
+import { FixedBillsList } from "./FixedBillsList";
+import { BillsSidebarKPIs } from "./BillsSidebarKPIs"; // NEW IMPORT
+import { FixedBillSelectorModal } from "./FixedBillSelectorModal"; // NEW IMPORT
+import { format, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { MonthlyTransactionSummary } from "./MonthlyTransactionSummary";
+import { parseDateLocal } from "@/lib/utils";
+import { ResizableDialogContent } from "../ui/ResizableDialogContent"; // IMPORTANDO
 
 interface BillsTrackerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+// Tipo auxiliar para links parciais
+type PartialTransactionLinks = Partial<TransactionLinks>;
 
 export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps) {
   const { 
@@ -25,391 +29,430 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setBillsTracker, 
     updateBill, 
     deleteBill, 
-    getBillsForMonth,
+    getBillsForMonth, 
     getPotentialFixedBillsForMonth,
     getFutureFixedBills,
-    getContasCorrentesTipo,
+    contasMovimento,
     addTransacaoV2,
-    markLoanParcelPaid,
-    markSeguroParcelPaid,
-    unmarkLoanParcelPaid,
-    unmarkSeguroParcelPaid,
-    transacoesV2,
+    setTransacoesV2, // <-- ADICIONADO
     categoriasV2,
+    emprestimos,
+    segurosVeiculo,
+    calculateLoanAmortizationAndInterest,
+    markSeguroParcelPaid, // <-- IMPORTADO
+    markLoanParcelPaid, // <-- IMPORTADO
+    unmarkSeguroParcelPaid, // <-- NOVO
+    unmarkLoanParcelPaid, // <-- NOVO
   } = useFinance();
   
-  const [referenceDate, setReferenceDate] = useState(startOfMonth(new Date()));
-  const [activeTab, setActiveTab] = useState("contas");
+  const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
+  const [showFixedBillSelector, setShowFixedBillSelector] = useState(false); // NEW STATE for selector modal
+  const [fixedBillSelectorMode, setFixedBillSelectorMode] = useState<'current' | 'future'>('current'); // NEW STATE for selector mode
   
-  const contasCorrentes = getContasCorrentesTipo();
-  const categoriesMap = useMemo(() => new Map(categoriasV2.map(c => [c.id, c])), [categoriasV2]);
+  const currentMonthBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
+  
+  // --- Fixed Bills Logic ---
+  const potentialFixedBills = useMemo(() => 
+    getPotentialFixedBillsForMonth(currentDate, currentMonthBills)
+  , [getPotentialFixedBillsForMonth, currentDate, currentMonthBills]);
+  
+  const futureFixedBills = useMemo(() => 
+    getFutureFixedBills(currentDate, currentMonthBills)
+  , [getFutureFixedBills, currentDate, currentMonthBills]);
+  
+  const totalPendingBills = useMemo(() => 
+    currentMonthBills.filter(b => !b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0)
+  , [currentMonthBills]);
 
-  // 1. Contas Fixas/Recorrentes (BillsTracker)
-  const localBills = useMemo(() => getBillsForMonth(referenceDate), [getBillsForMonth, referenceDate]);
+  // --- Handlers ---
   
-  // 2. Contas Potenciais (Empréstimos/Seguros)
-  const potentialBills = useMemo(() => getPotentialFixedBillsForMonth(referenceDate, localBills), [getPotentialFixedBillsForMonth, referenceDate, localBills]);
-  
-  // 3. Transações Reais do Mês (NOVO)
-  const monthlyTransactions = useMemo(() => getTransactionsForMonth(referenceDate), [getTransactionsForMonth, referenceDate]);
-
   const handleMonthChange = (direction: 'prev' | 'next') => {
-    setReferenceDate(prev => direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1));
+    setCurrentDate(prev => direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1));
   };
   
-  const handleToggleInclusion = (potentialBill: PotentialFixedBill) => {
-    const existingBill = localBills.find(b => b.sourceType === potentialBill.sourceType && b.sourceRef === potentialBill.sourceRef && b.parcelaNumber === potentialBill.parcelaNumber);
-    
-    if (existingBill) {
-      // Excluir (marcar como isExcluded)
-      updateBill(existingBill.id, { isExcluded: true });
-      toast.info(`Conta ${potentialBill.description} excluída da lista.`);
-    } else {
-      // Incluir (adicionar como nova BillTracker)
-      const newBill: BillTracker = {
-        id: generateBillId(),
-        description: potentialBill.description,
-        dueDate: potentialBill.dueDate,
-        expectedAmount: potentialBill.expectedAmount,
-        isPaid: potentialBill.isPaid,
-        paymentDate: potentialBill.isPaid ? format(new Date(), 'yyyy-MM-dd') : undefined,
-        transactionId: undefined, // Será preenchido no pagamento
-        sourceType: potentialBill.sourceType,
-        sourceRef: potentialBill.sourceRef,
-        parcelaNumber: potentialBill.parcelaNumber,
-        suggestedAccountId: contasCorrentes[0]?.id,
-        suggestedCategoryId: categoriesMap.get('cat_seguro')?.id || categoriesMap.get('cat_alimentacao')?.id,
-        isExcluded: false,
-      };
-      setBillsTracker(prev => [...prev, newBill]);
-      toast.success(`Conta ${potentialBill.description} adicionada à lista.`);
-    }
-  };
+  const handleUpdateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
+    updateBill(id, updates);
+  }, [updateBill]);
+
+  const handleDeleteBill = useCallback((id: string) => {
+    deleteBill(id);
+  }, [deleteBill]);
   
-  const handleMarkPaid = (bill: BillTracker) => {
-    if (!bill.suggestedAccountId) {
-      toast.error("Selecione uma conta de débito antes de marcar como pago.");
-      return;
-    }
-    
-    const paymentDate = format(new Date(), 'yyyy-MM-dd');
-    const transactionId = generateBillId(); // Usando o mesmo gerador para ID de transação temporário
-    
-    // 1. Criar a transação
-    const newTx: TransacaoCompleta = {
-      id: transactionId,
-      date: paymentDate,
-      accountId: bill.suggestedAccountId,
-      flow: 'out',
-      operationType: bill.sourceType === 'loan_installment' ? 'pagamento_emprestimo' : bill.sourceType === 'insurance_installment' ? 'despesa' : 'despesa',
-      domain: bill.sourceType === 'loan_installment' ? 'financing' : 'operational',
-      amount: bill.expectedAmount,
-      categoryId: bill.suggestedCategoryId || null,
-      description: bill.description,
-      links: {
-        investmentId: null,
-        loanId: bill.sourceType === 'loan_installment' ? `loan_${bill.sourceRef}` : null,
-        transferGroupId: null,
-        parcelaId: bill.sourceType === 'loan_installment' ? String(bill.parcelaNumber) : null,
-        vehicleTransactionId: bill.sourceType === 'insurance_installment' ? `${bill.sourceRef}_${bill.parcelaNumber}` : null,
-      },
-      conciliated: false,
-      attachments: [],
-      meta: {
-        createdBy: 'bill_tracker',
-        source: 'bill_tracker',
-        createdAt: new Date().toISOString(),
-      }
+  const handleAddBill = useCallback((bill: Omit<BillTracker, "id" | "isPaid">) => {
+    const newBill: BillTracker = {
+      ...bill,
+      id: generateBillId(),
+      isPaid: false,
+      isExcluded: false,
     };
-    
-    addTransacaoV2(newTx);
-    
-    // 2. Marcar a conta como paga no tracker
-    updateBill(bill.id, {
-      isPaid: true,
-      paymentDate,
-      transactionId,
-    });
-    
-    // 3. Atualizar status nas entidades (Empréstimo/Seguro)
-    if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
-      const loanId = parseInt(bill.sourceRef);
-      if (!isNaN(loanId)) {
-        markLoanParcelPaid(loanId, bill.expectedAmount, paymentDate, bill.parcelaNumber);
+    setBillsTracker(prev => [...prev, newBill]);
+  }, [setBillsTracker]);
+  
+  const handleTogglePaid = useCallback((bill: BillTracker, isChecked: boolean) => {
+    if (isChecked) {
+      // Mark as paid and create transaction
+      const account = contasMovimento.find(c => c.id === bill.suggestedAccountId);
+      const category = categoriasV2.find(c => c.id === bill.suggestedCategoryId);
+      
+      if (!account) {
+        toast.error("Conta de pagamento sugerida não encontrada.");
+        return;
       }
-    }
-    if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
-      const seguroId = parseInt(bill.sourceRef);
-      if (!isNaN(seguroId)) {
+      if (!category) {
+        toast.error("Categoria sugerida não encontrada.");
+        return;
+      }
+      
+      const transactionId = `bill_tx_${bill.id}`;
+      
+      // Usar o tipo auxiliar para links
+      const baseLinks: PartialTransactionLinks = {};
+      let description = bill.description;
+      
+      const operationType: OperationType = bill.sourceType === 'loan_installment' ? 'pagamento_emprestimo' : 'despesa';
+      const domain = bill.sourceType === 'loan_installment' ? 'financing' : 'operational';
+      
+      if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
+        const loanId = parseInt(bill.sourceRef);
+        const scheduleItem = calculateLoanAmortizationAndInterest(loanId, bill.parcelaNumber);
+        
+        if (scheduleItem) {
+            // Link to loan and parcela
+            baseLinks.loanId = `loan_${loanId}`;
+            baseLinks.parcelaId = String(bill.parcelaNumber);
+            
+            // Update description to reflect payment details
+            const loan = emprestimos.find(e => e.id === loanId);
+            description = `Pagamento Empréstimo ${loan?.contrato || 'N/A'} - P${bill.parcelaNumber}/${loan?.meses || 'N/A'}`;
+            
+            // ** AÇÃO CRÍTICA: Atualizar Entidade V2 (Empréstimo) **
+            markLoanParcelPaid(loanId, bill.expectedAmount, format(new Date(), 'yyyy-MM-dd'), bill.parcelaNumber);
+        }
+      }
+      
+      if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
+        // Link to vehicle transaction (Seguro ID_Parcela Num)
+        baseLinks.vehicleTransactionId = `${bill.sourceRef}_${bill.parcelaNumber}`;
+        
+        const seguroId = parseInt(bill.sourceRef);
+        const seguro = segurosVeiculo.find(s => s.id === seguroId);
+        description = `Pagamento Seguro ${seguro?.numeroApolice || 'N/A'} - P${bill.parcelaNumber}/${seguro?.numeroParcelas || 'N/A'}`;
+        
+        // ** AÇÃO CRÍTICA: Atualizar Entidade V2 (Seguro) **
         markSeguroParcelPaid(seguroId, bill.parcelaNumber, transactionId);
       }
-    }
-    
-    toast.success(`Conta ${bill.description} marcada como paga!`);
-  };
-  
-  const handleUnmarkPaid = (bill: BillTracker) => {
-    if (!bill.transactionId) return;
-    
-    // 1. Remover a transação
-    setTransacoesV2(prev => prev.filter(t => t.id !== bill.transactionId));
-    
-    // 2. Desmarcar a conta no tracker
-    updateBill(bill.id, {
-      isPaid: false,
-      paymentDate: undefined,
-      transactionId: undefined,
-    });
-    
-    // 3. Reverter status nas entidades (Empréstimo/Seguro)
-    if (bill.sourceType === 'loan_installment' && bill.sourceRef) {
-      const loanId = parseInt(bill.sourceRef);
-      if (!isNaN(loanId)) {
-        unmarkLoanParcelPaid(loanId);
+      
+      const newTransaction = {
+        id: transactionId,
+        date: format(new Date(), 'yyyy-MM-dd'), // Use today's date as payment date
+        accountId: account.id,
+        flow: 'out' as const,
+        operationType: operationType, // FIXED: Use typed variable
+        domain: domain as 'operational' | 'financing', // FIXED: Use typed variable
+        amount: bill.expectedAmount,
+        categoryId: category.id,
+        description: description,
+        links: {
+          investmentId: baseLinks.investmentId || null,
+          transferGroupId: baseLinks.transferGroupId || null,
+          vehicleTransactionId: baseLinks.vehicleTransactionId || null,
+          loanId: baseLinks.loanId || null,
+          parcelaId: baseLinks.parcelaId || null,
+        },
+        conciliated: false,
+        attachments: [],
+        meta: {
+          createdBy: 'bill_tracker',
+          source: 'bill_tracker' as const,
+          createdAt: new Date().toISOString(),
+          notes: `Gerado pelo Contas a Pagar. Bill ID: ${bill.id}`,
+        }
+      };
+      
+      addTransacaoV2(newTransaction);
+      
+      // Update Bill Tracker
+      updateBill(bill.id, { 
+        isPaid: true, 
+        transactionId, 
+        paymentDate: format(new Date(), 'yyyy-MM-dd') 
+      });
+      
+      toast.success(`Conta "${bill.description}" paga e transação criada!`);
+      
+    } else {
+      // Unmark as paid and delete transaction
+      if (bill.transactionId) {
+        
+        // ** AÇÃO CRÍTICA: Reverter Entidade V2 (Seguro/Empréstimo) **
+        if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
+            const loanId = parseInt(bill.sourceRef);
+            // Nota: unmarkLoanParcelPaid não precisa de parcelaNumber, mas é bom ter
+            unmarkLoanParcelPaid(loanId); 
+        }
+        
+        if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
+            const seguroId = parseInt(bill.sourceRef);
+            unmarkSeguroParcelPaid(seguroId, bill.parcelaNumber);
+        }
+        
+        // Remove transaction ID from bill tracker
+        setBillsTracker(prev => prev.map(b => {
+            if (b.id === bill.id) {
+                return { ...b, isPaid: false, transactionId: undefined, paymentDate: undefined };
+            }
+            return b;
+        }));
+        
+        // Nota: A transação real deve ser excluída manualmente pelo usuário na tela de transações.
+        toast.warning("Conta desmarcada como paga. Lembre-se de excluir a transação manualmente se necessário.");
+        
+      } else {
+        updateBill(bill.id, { isPaid: false, paymentDate: undefined });
       }
     }
-    if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
-      const seguroId = parseInt(bill.sourceRef);
-      if (!isNaN(seguroId)) {
-        unmarkSeguroParcelPaid(seguroId, bill.parcelaNumber);
-      }
-    }
-    
-    toast.info(`Pagamento de ${bill.description} estornado.`);
-  };
+  }, [updateBill, addTransacaoV2, contasMovimento, categoriasV2, emprestimos, segurosVeiculo, calculateLoanAmortizationAndInterest, setBillsTracker, markSeguroParcelPaid, markLoanParcelPaid, unmarkSeguroParcelPaid, unmarkLoanParcelPaid]);
   
-  const totalExpected = localBills.reduce((acc, b) => acc + b.expectedAmount, 0);
-  const totalPaid = localBills.filter(b => b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0);
-  const totalPending = totalExpected - totalPaid;
+  const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
+    const { sourceType, sourceRef, parcelaNumber, dueDate, expectedAmount, description, isPaid } = potentialBill;
+    
+    // 1. Se for para incluir (marcar)
+    if (isChecked) {
+        // Lógica de adiantamento: Se for uma conta futura E não estiver paga
+        const isFutureBill = parseDateLocal(dueDate) > endOfMonth(currentDate);
+        
+        const newBill: BillTracker = {
+            id: generateBillId(),
+            description,
+            dueDate, // Mantém a data de vencimento original
+            expectedAmount,
+            sourceType,
+            sourceRef,
+            parcelaNumber,
+            suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
+            suggestedCategoryId: categoriasV2.find(c => 
+                (sourceType === 'loan_installment' && c.label.toLowerCase().includes('emprestimo')) ||
+                (sourceType === 'insurance_installment' && c.label.toLowerCase().includes('seguro'))
+            )?.id || null,
+            isExcluded: false,
+            
+            // *** LÓGICA DE ADIANTAMENTO APLICADA AQUI ***
+            isPaid: isFutureBill && !isPaid,
+            paymentDate: isFutureBill && !isPaid ? format(new Date(), 'yyyy-MM-dd') : undefined,
+            transactionId: isFutureBill && !isPaid ? `bill_tx_temp_${generateBillId()}` : undefined, // ID temporário para rastreamento
+        };
+        
+        // Se for adiantamento, criamos a transação imediatamente
+        if (newBill.isPaid && newBill.transactionId) {
+            // Se for adiantamento, criamos a transação real imediatamente
+            const account = contasMovimento.find(c => c.id === newBill.suggestedAccountId);
+            const category = categoriasV2.find(c => c.id === newBill.suggestedCategoryId);
+            
+            if (!account || !category) {
+                toast.error("Erro ao adiantar: Conta ou Categoria sugerida não encontrada.");
+                return;
+            }
+            
+            const transactionId = newBill.transactionId;
+            const baseLinks: PartialTransactionLinks = {};
+            let txDescription = newBill.description;
+            
+            const operationType: OperationType = newBill.sourceType === 'loan_installment' ? 'pagamento_emprestimo' : 'despesa';
+            const domain = newBill.sourceType === 'loan_installment' ? 'financing' : 'operational';
+            
+            // Lógica de vinculação e atualização de entidades V2 (Empréstimo/Seguro)
+            if (newBill.sourceType === 'loan_installment' && newBill.sourceRef && newBill.parcelaNumber) {
+                const loanId = parseInt(newBill.sourceRef);
+                baseLinks.loanId = `loan_${loanId}`;
+                baseLinks.parcelaId = String(newBill.parcelaNumber);
+                markLoanParcelPaid(loanId, newBill.expectedAmount, newBill.paymentDate!, newBill.parcelaNumber);
+            }
+            
+            if (newBill.sourceType === 'insurance_installment' && newBill.sourceRef && newBill.parcelaNumber) {
+                baseLinks.vehicleTransactionId = `${newBill.sourceRef}_${newBill.parcelaNumber}`;
+                const seguroId = parseInt(newBill.sourceRef);
+                markSeguroParcelPaid(seguroId, newBill.parcelaNumber, transactionId);
+            }
+            
+            const newTransaction = {
+                id: transactionId,
+                date: newBill.paymentDate!,
+                accountId: account.id,
+                flow: 'out' as const,
+                operationType: operationType,
+                domain: domain as 'operational' | 'financing',
+                amount: newBill.expectedAmount,
+                categoryId: category.id,
+                description: txDescription,
+                links: {
+                    investmentId: baseLinks.investmentId || null,
+                    transferGroupId: baseLinks.transferGroupId || null,
+                    vehicleTransactionId: baseLinks.vehicleTransactionId || null,
+                    loanId: baseLinks.loanId || null,
+                    parcelaId: baseLinks.parcelaId || null,
+                },
+                conciliated: false,
+                attachments: [],
+                meta: {
+                    createdBy: 'bill_tracker',
+                    source: 'bill_tracker' as const,
+                    createdAt: new Date().toISOString(),
+                    notes: `Adiantamento gerado pelo Contas a Pagar. Bill ID: ${newBill.id}`,
+                }
+            };
+            
+            addTransacaoV2(newTransaction);
+            setBillsTracker(prev => [...prev, newBill]);
+            toast.success(`Adiantamento de parcela futura registrado e pago hoje!`);
+            
+        } else {
+            // Se for uma conta do mês atual ou já paga (apenas marcando a inclusão)
+            setBillsTracker(prev => [...prev, newBill]);
+            toast.success("Conta fixa incluída na lista do mês.");
+        }
+        
+    } else {
+        // 2. Se for para excluir (desmarcar)
+        const billToRemove = billsTracker.find(b => 
+            b.sourceType === sourceType && 
+            b.sourceRef === sourceRef && 
+            b.parcelaNumber === parcelaNumber
+        );
+        
+        if (billToRemove) {
+            if (billToRemove.isPaid) {
+                // Se a conta foi paga (adiantada ou não), precisamos reverter o pagamento
+                if (billToRemove.transactionId) {
+                    // Reverter Entidade V2 (Empréstimo/Seguro)
+                    if (billToRemove.sourceType === 'loan_installment' && billToRemove.sourceRef && billToRemove.parcelaNumber) {
+                        unmarkLoanParcelPaid(parseInt(billToRemove.sourceRef)); 
+                    }
+                    if (billToRemove.sourceType === 'insurance_installment' && billToRemove.sourceRef && billToRemove.parcelaNumber) {
+                        unmarkSeguroParcelPaid(parseInt(billToRemove.sourceRef), billToRemove.parcelaNumber);
+                    }
+                    
+                    // Remover a transação gerada pelo Bill Tracker
+                    setTransacoesV2(prev => prev.filter(t => t.id !== billToRemove.transactionId));
+                    
+                    // Remove a conta do Bills Tracker
+                    setBillsTracker(prev => prev.filter(b => b.id !== billToRemove.id));
+                    toast.info("Adiantamento estornado e parcela removida.");
+                    return;
+                }
+                
+                toast.error("Não é possível remover contas fixas já pagas sem Transaction ID.");
+                return;
+            }
+            
+            // Remove completamente se for uma conta futura (que não deveria estar no billsTracker)
+            // Ou marca como excluída se for uma conta do mês atual (para não aparecer na lista)
+            const isFutureBill = parseDateLocal(dueDate) > endOfMonth(currentDate);
+            
+            if (isFutureBill) {
+                setBillsTracker(prev => prev.filter(b => b.id !== billToRemove.id));
+                toast.info("Parcela futura removida da lista.");
+            } else {
+                updateBill(billToRemove.id, { isExcluded: true });
+                toast.info("Conta fixa excluída da lista deste mês.");
+            }
+        }
+    }
+  }, [setBillsTracker, contasMovimento, categoriasV2, billsTracker, updateBill, currentDate, addTransacaoV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarCheck className="w-5 h-5 text-primary" />
-            Contas a Pagar & Fluxo de Caixa
-          </DialogTitle>
-          <DialogDescription>
-            Gerencie contas fixas e acompanhe o fluxo de caixa real do mês.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50 border border-border/50 shrink-0">
-          <Button variant="ghost" size="icon" onClick={() => handleMonthChange('prev')}>
-            <ArrowRight className="w-4 h-4 rotate-180" />
-          </Button>
-          <h4 className="font-semibold text-lg">
-            {format(referenceDate, 'MMMM yyyy')}
-          </h4>
-          <Button variant="ghost" size="icon" onClick={() => handleMonthChange('next')}>
-            <ArrowRight className="w-4 h-4" />
-          </Button>
-        </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="bg-muted/50 shrink-0">
-            <TabsTrigger value="contas">Contas a Pagar ({localBills.length})</TabsTrigger>
-            <TabsTrigger value="potenciais">Vínculos Potenciais ({potentialBills.length})</TabsTrigger>
-            <TabsTrigger value="fluxo">Fluxo de Caixa Real ({monthlyTransactions.length})</TabsTrigger>
-          </TabsList>
-
-          {/* Tab 1: Contas a Pagar */}
-          <TabsContent value="contas" className="flex-1 overflow-hidden pt-4">
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-                <p className="text-xs text-muted-foreground">Total Previsto</p>
-                <p className="text-lg font-bold text-primary">{formatCurrency(totalExpected)}</p>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <ResizableDialogContent 
+          storageKey="bills_tracker_modal"
+          initialWidth={1200}
+          initialHeight={800}
+          minWidth={800}
+          minHeight={600}
+          hideCloseButton={true}
+          className="bg-card border-border overflow-hidden flex flex-col p-0"
+        >
+          <DialogHeader className="p-6 pb-0 shrink-0">
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CalendarCheck className="w-6 h-6 text-primary" />
+                Contas a Pagar
               </div>
-              <div className="p-3 rounded-lg bg-success/10 border border-success/20">
-                <p className="text-xs text-muted-foreground">Total Pago</p>
-                <p className="text-lg font-bold text-success">{formatCurrency(totalPaid)}</p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleMonthChange('prev')}>
+                  Anterior
+                </Button>
+                <h4 className="font-semibold text-lg w-40 text-center">
+                  {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+                </h4>
+                <Button variant="outline" size="sm" onClick={() => handleMonthChange('next')}>
+                  Próximo
+                </Button>
               </div>
-              <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
-                <p className="text-xs text-muted-foreground">Total Pendente</p>
-                <p className="text-lg font-bold text-warning">{formatCurrency(totalPending)}</p>
-              </div>
+              <Button variant="ghost" onClick={() => onOpenChange(false)}>
+                <X className="w-5 h-5" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          
+          {/* NOVO LAYOUT: Sidebar + Main Content */}
+          <div className="flex flex-1 overflow-hidden p-6 pt-4 gap-6">
+            
+            {/* Sidebar KPIs (25% width) */}
+            <div className="w-1/4 shrink-0 overflow-y-auto">
+                <BillsSidebarKPIs 
+                    currentDate={currentDate}
+                    totalPendingBills={totalPendingBills}
+                />
             </div>
             
-            <ScrollArea className="h-[45vh] border rounded-lg">
-              <Table>
-                <TableHeader className="sticky top-0 bg-card z-10">
-                  <TableRow>
-                    <TableHead className="w-[100px]">Vencimento</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead className="w-[120px] text-right">Valor</TableHead>
-                    <TableHead className="w-[120px]">Conta Débito</TableHead>
-                    <TableHead className="w-[100px] text-center">Status</TableHead>
-                    <TableHead className="w-[100px]">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {localBills.map((bill) => {
-                    const isOverdue = isPast(parseDateLocal(bill.dueDate)) && !bill.isPaid;
-                    const account = contasCorrentes.find(c => c.id === bill.suggestedAccountId);
-                    
-                    return (
-                      <TableRow key={bill.id} className={cn(
-                        bill.isPaid && "bg-success/5 hover:bg-success/10",
-                        isOverdue && "bg-destructive/5 hover:bg-destructive/10"
-                      )}>
-                        <TableCell className={cn("text-sm font-medium", isOverdue && "text-destructive")}>
-                          {parseDateLocal(bill.dueDate).toLocaleDateString("pt-BR")}
-                        </TableCell>
-                        <TableCell className="text-sm max-w-[200px] truncate">{bill.description}</TableCell>
-                        <TableCell className="text-right font-medium text-destructive">
-                          {formatCurrency(bill.expectedAmount)}
-                        </TableCell>
-                        <TableCell>
-                          <Select 
-                            value={bill.suggestedAccountId || ''} 
-                            onValueChange={(v) => updateBill(bill.id, { suggestedAccountId: v })}
-                            disabled={bill.isPaid}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Conta..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {contasCorrentes.map(a => (
-                                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge 
-                            variant="outline" 
-                            className={cn(
-                              "text-xs",
-                              bill.isPaid ? "border-success text-success" : "border-warning text-warning"
-                            )}
-                          >
-                            {bill.isPaid ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                            {bill.isPaid ? 'Paga' : 'Pendente'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {bill.isPaid ? (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-muted-foreground"
-                              onClick={() => handleUnmarkPaid(bill)}
-                              title="Estornar Pagamento"
-                            >
-                              <RefreshCw className="w-4 h-4" />
-                            </Button>
-                          ) : (
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="h-8 px-2 gap-1"
-                              onClick={() => handleMarkPaid(bill)}
-                              disabled={!bill.suggestedAccountId}
-                            >
-                              Pagar
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {localBills.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        Nenhuma conta fixa neste mês.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </TabsContent>
-
-          {/* Tab 2: Vínculos Potenciais */}
-          <TabsContent value="potenciais" className="flex-1 overflow-hidden pt-4">
-            <p className="text-sm text-muted-foreground mb-3">
-              Contas geradas automaticamente a partir de empréstimos e seguros. Inclua-as na sua lista de contas a pagar.
-            </p>
-            <ScrollArea className="h-[45vh] border rounded-lg">
-              <Table>
-                <TableHeader className="sticky top-0 bg-card z-10">
-                  <TableRow>
-                    <TableHead className="w-[100px]">Vencimento</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead className="w-[120px] text-right">Valor</TableHead>
-                    <TableHead className="w-[100px]">Fonte</TableHead>
-                    <TableHead className="w-[100px] text-center">Status</TableHead>
-                    <TableHead className="w-[100px]">Ação</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {potentialBills.map((bill) => {
-                    const isOverdue = isPast(parseDateLocal(bill.dueDate)) && !bill.isPaid;
-                    
-                    return (
-                      <TableRow key={bill.key} className={cn(
-                        bill.isPaid && "bg-success/5",
-                        isOverdue && "bg-destructive/5"
-                      )}>
-                        <TableCell className="text-sm font-medium">
-                          {parseDateLocal(bill.dueDate).toLocaleDateString("pt-BR")}
-                        </TableCell>
-                        <TableCell className="text-sm max-w-[200px] truncate">{bill.description}</TableCell>
-                        <TableCell className="text-right font-medium text-destructive">
-                          {formatCurrency(bill.expectedAmount)}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <Badge variant="outline">
-                            {bill.sourceType === 'loan_installment' ? 'Empréstimo' : 'Seguro'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge 
-                            variant="outline" 
-                            className={cn(
-                              "text-xs",
-                              bill.isPaid ? "border-success text-success" : "border-warning text-warning"
-                            )}
-                          >
-                            {bill.isPaid ? 'Paga' : 'Pendente'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button 
-                            variant={bill.isIncluded ? "destructive" : "default"} 
-                            size="sm" 
-                            className="h-8 px-2 gap-1 text-xs"
-                            onClick={() => handleToggleInclusion(bill)}
-                            disabled={bill.isPaid}
-                          >
-                            {bill.isIncluded ? 'Excluir' : 'Incluir'}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {potentialBills.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        Nenhuma conta potencial neste mês.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </TabsContent>
-          
-          {/* Tab 3: Fluxo de Caixa Real (NOVO) */}
-          <TabsContent value="fluxo" className="flex-1 overflow-hidden pt-4">
-            <MonthlyTransactionSummary 
-              transactions={monthlyTransactions} 
-              referenceDate={referenceDate} 
-            />
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+            {/* Main Content (75% width) */}
+            <div className="flex-1 flex flex-col min-w-0 space-y-4">
+                
+                {/* Botões de Gerenciamento Fixo */}
+                <div className="flex gap-3 shrink-0">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => { setFixedBillSelectorMode('current'); setShowFixedBillSelector(true); }}
+                        className="gap-2"
+                    >
+                        <Repeat className="w-4 h-4" /> Gerenciar Parcelas do Mês
+                    </Button>
+                    <Button 
+                        variant="outline" 
+                        onClick={() => { setFixedBillSelectorMode('future'); setShowFixedBillSelector(true); }}
+                        className="gap-2"
+                    >
+                        <Settings className="w-4 h-4" /> Próximos Vencimentos
+                    </Button>
+                </div>
+                
+                {/* Lista de Contas */}
+                <div className="flex-1 min-h-0">
+                    <BillsTrackerList
+                        bills={currentMonthBills}
+                        onUpdateBill={handleUpdateBill}
+                        onDeleteBill={handleDeleteBill}
+                        onAddBill={handleAddBill}
+                        onTogglePaid={handleTogglePaid}
+                        currentDate={currentDate}
+                    />
+                </div>
+            </div>
+          </div>
+        </ResizableDialogContent>
+      </Dialog>
+      
+      {/* Fixed Bill Selector Modal */}
+      {showFixedBillSelector && (
+        <FixedBillSelectorModal
+            open={showFixedBillSelector}
+            onOpenChange={setShowFixedBillSelector}
+            mode={fixedBillSelectorMode}
+            currentDate={currentDate}
+            potentialFixedBills={fixedBillSelectorMode === 'current' ? potentialFixedBills : futureFixedBills}
+            onToggleFixedBill={handleToggleFixedBill}
+        />
+      )}
+    </>
   );
 }
