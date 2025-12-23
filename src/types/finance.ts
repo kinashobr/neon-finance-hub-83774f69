@@ -1,6 +1,6 @@
-// ============================================
+
 // SCHEMA v1.1 - Tipos para Receitas & Despesas
-// ============================================
+
 
 // Tipos de Conta Movimento
 export type AccountType = 
@@ -44,7 +44,7 @@ export interface ContaCorrente {
   icon?: string;
   createdAt: string;
   meta: Record<string, unknown>;
-  hidden?: boolean; // NOVO: Para contas de contrapartida
+  hidden?: boolean; 
 }
 
 // Categoria de Transação (atualizada)
