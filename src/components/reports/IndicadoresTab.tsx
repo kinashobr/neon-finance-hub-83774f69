@@ -24,6 +24,7 @@ import {
   Zap,
   Flame,
   Anchor,
+  ShieldCheck,
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { ExpandablePanel } from "./ExpandablePanel";
@@ -807,7 +808,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           icon={<ShieldCheck className="w-4 h-4" />}
         />
         <DetailedIndicatorBadge
-          title="Meses de Sobrevivência"
+          title="Meses de Sobrevivencia"
           value={formatMeses(indicadores1.pessoais.mesesSobrevivencia.valor)}
           status={indicadores1.pessoais.mesesSobrevivencia.status}
           trend={getDisplayTrend('mesesSobrevivencia' as PessoaisKey, 'pessoais').trend}
