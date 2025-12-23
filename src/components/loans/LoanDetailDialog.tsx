@@ -17,14 +17,14 @@ import {
   TrendingDown,
   Calculator,
   StickyNote,
-  Settings,
   Edit,
   Award,
   ArrowRight,
+  X,
+  Target, // Adicionado Target
 } from "lucide-react";
 import { Emprestimo } from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
-import { LoanCard } from "./LoanCard";
 import { LoanConfigForm } from "./LoanConfigForm";
 import { InstallmentsTable } from "./InstallmentsTable";
 import {
@@ -37,6 +37,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend, // Adicionado Legend
 } from "recharts";
 import { cn, parseDateLocal, getDueDate } from "@/lib/utils";
 import { useChartColors } from "@/hooks/useChartColors";
@@ -449,10 +450,4 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
       </ResizableDialogContent>
     </Dialog>
   );
-}
-
-function X({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-  )
 }
