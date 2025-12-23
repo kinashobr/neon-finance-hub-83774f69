@@ -199,44 +199,13 @@ export function DRETab({ dateRanges }: DRETabProps) {
     const despesasVariaveis: { categoria: string; valor: number }[] = [];
     
     // --- 2a. Calculate Accrued Insurance Expense (Accrual Basis) ---
-    let accruedInsuranceExpense = 0;
+    // REMOVIDO: Lógica de apropriação de seguros para DRE, para usar base caixa para seguros
     
-    if (seguroCategory && range.from && range.to) {
-        segurosVeiculo.forEach(seguro => {
-            try {
-                const vigenciaInicio = parseDateLocal(seguro.vigenciaInicio);
-                const vigenciaFim = parseDateLocal(seguro.vigenciaFim);
-                
-                // Apropriação só ocorre se a vigência do seguro se sobrepõe ao período do relatório
-                if (isAfter(vigenciaInicio, range.to) || isBefore(vigenciaFim, range.from)) return;
-
-                const totalMonths = differenceInMonths(vigenciaFim, vigenciaInicio) + 1;
-                if (totalMonths <= 0) return;
-                
-                const monthlyAccrual = seguro.valorTotal / totalMonths;
-                
-                // Determine the intersection of the insurance vigency and the reporting period (range)
-                const accrualStart = vigenciaInicio > range.from! ? vigenciaInicio : range.from!;
-                const accrualEnd = vigenciaFim < range.to! ? vigenciaFim : range.to!;
-                
-                if (accrualStart <= accrualEnd) {
-                    // Calculate months to accrue based on the intersection
-                    const monthsToAccrue = differenceInMonths(accrualEnd, accrualStart) + 1;
-                    accruedInsuranceExpense += monthlyAccrual * monthsToAccrue;
-                }
-            } catch (e) {
-                // Ignore calculation errors
-            }
-        });
-    }
-    
-    // --- 2b. Filter transactions (Exclude cash insurance payments, asset purchases, and initial_balance) ---
+    // --- 2b. Filter transactions (Exclude asset purchases, and initial_balance) ---
     const transacoesDespesaOperacional = transactions.filter(t => 
       t.operationType !== 'initial_balance' && // EXCLUIR SALDO INICIAL
       t.operationType !== 'veiculo' && // EXCLUIR COMPRA/VENDA DE VEÍCULO
-      t.flow === 'out' &&
-      // EXCLUDE cash payments for insurance if they are linked to the 'Seguro' category
-      (t.categoryId !== seguroCategory?.id)
+      t.flow === 'out'
     );
 
     const despesasFixasMap = new Map<string, number>();
@@ -255,11 +224,8 @@ export function DRETab({ dateRanges }: DRETabProps) {
     });
     
     // --- 2c. Inject Accrued Insurance Expense into Fixed Expenses ---
-    if (accruedInsuranceExpense > 0) {
-        const seguroLabel = seguroCategory?.label || 'Despesas com Seguros (Apropriação)';
-        despesasFixasMap.set(seguroLabel, (despesasFixasMap.get(seguroLabel) || 0) + accruedInsuranceExpense);
-    }
-
+    // REMOVIDO: Injeção de apropriação de seguros
+    
     despesasFixasMap.forEach((valor, categoria) => {
       despesasFixas.push({ categoria, valor });
     });
