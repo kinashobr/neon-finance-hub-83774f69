@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tags, TrendingUp, TrendingDown, Repeat } from "lucide-react";
 import { Categoria, CategoryNature, CATEGORY_NATURE_LABELS, generateCategoryId, getCategoryTypeFromNature } from "@/types/finance";
 import { toast } from "sonner";
@@ -17,13 +18,28 @@ interface CategoryFormModalProps {
   hasTransactions?: boolean;
 }
 
-const EMOJI_OPTIONS = [
-"📦","🍽️","🏠","💊","🎮","💰","💻","📈","🛡️","✈️",
-"👕","📚","🎁","💡","💳","🏦","🧾","🦷","🩺","🍕",
-"🚗","🎥","🛒","⛽","🏍️","🧹","🛏️","🔌","💼","🧑‍💻",
-"🎬","🎧","🎨","🧠","🧳","💎","🐶","🐱","🍼","📱",
-"🎓","✂️","👚","🤖","🎵","🎯","🛠️","📝","☕","🙏",
-"💸","👥","⚖️"];
+// Organize os emojis por natureza/categoria
+const EMOJI_BY_CATEGORY = {
+  receita: [
+    "💰", "💳", "🏦", "📈", "💼", "🧑‍💻", "🎯", "🛠️", "📝"
+  ],
+  despesa_fixa: [
+    "🏠", "💊", "🛏️", "🔌", "📱", "🚗", "🦷", "🩺", "🧠",
+    "🧾", "🐶", "🐱", "🍼", "🎓", "⚖️", "🛡️", "👚", "🧳"
+  ],
+  despesa_variavel: [
+    "🍽️", "🍕", "☕", "🎮", "🎬", "🎧", "🎨", "🎥", "✈️",
+    "🏍️", "⛽", "🛒", "👕", "📚", "🎁", "💡", "🧹", "🔧",
+    "📦", "💎", "✂️", "🎵", "🙏", "💸", "👥"
+  ]
+};
+
+// Todos os emojis em uma lista única (para manter compatibilidade)
+const ALL_EMOJIS = [
+  ...EMOJI_BY_CATEGORY.receita,
+  ...EMOJI_BY_CATEGORY.despesa_fixa,
+  ...EMOJI_BY_CATEGORY.despesa_variavel
+];
 
 export function CategoryFormModal({
   open,
@@ -36,6 +52,7 @@ export function CategoryFormModal({
   const [label, setLabel] = useState("");
   const [icon, setIcon] = useState("📦");
   const [nature, setNature] = useState<CategoryNature>("despesa_variavel");
+  const [activeTab, setActiveTab] = useState("sugeridos");
 
   const isEditing = !!category;
 
@@ -44,12 +61,23 @@ export function CategoryFormModal({
       setLabel(category.label);
       setIcon(category.icon || "📦");
       setNature(category.nature || "despesa_variavel");
+      setActiveTab("sugeridos");
     } else if (open) {
       setLabel("");
       setIcon("📦");
       setNature("despesa_variavel");
+      setActiveTab("sugeridos");
     }
   }, [open, category]);
+
+  // Atualizar tab quando mudar a natureza
+  useEffect(() => {
+    setActiveTab("sugeridos");
+  }, [nature]);
+
+  const getSuggestedEmojis = () => {
+    return EMOJI_BY_CATEGORY[nature] || [];
+  };
 
   const handleSubmit = () => {
     if (!label.trim()) {
@@ -85,6 +113,25 @@ export function CategoryFormModal({
     }
   };
 
+  const renderEmojiGrid = (emojis: string[]) => (
+    <div className="flex flex-wrap gap-2 p-2">
+      {emojis.map((emoji) => (
+        <button
+          key={emoji}
+          type="button"
+          onClick={() => setIcon(emoji)}
+          className={`w-10 h-10 flex items-center justify-center text-xl rounded-lg transition-all ${
+            icon === emoji 
+              ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2" 
+              : "hover:bg-muted"
+          }`}
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -109,26 +156,6 @@ export function CategoryFormModal({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Ícone</Label>
-            <div className="flex flex-wrap gap-2 p-2 border rounded-md">
-              {EMOJI_OPTIONS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => setIcon(emoji)}
-                  className={`w-8 h-8 flex items-center justify-center text-lg rounded-md transition-all ${
-                    icon === emoji 
-                      ? "bg-primary text-primary-foreground ring-2 ring-primary" 
-                      : "hover:bg-muted"
-                  }`}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
           </div>
 
           <div className="space-y-3">
@@ -167,6 +194,43 @@ export function CategoryFormModal({
                 </Label>
               </div>
             </RadioGroup>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Ícone Selecionado</Label>
+            <div className="flex items-center gap-3 p-3 border rounded-lg">
+              <div className="text-3xl">{icon}</div>
+              <div>
+                <p className="font-medium">{label || "Nova Categoria"}</p>
+                <p className="text-sm text-muted-foreground">
+                  {CATEGORY_NATURE_LABELS[nature]}
+                </p>
+              </div>
+            </div>
+
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid grid-cols-2">
+                <TabsTrigger value="sugeridos">
+                  Sugeridos
+                </TabsTrigger>
+                <TabsTrigger value="todos">
+                  Todos
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="sugeridos" className="mt-2">
+                <div className="border rounded-lg">
+                  {renderEmojiGrid(getSuggestedEmojis())}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Ícones mais relevantes para {CATEGORY_NATURE_LABELS[nature].toLowerCase()}
+                </p>
+              </TabsContent>
+              <TabsContent value="todos" className="mt-2">
+                <div className="border rounded-lg max-h-60 overflow-y-auto">
+                  {renderEmojiGrid(ALL_EMOJIS)}
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
 
