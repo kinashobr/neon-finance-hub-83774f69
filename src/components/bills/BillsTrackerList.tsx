@@ -13,13 +13,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown, CheckCircle2, ShoppingCart } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, BillSourceType, formatCurrency, CATEGORY_NATURE_LABELS, BillDisplayItem, ExternalPaidBill } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { EditableCell } from "../EditableCell";
+import { AddPurchaseInstallmentDialog } from "./AddPurchaseInstallmentDialog";
 
 interface BillsTrackerListProps {
   bills: BillDisplayItem[]; // <-- ALTERADO PARA BillDisplayItem[]
@@ -36,6 +37,7 @@ const SOURCE_CONFIG: Record<BillSourceType | 'external_expense', { icon: React.E
   fixed_expense: { icon: Repeat, color: 'text-purple-500', label: 'Fixa' },
   variable_expense: { icon: DollarSign, color: 'text-warning', label: 'Variável' },
   ad_hoc: { icon: Info, color: 'text-primary', label: 'Avulsa' },
+  purchase_installment: { icon: ShoppingCart, color: 'text-pink-500', label: 'Parcela' }, // NOVO
   external_expense: { icon: CheckCircle2, color: 'text-success', label: 'Extrato' }, // NOVO
 };
 
@@ -79,7 +81,7 @@ export function BillsTrackerList({
   onTogglePaid,
   currentDate,
 }: BillsTrackerListProps) {
-  const { categoriasV2, contasMovimento } = useFinance();
+  const { categoriasV2, contasMovimento, setBillsTracker } = useFinance();
   
   const [newBillData, setNewBillData] = useState({
     description: '',
@@ -87,7 +89,7 @@ export function BillsTrackerList({
     dueDate: format(currentDate, 'yyyy-MM-dd'),
   });
   
-  // REMOVED: adHocType state
+  const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
 
   // --- Column Resizing State and Logic ---
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(() => {
@@ -202,6 +204,11 @@ export function BillsTrackerList({
     onUpdateBill(bill.id, { isExcluded: true });
     toast.info(`Conta "${bill.description}" excluída da lista deste mês.`);
   };
+
+  const handleDeletePurchaseGroup = (sourceRef: string) => {
+    setBillsTracker(prev => prev.filter(b => b.sourceRef !== sourceRef || b.isPaid));
+    toast.success("Parcelas futuras da compra removidas!");
+  };
   
   const handleUpdateExpectedAmount = (bill: BillTracker, newAmount: number) => {
     if (bill.sourceType === 'loan_installment' || bill.sourceType === 'insurance_installment') {
@@ -219,13 +226,13 @@ export function BillsTrackerList({
   };
   
   const handleUpdateSuggestedCategory = (bill: BillTracker, newCategoryId: string) => {
-    // Apenas permite alteração se for uma conta avulsa ou fixa genérica
-    if (bill.sourceType === 'ad_hoc' || bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense') {
+    // Apenas permite alteração se for uma conta avulsa ou fixa genérica ou compra parcelada
+    if (bill.sourceType === 'ad_hoc' || bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense' || bill.sourceType === 'purchase_installment') {
         
         const selectedCategory = categoriasV2.find(c => c.id === newCategoryId);
         let newSourceType: BillSourceType = bill.sourceType;
         
-        if (selectedCategory) {
+        if (selectedCategory && bill.sourceType !== 'purchase_installment') {
             if (selectedCategory.nature === 'despesa_fixa') {
                 newSourceType = 'fixed_expense';
             } else if (selectedCategory.nature === 'despesa_variavel') {
@@ -234,7 +241,7 @@ export function BillsTrackerList({
         }
         
         onUpdateBill(bill.id, { suggestedCategoryId: newCategoryId, sourceType: newSourceType });
-        toast.success("Categoria e tipo atualizados!");
+        toast.success("Categoria atualizada!");
     } else {
         toast.error("A categoria para parcelas fixas é definida automaticamente.");
     }
@@ -304,7 +311,7 @@ export function BillsTrackerList({
     <div className="space-y-4 h-full flex flex-col">
       {/* Adição Rápida (Ad-Hoc) - SEMPRE VISÍVEL E MINIMALISTA */}
       <div className="glass-card p-3 shrink-0">
-        <div className="grid grid-cols-[1fr_100px_100px_40px] gap-2 items-end">
+        <div className="grid grid-cols-[1fr_100px_100px_100px_40px] gap-2 items-end">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Descrição</Label>
             <Input
@@ -334,6 +341,18 @@ export function BillsTrackerList({
               className="h-7 text-xs"
             />
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground invisible">Ação</Label>
+            <Button 
+                variant="outline"
+                onClick={() => setIsPurchaseDialogOpen(true)}
+                className="h-7 w-full text-[10px] gap-1 px-1 border-pink-500/50 text-pink-500 hover:bg-pink-500/10"
+                title="Nova compra parcelada"
+            >
+                <ShoppingCart className="w-3 h-3" />
+                Parcelado
+            </Button>
+          </div>
           <Button 
             onClick={handleAddAdHocBill} 
             className="h-7 w-full text-xs p-0"
@@ -343,8 +362,6 @@ export function BillsTrackerList({
             <Plus className="w-4 h-4" />
           </Button>
         </div>
-        
-        {/* REMOVED: Seleção de Tipo para Ad-Hoc */}
       </div>
 
       {/* Tabela de Contas (Consolidada) */}
@@ -391,14 +408,14 @@ export function BillsTrackerList({
                 const isOverdue = dueDate < currentDate && !bill.isPaid;
                 const isPaid = bill.isPaid;
                 
-                // Apenas contas ad-hoc, fixed_expense ou variable_expense podem ter valor alterado
+                // Apenas contas ad-hoc, fixed_expense, variable_expense ou purchase_installment podem ter valor alterado
                 const isAmountEditable = isBillTracker(bill) && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
                 
                 // A data de vencimento pode ser alterada se não estiver paga (para qualquer tipo de conta)
                 const isDateEditable = isBillTracker(bill) && !isPaid;
                 
                 // A categoria é editável apenas para contas avulsas/fixas genéricas e se não estiver paga
-                const isCategoryEditable = isBillTracker(bill) && (bill.sourceType === 'ad_hoc' || bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense') && !isPaid;
+                const isCategoryEditable = isBillTracker(bill) && (bill.sourceType === 'ad_hoc' || bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense' || bill.sourceType === 'purchase_installment') && !isPaid;
                 
                 const currentCategory = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
                 
@@ -549,15 +566,28 @@ export function BillsTrackerList({
                         </Button>
                       ) : (
                         isAmountEditable && !isPaid && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleExcludeBill(bill as BillTracker)}
-                            title="Excluir da lista deste mês"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                onClick={() => handleExcludeBill(bill as BillTracker)}
+                                title="Excluir apenas esta parcela"
+                            >
+                                <X className="w-4 h-4" />
+                            </Button>
+                            {bill.sourceType === 'purchase_installment' && bill.sourceRef && (
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                    onClick={() => handleDeletePurchaseGroup(bill.sourceRef!)}
+                                    title="Remover TODAS as parcelas futuras desta compra"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
+                            )}
+                          </div>
                         )
                       )}
                       {isPaid && !isExternalPaid && (
@@ -586,6 +616,12 @@ export function BillsTrackerList({
           </Table>
         </div>
       </div>
+
+      <AddPurchaseInstallmentDialog 
+        open={isPurchaseDialogOpen}
+        onOpenChange={setIsPurchaseDialogOpen}
+        currentDate={currentDate}
+      />
     </div>
   );
 }

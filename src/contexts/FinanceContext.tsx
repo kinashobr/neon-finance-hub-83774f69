@@ -305,6 +305,14 @@ interface FinanceContextType {
   setBillsTracker: Dispatch<SetStateAction<BillTracker[]>>;
   updateBill: (id: string, updates: Partial<BillTracker>) => void;
   deleteBill: (id: string) => void;
+  addPurchaseInstallments: (data: {
+    description: string;
+    totalAmount: number;
+    installments: number;
+    firstDueDate: string;
+    suggestedAccountId?: string;
+    suggestedCategoryId?: string;
+  }) => void; // NOVO
   getBillsForMonth: (date: Date) => BillTracker[]; // RENOMEADO
   getPotentialFixedBillsForMonth: (date: Date, localBills: BillTracker[]) => PotentialFixedBill[]; // NEW
   getFutureFixedBills: (referenceDate: Date, localBills: BillTracker[]) => PotentialFixedBill[]; // MODIFICADO
@@ -1052,6 +1060,41 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setBillsTracker(prev => prev.filter(b => b.id !== id));
   }, []);
   
+  // NOVO: Adiciona parcelas de uma compra
+  const addPurchaseInstallments = useCallback((data: {
+    description: string;
+    totalAmount: number;
+    installments: number;
+    firstDueDate: string;
+    suggestedAccountId?: string;
+    suggestedCategoryId?: string;
+  }) => {
+    const { description, totalAmount, installments, firstDueDate, suggestedAccountId, suggestedCategoryId } = data;
+    const installmentAmount = Math.round((totalAmount / installments) * 100) / 100;
+    const purchaseGroupId = `purchase_${Date.now()}`;
+    const newBills: BillTracker[] = [];
+
+    for (let i = 1; i <= installments; i++) {
+        const dueDate = getDueDate(firstDueDate, i);
+        newBills.push({
+            id: generateBillId(),
+            type: 'tracker',
+            description: `${description} (${i}/${installments})`,
+            dueDate: format(dueDate, 'yyyy-MM-dd'),
+            expectedAmount: i === installments ? totalAmount - (installmentAmount * (installments - 1)) : installmentAmount,
+            isPaid: false,
+            sourceType: 'purchase_installment',
+            sourceRef: purchaseGroupId,
+            parcelaNumber: i,
+            totalInstallments: installments,
+            suggestedAccountId,
+            suggestedCategoryId,
+        });
+    }
+
+    setBillsTracker(prev => [...prev, ...newBills]);
+  }, [setBillsTracker]);
+
   const getRevenueForPreviousMonth = useCallback((date: Date): number => {
     const prevMonth = subMonths(date, 1);
     const prevMonthYear = format(prevMonth, 'yyyy-MM');
@@ -1696,6 +1739,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setBillsTracker,
     updateBill,
     deleteBill,
+    addPurchaseInstallments, // NOVO
     getBillsForMonth, // RENOMEADO
     getPotentialFixedBillsForMonth, // NEW
     getFutureFixedBills, // NEW

@@ -175,7 +175,7 @@ export interface Veiculo {
   vencimentoSeguro: string;
   parcelaSeguro: number;
   valorFipe: number;
-  compraTransactionId?: string; // Link to purchase transaction
+  compraTransactionId?: string; // Link to purchase purchase
   vendaTransactionId?: string; // Link to sale transaction
   status?: 'ativo' | 'pendente_cadastro' | 'vendido';
 }
@@ -215,7 +215,13 @@ export interface ObjetivoFinanceiro {
 // NOVO: RASTREADOR DE CONTAS A PAGAR (BillTracker)
 // ============================================
 
-export type BillSourceType = 'loan_installment' | 'insurance_installment' | 'fixed_expense' | 'ad_hoc' | 'variable_expense'; // ADDED variable_expense
+export type BillSourceType = 
+  | 'loan_installment' 
+  | 'insurance_installment' 
+  | 'fixed_expense' 
+  | 'ad_hoc' 
+  | 'variable_expense' 
+  | 'purchase_installment'; // NOVO: Compra Parcelada
 
 export interface BillTracker {
   id: string;
@@ -229,8 +235,9 @@ export interface BillTracker {
   
   // Vínculos
   sourceType: BillSourceType;
-  sourceRef?: string; // ID do Empréstimo, Seguro, ou Categoria
+  sourceRef?: string; // ID do Empréstimo, Seguro, Categoria ou Grupo de Compra
   parcelaNumber?: number; // Número da parcela (se for installment)
+  totalInstallments?: number; // Total de parcelas (para compra parcelada)
   
   // Conta de débito sugerida
   suggestedAccountId?: string;
