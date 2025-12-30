@@ -374,7 +374,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
         total: { valor: endividamentoTotal, status: determineStatus(endividamentoTotal, { limiteVerde: 30, limiteAmarelo: 50, invertido: true }) },
         dividaPL: { valor: dividaPL, status: determineStatus(dividaPL, { limiteVerde: 50, limiteAmarelo: 80, invertido: true }) },
         imobilizacao: { valor: imobilizacaoPL, status: determineStatus(imobilizacaoPL, { limiteVerde: 30, limiteAmarelo: 45, invertido: true }) },
-        composicao: { valor: composicaoEndividamento, status: "neutral" as IndicatorStatus },
+        composicao: { valor: composicaoEndividamento, status: determineStatus(composicaoEndividamento, { limiteVerde: 30, limiteAmarelo: 50, invertido: true }) },
       },
       rentabilidade: {
         margemLiquida: { valor: margemLiquida, status: determineStatus(margemLiquida, { limiteVerde: 20, limiteAmarelo: 10, invertido: false }) },
