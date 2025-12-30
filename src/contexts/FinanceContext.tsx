@@ -273,7 +273,7 @@ interface FinanceContextType {
   updateEmprestimo: (id: number, emprestimo: Partial<Emprestimo>) => void;
   deleteEmprestimo: (id: number) => void;
   getPendingLoans: () => Emprestimo[];
-  markLoanParcelPaid: (loanId: number, valorPago: number, dataPagamento: string, parcelaNumero?: number) => void;
+  markLoanParcelPaid: (loanId: number, valorPago: number, dataPagamento: string, parcelaNumber?: number) => void;
   unmarkLoanParcelPaid: (loanId: number) => void;
   calculateLoanSchedule: (loanId: number) => AmortizationItem[];
   calculateLoanAmortizationAndInterest: (loanId: number, parcelaNumber: number) => AmortizationItem | null;
@@ -1147,7 +1147,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             
             const isDueInMonth = isWithinInterval(dueDate, { start: monthStart, end: monthEnd });
             
-            if (isDueInMonth || parcela.paga) {
+            const isPaid = transacoesV2.some(t =>
+                t.operationType === 'despesa' &&
+                t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`
+            );
+
+            if (isDueInMonth || isPaid) {
                 const sourceRef = String(seguro.id);
                 
                 potentialBills.push({
@@ -1158,7 +1163,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     dueDate: parcela.vencimento,
                     expectedAmount: parcela.valor,
                     description: `Seguro ${seguro.numeroApolice} - Parcela ${parcela.numero}/${seguro.numeroParcelas}`,
-                    isPaid: parcela.paga,
+                    isPaid: isPaid, // Use the actual paid status from transactions
                     isIncluded: isBillIncluded('insurance_installment', sourceRef, parcela.numero),
                 });
             }
@@ -1195,7 +1200,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             // Inclui parcelas futuras (vencimento após o final do mês de referência)
             if (isAfter(dueDate, referenceMonthEnd)) {
                 const isPaid = transacoesV2.some(t => 
-                    t.operationType === 'pagamento_emprestimo' &&
+                    t.operationType === 'pagamento_emprestimo' && 
                     t.links?.loanId === `loan_${loan.id}` &&
                     t.links?.parcelaId === String(item.parcela)
                 );
@@ -1224,6 +1229,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             
             // Inclui parcelas futuras (vencimento após o final do mês de referência)
             if (isAfter(dueDate, referenceMonthEnd)) {
+                const isPaid = transacoesV2.some(t =>
+                    t.operationType === 'despesa' &&
+                    t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`
+                );
                 
                 const sourceRef = String(seguro.id);
                 
@@ -1235,7 +1244,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     dueDate: parcela.vencimento,
                     expectedAmount: parcela.valor,
                     description: `Seguro ${seguro.numeroApolice} - Parcela ${parcela.numero}/${seguro.numeroParcelas}`,
-                    isPaid: parcela.paga, // Mantemos o status de pago
+                    isPaid: isPaid, // Mantemos o status de pago
                     isIncluded: isBillIncluded('insurance_installment', sourceRef, parcela.numero),
                 });
             }
@@ -1319,7 +1328,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return emprestimos.filter(e => e.status === 'pendente_config');
   }, [emprestimos]);
 
-  const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumero?: number) => {
+  const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumber?: number) => {
     setEmprestimos(prev => prev.map(e => {
       if (e.id !== loanId) return e;
       

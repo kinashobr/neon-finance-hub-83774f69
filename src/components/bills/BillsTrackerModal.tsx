@@ -49,6 +49,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     markLoanParcelPaid,
     unmarkSeguroParcelPaid,
     unmarkLoanParcelPaid,
+    transacoesV2, // Added to check for existing payments
   } = useFinance();
   
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
@@ -233,7 +234,18 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   
   const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
     const { sourceType, sourceRef, parcelaNumber, dueDate, expectedAmount, description, isPaid } = potentialBill;
-    
+
+    // Check if the bill is already paid via a transaction outside the tracker
+    const isAlreadyPaidViaTransaction = transacoesV2.some(t =>
+        (sourceType === 'loan_installment' && t.links?.loanId === `loan_${sourceRef}` && t.links?.parcelaId === String(parcelaNumber)) ||
+        (sourceType === 'insurance_installment' && t.links?.vehicleTransactionId === `${sourceRef}_${parcelaNumber}`)
+    );
+
+    if (isAlreadyPaidViaTransaction) {
+        toast.info("Esta parcela já foi paga através de uma transação. Não é possível alterá-la aqui.");
+        return;
+    }
+
     if (isChecked) {
         const isFutureBill = parseDateLocal(dueDate) > endOfMonth(currentDate);
         
@@ -351,100 +363,168 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 setBillsTracker(prev => prev.filter(b => b.id !== billToRemove.id));
                 toast.info("Parcela futura removida da lista.");
             } else {
+                // If it's a current month bill and not paid, mark as excluded
                 updateBill(billToRemove.id, { isExcluded: true });
                 toast.info("Conta fixa excluída da lista deste mês.");
             }
         }
     }
-  }, [setBillsTracker, contasMovimento, categoriasV2, billsTracker, updateBill, currentDate, addTransacaoV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2]);
+  }, [setBillsTracker, contasMovimento, categoriasV2, billsTracker, updateBill, currentDate, addTransacaoV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2, transacoesV2]);
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <ResizableDialogContent 
-          storageKey="bills_tracker_modal"
-          initialWidth={1200}
-          initialHeight={800}
-          minWidth={800}
-          minHeight={600}
-          hideCloseButton={true}
-          className="bg-card border-border overflow-hidden flex flex-col p-0"
-        >
-          <DialogHeader className="p-6 pb-0 shrink-0">
-            <DialogTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <CalendarCheck className="w-6 h-6 text-primary" />
-                Contas a Pagar
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleMonthChange('prev')}>
-                  Anterior
-                </Button>
-                <h4 className="font-semibold text-lg w-40 text-center">
-                  {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
-                </h4>
-                <Button variant="outline" size="sm" onClick={() => handleMonthChange('next')}>
-                  Próximo
-                </Button>
-              </div>
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>
-                <X className="w-5 h-5" />
-              </Button>
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="flex flex-1 overflow-hidden p-6 pt-4 gap-6">
-            <div className="w-1/4 shrink-0 overflow-y-auto">
-                <BillsSidebarKPIs 
-                    currentDate={currentDate}
-                    totalPendingBills={totalUnpaidBills}
-                    totalPaidBills={totalPaidBills}
-                />
-            </div>
-            
-            <div className="flex-1 flex flex-col min-w-0 space-y-4">
-                <div className="flex gap-3 shrink-0">
-                    <Button 
-                        variant="outline" 
-                        onClick={() => { setFixedBillSelectorMode('current'); setShowFixedBillSelector(true); }}
-                        className="gap-2"
-                    >
-                        <Repeat className="w-4 h-4" /> Gerenciar Parcelas do Mês
-                    </Button>
-                    <Button 
-                        variant="outline" 
-                        onClick={() => { setFixedBillSelectorMode('future'); setShowFixedBillSelector(true); }}
-                        className="gap-2"
-                    >
-                        <Settings className="w-4 h-4" /> Próximos Vencimentos
-                    </Button>
-                </div>
-                
-                <div className="flex-1 min-h-0">
-                    <BillsTrackerList
-                        bills={combinedBills}
-                        onUpdateBill={handleUpdateBill}
-                        onDeleteBill={handleDeleteBill}
-                        onAddBill={handleAddBill}
-                        onTogglePaid={handleTogglePaid}
-                        currentDate={currentDate}
-                    />
-                </div>
-            </div>
+    <MainLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between animate-fade-in">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Receitas e Despesas</h1>
+            <p className="text-muted-foreground mt-1">Contas Movimento e conciliação bancária</p>
           </div>
-        </ResizableDialogContent>
-      </Dialog>
-      
-      {showFixedBillSelector && (
-        <FixedBillSelectorModal
-            open={showFixedBillSelector}
-            onOpenChange={setShowFixedBillSelector}
-            mode={fixedBillSelectorMode}
-            currentDate={currentDate}
-            potentialFixedBills={fixedBillSelectorMode === 'current' ? potentialFixedBills : futureFixedBills}
-            onToggleFixedBill={handleToggleFixedBill}
+          <div className="flex items-center gap-2">
+            <PeriodSelector 
+              initialRanges={dateRanges}
+              onDateRangeChange={handlePeriodChange} 
+            />
+            <Button variant="outline" size="sm" onClick={() => setShowBillsTrackerModal(true)} className="gap-2">
+              <CalendarCheck className="w-4 h-4" />
+              Contas a Pagar
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)}>
+              <Tags className="w-4 h-4 mr-2" />Categorias
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowReconciliation(!showReconciliation)}>
+              <RefreshCw className="w-4 h-4 mr-2" />Conciliar
+            </Button>
+          </div>
+        </div>
+
+        {/* Accounts Carousel */}
+        <div className="glass-card p-4">
+          <AccountsCarousel
+            accounts={accountSummaries}
+            onMovimentar={handleMovimentar}
+            onViewHistory={handleViewStatement}
+            onAddAccount={() => { setEditingAccount(undefined); setShowAccountModal(true); }}
+            onEditAccount={handleEditAccount}
+            onImportAccount={handleImportExtrato}
+          />
+        </div>
+
+        {/* Reconciliation Panel */}
+        {showReconciliation && (
+          <ReconciliationPanel
+            accounts={visibleAccounts}
+            transactions={transactions}
+            onReconcile={handleReconcile}
+          />
+        )}
+
+        {/* KPI Sidebar - full width */}
+        <div className="glass-card p-4">
+          <KPISidebar transactions={transacoesPeriodo1} categories={categories} />
+        </div>
+      </div>
+
+      {/* Modals */}
+      <MovimentarContaModal
+        open={showMovimentarModal}
+        onOpenChange={setShowMovimentarModal}
+        accounts={accounts}
+        categories={categories}
+        investments={investments}
+        loans={loans}
+        segurosVeiculo={segurosVeiculo} // <-- NEW PROP
+        veiculos={veiculos} // <-- NEW PROP
+        selectedAccountId={selectedAccountForModal}
+        onSubmit={handleTransactionSubmit}
+        editingTransaction={editingTransaction}
+      />
+
+      <AccountFormModal
+        open={showAccountModal}
+        onOpenChange={setShowAccountModal}
+        account={editingAccount}
+        onSubmit={handleAccountSubmit}
+        onDelete={handleAccountDelete}
+        hasTransactions={editingAccount ? transactions.some(t => t.accountId === editingAccount.id) : false}
+      />
+
+      <CategoryFormModal
+        open={showCategoryModal}
+        onOpenChange={setShowCategoryModal}
+        category={editingCategory}
+        onSubmit={handleCategorySubmit}
+        onDelete={handleCategoryDelete}
+        hasTransactions={editingCategory ? transactions.some(t => t.categoryId === editingCategory.id) : false}
+      />
+
+      <CategoryListModal
+        open={showCategoryListModal}
+        onOpenChange={setShowCategoryListModal}
+        categories={categories}
+        onAddCategory={() => { setEditingCategory(undefined); setShowCategoryModal(true); }}
+        onEditCategory={(cat) => { setEditingCategory(cat); setShowCategoryModal(true); }}
+        onDeleteCategory={handleCategoryDelete}
+        transactionCountByCategory={transactionCountByCategory}
+      />
+
+      {viewingAccount && viewingSummary && (
+        <AccountStatementDialog
+          open={showStatementDialog}
+          onOpenChange={setShowStatementDialog}
+          account={viewingAccount}
+          accountSummary={viewingSummary}
+          transactions={viewingTransactions}
+          categories={categories}
+          onEditTransaction={handleEditTransaction}
+          onDeleteTransaction={handleDeleteTransaction}
+          onToggleConciliated={handleToggleConciliated}
+          onReconcileAll={() => handleReconcile(viewingAccountId!)}
         />
       )}
-    </>
+      
+      {/* Bills Tracker Modal */}
+      <BillsTrackerModal
+        open={showBillsTrackerModal}
+        onOpenChange={setShowBillsTrackerModal}
+      />
+      
+      {/* Statement Manager Dialog (Fase 1) */}
+      {accountToManage && (
+        <StatementManagerDialog
+          open={showStatementManagerModal}
+          onOpenChange={setShowStatementManagerModal}
+          account={accountToManage}
+          investments={investments}
+          loans={loans}
+          onStartConsolidatedReview={handleStartConsolidatedReview}
+          onManageRules={handleManageRules}
+        />
+      )}
+      
+      {/* Consolidated Review Dialog (Fase 2) */}
+      {accountForConsolidatedReview && (
+        <ConsolidatedReviewDialog
+          open={showConsolidatedReview}
+          onOpenChange={setShowConsolidatedReview}
+          accountId={accountForConsolidatedReview}
+          accounts={accounts}
+          categories={categories}
+          investments={investments}
+          loans={loans}
+        />
+      )}
+      
+      {/* Standardization Rule Manager Modal (NEW) */}
+      <StandardizationRuleManagerModal
+        open={showRuleManagerModal}
+        onOpenChange={setShowRuleManagerModal}
+        rules={standardizationRules}
+        onDeleteRule={deleteStandardizationRule}
+        categories={categories}
+      />
+    </MainLayout>
   );
-}
+};
+
+export default ReceitasDespesas;

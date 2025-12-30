@@ -13,6 +13,7 @@ import { Building2, Shield, Repeat, Clock, CalendarCheck, Info } from "lucide-re
 import { PotentialFixedBill, BillSourceType, formatCurrency } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { format } from "date-fns";
+import { useFinance } from "@/contexts/FinanceContext"; // Import useFinance
 
 interface FixedBillsListProps {
   bills: PotentialFixedBill[];
@@ -29,6 +30,7 @@ const SOURCE_CONFIG: Record<BillSourceType, { icon: React.ElementType; color: st
 };
 
 export function FixedBillsList({ bills, onToggleFixedBill, mode }: FixedBillsListProps) {
+  const { transacoesV2 } = useFinance(); // Get transacoesV2 from context
   
   const sortedBills = useMemo(() => {
     return [...bills].sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
@@ -60,8 +62,14 @@ export function FixedBillsList({ bills, onToggleFixedBill, mode }: FixedBillsLis
             const config = SOURCE_CONFIG[bill.sourceType] || SOURCE_CONFIG.ad_hoc;
             const Icon = config.icon;
             
-            // No modo 'future', se a conta já estiver paga, ela não deve ser incluída/removida
-            const isDisabled = mode === 'future' && bill.isPaid;
+            // Check if the bill is already paid via a transaction outside the tracker
+            const isAlreadyPaidViaTransaction = transacoesV2.some(t =>
+                (bill.sourceType === 'loan_installment' && t.links?.loanId === `loan_${bill.sourceRef}` && t.links?.parcelaId === String(bill.parcelaNumber)) ||
+                (bill.sourceType === 'insurance_installment' && t.links?.vehicleTransactionId === `${bill.sourceRef}_${bill.parcelaNumber}`)
+            );
+
+            // Disable if already paid via transaction or if it's a paid bill in future mode
+            const isDisabled = isAlreadyPaidViaTransaction || (mode === 'future' && bill.isPaid);
             
             return (
               <TableRow 
@@ -74,10 +82,10 @@ export function FixedBillsList({ bills, onToggleFixedBill, mode }: FixedBillsLis
               >
                 <TableCell className="text-center p-2 text-base">
                   <Checkbox
-                    checked={bill.isIncluded} // USANDO isIncluded para o estado visual
+                    checked={bill.isIncluded || isAlreadyPaidViaTransaction} // If already paid, show as checked
                     onCheckedChange={(checked) => handleToggle(bill, checked as boolean)}
                     disabled={isDisabled}
-                    className={cn("w-5 h-5", bill.isIncluded && "border-primary data-[state=checked]:bg-primary")}
+                    className={cn("w-5 h-5", (bill.isIncluded || isAlreadyPaidViaTransaction) && "border-primary data-[state=checked]:bg-primary")}
                   />
                 </TableCell>
                 
@@ -101,7 +109,9 @@ export function FixedBillsList({ bills, onToggleFixedBill, mode }: FixedBillsLis
                 </TableCell>
                 
                 <TableCell className="text-center text-sm">
-                  {bill.isPaid ? (
+                  {isAlreadyPaidViaTransaction ? (
+                    <Badge variant="default" className="text-xs bg-success hover:bg-success/90">Pago (Ext.)</Badge>
+                  ) : bill.isPaid ? (
                     <Badge variant="default" className="text-xs bg-success hover:bg-success/90">Pago</Badge>
                   ) : (
                     <Badge variant="outline" className="text-xs">Pendente</Badge>
