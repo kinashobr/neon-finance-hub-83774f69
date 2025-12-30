@@ -405,7 +405,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </div>
         </DialogHeader>
 
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden min-w-0">
           {/* Sidebar de KPIs */}
 <div className="w-[350px] shrink-0 border-r border-border">
   <div className="p-4 overflow-y-auto h-full">
