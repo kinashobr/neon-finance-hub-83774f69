@@ -537,7 +537,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                       <div className="p-3 bg-blue-500/5 border-t border-blue-500/10">
                         <div className="text-[10px] font-bold text-blue-600 mb-1 uppercase tracking-wider">Dica Amigável:</div>
                         <p className="text-[10px] text-blue-600/80 leading-snug">
-                          Tente dividir sua sobra do mês (LUCRO) pelo que entrou (RECEITAS) para saber quanto você está economizando!
+                          Exemplo: <code className="bg-white/50 px-1 rounded font-bold">(LUCRO / RECEITAS) * 100</code>
                         </p>
                       </div>
                     </PopoverContent>
