@@ -348,7 +348,7 @@ const ReceitasDespesas = () => {
       const tg = transferGroup;
       const fromAccount = accounts.find(a => a.id === tg.fromAccountId);
       const toAccount = accounts.find(a => a.id === tg.toAccountId);
-      const isToCreditCard = toAccount?.accountType === 'cartao_credito';
+      const isCreditCard = toAccount?.accountType === 'cartao_credito';
 
       const originalTx: TransacaoCompleta = {
         ...baseTx,
