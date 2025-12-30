@@ -455,7 +455,7 @@ export function ConsolidatedReviewDialog({
             <ResizableSidebar
                 initialWidth={350}
                 minWidth={200}
-                maxWidth={350}
+                maxWidth={400}
                 storageKey="review_sidebar_width"
             >
                 <ReviewContextSidebar
