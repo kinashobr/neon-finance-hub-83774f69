@@ -10,8 +10,6 @@ import { formatCurrency } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, subDays, startOfMonth } from "date-fns";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { ResizableCard } from "@/components/ui/ResizableCard"; // Import ResizableCard
 
 interface BillsSidebarKPIsProps {
   currentDate: Date;
@@ -91,22 +89,15 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
 
   return (
     <div className="space-y-4 shrink-0 w-full">
-      <ResizableCard
-        initialWidth={280} // Adjust as needed
-        minWidth={200}
-        maxWidth={400}
-        storageKey="bills_kpis_card_width"
-        className="stat-card-neutral"
-        header={
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-primary" />
-              Fluxo de Caixa Projetado
-            </CardTitle>
-          </CardHeader>
-        }
-      >
-        <ScrollArea className="h-full w-full whitespace-nowrap">
+      <Card className="glass-card stat-card-neutral">
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-primary" />
+            Fluxo de Caixa Projetado
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-2 space-y-3">
+          
           {/* Saldo Inicial */}
           <div className="flex justify-between items-center text-sm p-2 rounded-lg bg-muted/30">
             <span className="text-muted-foreground">Saldo Inicial (Caixa)</span>
@@ -183,8 +174,9 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
             <span className="font-bold text-xs uppercase tracking-wider">Saldo Projetado (Com Caixa)</span>
             <span className="font-extrabold text-lg">{formatCurrency(calculos.projectedBalance)}</span>
           </div>
-        </ScrollArea>
-      </ResizableCard>
+          
+        </CardContent>
+      </Card>
     </div>
   );
 }
