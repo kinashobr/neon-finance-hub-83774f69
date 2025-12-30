@@ -14,11 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { parseDateLocal } from "@/lib/utils";
 import { ResizableDialogContent } from "../ui/ResizableDialogContent";
-
-interface BillsTrackerModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
+import { ResizableSidebar } from "../transactions/ResizableSidebar"; // Importar ResizableSidebar
 
 // Tipo auxiliar para links parciais
 type PartialTransactionLinks = Partial<TransactionLinks>;
@@ -405,13 +401,20 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar de KPIs */}
-          <div className="w-72 shrink-0 border-r border-border p-4 overflow-y-auto">
-            <BillsSidebarKPIs 
-              currentDate={currentDate}
-              totalPendingBills={totalUnpaidBills}
-              totalPaidBills={totalPaidBills}
-            />
-          </div>
+          <ResizableSidebar
+            initialWidth={350} {/* Aumentado para 350px */}
+            minWidth={200}
+            maxWidth={400}
+            storageKey="bills_kpis_sidebar_width"
+          >
+            <div className="p-4 overflow-y-auto h-full"> {/* Adicionado h-full para preencher a altura */}
+              <BillsSidebarKPIs 
+                currentDate={currentDate}
+                totalPendingBills={totalUnpaidBills}
+                totalPaidBills={totalPaidBills}
+              />
+            </div>
+          </ResizableSidebar>
 
           {/* Conteúdo Principal (Tabela de Contas) */}
           <div className="flex-1 flex flex-col p-4 overflow-hidden">
