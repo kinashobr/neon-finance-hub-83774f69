@@ -941,7 +941,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, []);
   
   const updateImportedStatement = useCallback((statementId: string, updates: Partial<ImportedStatement>) => {
-    setImportedStatements(prev => prev.map(s => s.id === statementId ? { ...s, ...updates } : s));
+    setImportedStatements(prev => prev.map(s => {
+        if (s.id === statementId) {
+            return { ...s, ...updates };
+        }
+        return s;
+    }));
   }, []);
   
   const uncontabilizeImportedTransaction = useCallback((transactionId: string) => {
@@ -1154,8 +1159,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         
         schedule.forEach(item => {
             const dueDate = getDueDate(loan.dataInicio!, item.parcela);
-            
-            // Considera parcelas que vencem no mês OU que já foram pagas (adiantadas)
             const isDueInMonth = isWithinInterval(dueDate, { start: monthStart, end: monthEnd });
             
             const isPaid = transacoesV2.some(t => 
@@ -1164,10 +1167,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 t.links?.parcelaId === String(item.parcela)
             );
             
-            // Se a parcela já foi paga, ela não é mais 'potencial' para inclusão/exclusão, mas precisamos rastreá-la se for do mês.
             if (isDueInMonth || isPaid) {
                 const sourceRef = String(loan.id);
-                
                 potentialBills.push({
                     key: `loan_${sourceRef}_${item.parcela}`,
                     sourceType: 'loan_installment',
@@ -1187,7 +1188,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     segurosVeiculo.forEach(seguro => {
         seguro.parcelas.forEach(parcela => {
             const dueDate = parseDateLocal(parcela.vencimento);
-            
             const isDueInMonth = isWithinInterval(dueDate, { start: monthStart, end: monthEnd });
             
             const isPaid = transacoesV2.some(t =>
@@ -1197,7 +1197,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
             if (isDueInMonth || isPaid) {
                 const sourceRef = String(seguro.id);
-                
                 potentialBills.push({
                     key: `insurance_${sourceRef}_${parcela.numero}`,
                     sourceType: 'insurance_installment',
@@ -1206,20 +1205,38 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     dueDate: parcela.vencimento,
                     expectedAmount: parcela.valor,
                     description: `Seguro ${seguro.numeroApolice} - Parcela ${parcela.numero}/${seguro.numeroParcelas}`,
-                    isPaid: isPaid, // Use the actual paid status from transactions
+                    isPaid: isPaid,
                     isIncluded: isBillIncluded('insurance_installment', sourceRef, parcela.numero),
                 });
             }
         });
     });
+
+    // --- 3. Compras Parceladas (EXCLUÍDAS que deveriam estar aqui) ---
+    billsTracker.filter(b => b.sourceType === 'purchase_installment' && b.isExcluded).forEach(bill => {
+        const dueDate = parseDateLocal(bill.dueDate);
+        const isDueInMonth = isWithinInterval(dueDate, { start: monthStart, end: monthEnd });
+        
+        if (isDueInMonth) {
+            potentialBills.push({
+                key: `purchase_${bill.sourceRef}_${bill.parcelaNumber}`,
+                sourceType: 'purchase_installment',
+                sourceRef: bill.sourceRef || '',
+                parcelaNumber: bill.parcelaNumber || 0,
+                dueDate: bill.dueDate,
+                expectedAmount: bill.expectedAmount,
+                description: bill.description,
+                isPaid: bill.isPaid,
+                isIncluded: false, // Está excluída, então não está incluída
+            });
+        }
+    });
     
     return potentialBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
-  }, [emprestimos, segurosVeiculo, transacoesV2, calculateLoanSchedule]);
+  }, [emprestimos, segurosVeiculo, billsTracker, transacoesV2, calculateLoanSchedule]);
   
   const getFutureFixedBills = useCallback((referenceDate: Date, localBills: BillTracker[]): PotentialFixedBill[] => {
     const futureBills: PotentialFixedBill[] = [];
-    
-    // Definimos o limite como o final do mês de referência (ex: 2025-12-31 23:59:59)
     const referenceMonthEnd = endOfMonth(referenceDate);
     
     const isBillIncluded = (sourceType: BillSourceType, sourceRef: string, parcelaNumber: number) => {
@@ -1234,22 +1251,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // --- 1. Empréstimos ---
     emprestimos.filter(e => e.status === 'ativo').forEach(loan => {
         if (!loan.dataInicio || loan.meses === 0) return;
-        
         const schedule = calculateLoanSchedule(loan.id);
-        
         schedule.forEach(item => {
             const dueDate = getDueDate(loan.dataInicio!, item.parcela);
-            
-            // Inclui parcelas futuras (vencimento após o final do mês de referência)
             if (isAfter(dueDate, referenceMonthEnd)) {
                 const isPaid = transacoesV2.some(t => 
                     t.operationType === 'pagamento_emprestimo' && 
                     t.links?.loanId === `loan_${loan.id}` &&
                     t.links?.parcelaId === String(item.parcela)
                 );
-                
                 const sourceRef = String(loan.id);
-                
                 futureBills.push({
                     key: `loan_${sourceRef}_${item.parcela}`,
                     sourceType: 'loan_installment',
@@ -1258,7 +1269,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     dueDate: format(dueDate, 'yyyy-MM-dd'),
                     expectedAmount: loan.parcela,
                     description: `Empréstimo ${loan.contrato} - Parcela ${item.parcela}/${loan.meses}`,
-                    isPaid: isPaid, // Mantemos o status de pago
+                    isPaid: isPaid,
                     isIncluded: isBillIncluded('loan_installment', sourceRef, item.parcela),
                 });
             }
@@ -1269,16 +1280,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     segurosVeiculo.forEach(seguro => {
         seguro.parcelas.forEach(parcela => {
             const dueDate = parseDateLocal(parcela.vencimento);
-            
-            // Inclui parcelas futuras (vencimento após o final do mês de referência)
             if (isAfter(dueDate, referenceMonthEnd)) {
                 const isPaid = transacoesV2.some(t =>
                     t.operationType === 'despesa' &&
                     t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`
                 );
-                
                 const sourceRef = String(seguro.id);
-                
                 futureBills.push({
                     key: `insurance_${sourceRef}_${parcela.numero}`,
                     sourceType: 'insurance_installment',
@@ -1287,57 +1294,55 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     dueDate: parcela.vencimento,
                     expectedAmount: parcela.valor,
                     description: `Seguro ${seguro.numeroApolice} - Parcela ${parcela.numero}/${seguro.numeroParcelas}`,
-                    isPaid: isPaid, // Mantemos o status de pago
+                    isPaid: isPaid,
                     isIncluded: isBillIncluded('insurance_installment', sourceRef, parcela.numero),
                 });
             }
         });
     });
+
+    // --- 3. Compras Parceladas Futuras ---
+    billsTracker.filter(b => b.sourceType === 'purchase_installment').forEach(bill => {
+        const dueDate = parseDateLocal(bill.dueDate);
+        if (isAfter(dueDate, referenceMonthEnd)) {
+            futureBills.push({
+                key: `purchase_${bill.sourceRef}_${bill.parcelaNumber}`,
+                sourceType: 'purchase_installment',
+                sourceRef: bill.sourceRef || '',
+                parcelaNumber: bill.parcelaNumber || 0,
+                dueDate: bill.dueDate,
+                expectedAmount: bill.expectedAmount,
+                description: bill.description,
+                isPaid: bill.isPaid,
+                isIncluded: isBillIncluded('purchase_installment', bill.sourceRef || '', bill.parcelaNumber || 0),
+            });
+        }
+    });
     
     return futureBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
-  }, [emprestimos, segurosVeiculo, transacoesV2, calculateLoanSchedule]);
+  }, [emprestimos, segurosVeiculo, billsTracker, transacoesV2, calculateLoanSchedule]);
   
   // NEW: Função para obter despesas pagas que não estão no Bills Tracker
   const getOtherPaidExpensesForMonth = useCallback((date: Date): ExternalPaidBill[] => {
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
-    
-    // IDs das transações que foram criadas pelo Bills Tracker
-    const trackerTxIds = new Set(billsTracker
-        .filter(b => b.isPaid && b.transactionId)
-        .map(b => b.transactionId!)
-    );
-    
-    // 1. Filtrar transações de despesa no mês
+    const trackerTxIds = new Set(billsTracker.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
     const externalExpenses = transacoesV2.filter(t => {
         const transactionDate = parseDateLocal(t.date);
-        
-        // Deve estar no mês de referência
         const isWithinRefMonth = isWithinInterval(transactionDate, { start: monthStart, end: monthEnd });
         if (!isWithinRefMonth) return false;
-        
-        // Deve ser uma despesa (outflow)
         const isOutflow = t.flow === 'out' || t.flow === 'transfer_out';
         if (!isOutflow) return false;
-        
-        // Deve ser uma despesa real (não aplicação, resgate, liberação, saldo inicial)
         const isExpenseType = t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo';
         if (!isExpenseType) return false;
-        
-        // Deve ter sido contabilizada (não é uma transação pendente de importação)
         if (t.meta.source === 'import' && !t.conciliated) return false;
-        
-        // Deve ser uma transação externa (não gerenciada pelo Bills Tracker)
         const isTrackerManaged = t.meta.source === 'bill_tracker' || trackerTxIds.has(t.id);
-        
         return !isTrackerManaged;
     });
-    
-    // 2. Mapear para ExternalPaidBill
     return externalExpenses.map(t => ({
         id: t.id,
         type: 'external_paid',
-        dueDate: t.date, // Usamos a data da transação como data de vencimento/pagamento
+        dueDate: t.date,
         paymentDate: t.date,
         expectedAmount: t.amount,
         description: t.description,
@@ -1374,26 +1379,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumber?: number) => {
     setEmprestimos(prev => prev.map(e => {
       if (e.id !== loanId) return e;
-      
-      // Simplificação: Apenas marca o status como ativo/quitado
-      // A contagem de parcelas pagas é feita dinamicamente via calculatePaidInstallmentsUpToDate
-      
-      return {
-        ...e,
-        status: 'ativo', // Assume ativo, o status 'quitado' é determinado pelo saldo devedor
-      };
+      return { ...e, status: 'ativo' };
     }));
   }, []);
   
   const unmarkLoanParcelPaid = useCallback((loanId: number) => {
     setEmprestimos(prev => prev.map(e => {
       if (e.id !== loanId) return e;
-      
-      // Remove o status 'quitado' se estiver presente
-      return {
-        ...e,
-        status: 'ativo',
-      };
+      return { ...e, status: 'ativo' };
     }));
   }, []);
 
@@ -1419,8 +1412,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setSegurosVeiculo([...segurosVeiculo, { ...seguro, id: newId }]);
   };
 
-  const updateSeguroVeiculo = (id: number, updates: Partial<SeguroVeiculo>) => {
-    setSegurosVeiculo(segurosVeiculo.map(s => s.id === id ? { ...s, ...updates } : s));
+  const updateSeguroVeiculo = (id: number, seguro: Partial<SeguroVeiculo>) => {
+    setSegurosVeiculo(segurosVeiculo.map(s => s.id === id ? { ...s, ...seguro } : s));
   };
 
   const deleteSeguroVeiculo = (id: number) => {
@@ -1430,14 +1423,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const markSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number, transactionId: string) => {
     setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
       if (seguro.id !== seguroId) return seguro;
-      
       const updatedParcelas = seguro.parcelas.map(parcela => {
         if (parcela.numero === parcelaNumero) {
           return { ...parcela, paga: true, transactionId };
         }
         return parcela;
       });
-      
       return { ...seguro, parcelas: updatedParcelas };
     }));
   }, []);
@@ -1445,14 +1436,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => {
     setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
       if (seguro.id !== seguroId) return seguro;
-      
       const updatedParcelas = seguro.parcelas.map(parcela => {
         if (parcela.numero === parcelaNumero) {
           return { ...parcela, paga: false, transactionId: undefined };
         }
         return parcela;
       });
-      
       return { ...seguro, parcelas: updatedParcelas };
     }));
   }, []);
@@ -1534,13 +1523,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const getSaldoAtual = useCallback(() => {
     let totalBalance = 0;
-
     contasMovimento.forEach(conta => {
       const balance = calculateBalanceUpToDate(conta.id, undefined, transacoesV2, contasMovimento);
-      
       totalBalance += balance;
     });
-
     return totalBalance;
   }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
 
@@ -1553,13 +1539,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const getLoanPrincipalRemaining = useCallback((targetDate?: Date) => {
     const date = targetDate || new Date(9999, 11, 31);
-
     return emprestimos.reduce((acc, e) => {
       if (e.status === 'quitado' || e.status === 'pendente_config') return acc;
-      
       const paidUpToDate = calculatePaidInstallmentsUpToDate(e.id, date);
       let currentSaldo = e.valorTotal;
-      
       if (paidUpToDate > 0) {
           const schedule = calculateLoanSchedule(e.id);
           const lastPaidItem = schedule.find(item => item.parcela === paidUpToDate);
@@ -1567,14 +1550,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               currentSaldo = lastPaidItem.saldoDevedor;
           }
       }
-      
       return acc + Math.max(0, currentSaldo);
     }, 0);
   }, [emprestimos, calculatePaidInstallmentsUpToDate, calculateLoanSchedule]);
 
   const getCreditCardDebt = useCallback((targetDate?: Date) => {
     const date = targetDate || new Date(9999, 11, 31);
-
     return contasMovimento
       .filter(c => c.accountType === 'cartao_credito')
       .reduce((acc, c) => {
@@ -1607,24 +1588,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const getAtivosTotal = useCallback((targetDate?: Date) => {
     const date = targetDate || new Date(9999, 11, 31);
-
     const saldoContasAtivas = contasMovimento
       .filter(c => c.accountType !== 'cartao_credito')
       .reduce((acc, c) => {
         const balance = calculateBalanceUpToDate(c.id, date, transacoesV2, contasMovimento);
         return acc + Math.max(0, balance);
       }, 0);
-      
     const valorVeiculos = getValorFipeTotal(date);
     const segurosAApropriar = getSegurosAApropriar(date); 
-                          
     return saldoContasAtivas + valorVeiculos + segurosAApropriar; 
   }, [contasMovimento, transacoesV2, getValorFipeTotal, calculateBalanceUpToDate, getSegurosAApropriar]); 
 
   const getPassivosTotal = useCallback((targetDate?: Date) => {
     const saldoDevedor = getSaldoDevedor(targetDate);
     const segurosAPagar = getSegurosAPagar(targetDate); 
-    
     return saldoDevedor + segurosAPagar; 
   }, [getSaldoDevedor, getSegurosAPagar]); 
 
@@ -1641,13 +1618,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       schemaVersion: "2.0",
       exportedAt: new Date().toISOString(),
       data: {
-        // Core Data
         accounts: contasMovimento,
         categories: categoriasV2,
         transactions: transacoesV2,
         transferGroups: [],
-        
-        // V2 Entities
         emprestimos,
         veiculos,
         segurosVeiculo,
@@ -1655,13 +1629,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         billsTracker,
         standardizationRules,
         importedStatements,
-        
-        // Configuration/Context States
         monthlyRevenueForecast,
         alertStartDate,
       }
     };
-
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1675,14 +1646,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-
       if (data.schemaVersion === '2.0' && data.data) {
-        if (data.data.accounts) {
-            setContasMovimento(data.data.accounts);
-        }
+        if (data.data.accounts) setContasMovimento(data.data.accounts);
         if (data.data.categories) setCategoriasV2(data.data.categories);
         if (data.data.transactions) setTransacoesV2(data.data.transactions);
-        
         if (data.data.emprestimos) setEmprestimos(data.data.emprestimos);
         if (data.data.veiculos) setVeiculos(data.data.veiculos);
         if (data.data.segurosVeiculo) setSegurosVeiculo(data.data.segurosVeiculo);
@@ -1690,11 +1657,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (data.data.billsTracker) setBillsTracker(data.data.billsTracker);
         if (data.data.standardizationRules) setStandardizationRules(data.data.standardizationRules);
         if (data.data.importedStatements) setImportedStatements(data.data.importedStatements);
-        
-        // NEW CONFIGURATION STATES
         if (data.data.monthlyRevenueForecast !== undefined) setMonthlyRevenueForecast(data.data.monthlyRevenueForecast);
         if (data.data.alertStartDate) setAlertStartDate(data.data.alertStartDate);
-        
         return { success: true, message: "Dados V2 importados com sucesso!" };
       } else {
         return { success: false, message: "Erro ao importar dados. Versão do schema incompatível." };
@@ -1703,10 +1667,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return { success: false, message: "Erro ao importar dados. Verifique o formato do arquivo." };
     }
   };
-
-  // ============================================
-  // VALOR DO CONTEXTO
-  // ============================================
 
   const value: FinanceContextType = {
     emprestimos,
@@ -1734,17 +1694,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     addObjetivo,
     updateObjetivo,
     deleteObjetivo,
-    
     billsTracker,
     setBillsTracker,
     updateBill,
     deleteBill,
-    addPurchaseInstallments, // NOVO
-    getBillsForMonth, // RENOMEADO
-    getPotentialFixedBillsForMonth, // NEW
-    getFutureFixedBills, // NEW
-    getOtherPaidExpensesForMonth, // <-- NEW FUNCTION
-    
+    addPurchaseInstallments,
+    getBillsForMonth,
+    getPotentialFixedBillsForMonth,
+    getFutureFixedBills,
+    getOtherPaidExpensesForMonth,
     contasMovimento,
     setContasMovimento,
     getContasCorrentesTipo,
@@ -1753,29 +1711,22 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     transacoesV2,
     setTransacoesV2,
     addTransacaoV2,
-    
     standardizationRules,
     addStandardizationRule,
     deleteStandardizationRule,
-    
-    // Imported Statements (Fase 1)
     importedStatements,
     processStatementFile,
     deleteImportedStatement,
     getTransactionsForReview,
     updateImportedStatement,
-    uncontabilizeImportedTransaction, // <-- NEW FUNCTION
-    
+    uncontabilizeImportedTransaction,
     dateRanges,
     setDateRanges,
-    
     alertStartDate,
     setAlertStartDate,
-    
     monthlyRevenueForecast,
     setMonthlyRevenueForecast,
     getRevenueForPreviousMonth,
-    
     getTotalReceitas,
     getTotalDespesas,
     getTotalDividas,

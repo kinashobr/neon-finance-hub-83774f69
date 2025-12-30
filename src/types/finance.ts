@@ -251,8 +251,8 @@ export interface BillTracker {
 // NOVO: Parcela Fixa Potencial para Seleção
 export interface PotentialFixedBill {
   key: string; // Unique key: sourceType_sourceRef_parcelaNumber
-  sourceType: 'loan_installment' | 'insurance_installment';
-  sourceRef: string; // ID do Empréstimo/Seguro
+  sourceType: 'loan_installment' | 'insurance_installment' | 'purchase_installment'; // ATUALIZADO
+  sourceRef: string; // ID do Empréstimo/Seguro/Grupo de Compra
   parcelaNumber: number;
   dueDate: string; // YYYY-MM-DD
   expectedAmount: number;
