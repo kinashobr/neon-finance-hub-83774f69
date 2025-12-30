@@ -23,7 +23,7 @@ const SOURCE_CONFIG: Record<BillSourceType, { icon: React.ElementType; color: st
 
 export function FixedBillsList({ bills, onToggleFixedBill, mode = "current" }: FixedBillsListProps) {
   return (
-    <>
+    <div className="grid grid-cols-1 gap-3">
       {bills.map((bill) => {
         const config = SOURCE_CONFIG[bill.sourceType as BillSourceType];
         const Icon = config.icon;
@@ -36,7 +36,7 @@ export function FixedBillsList({ bills, onToggleFixedBill, mode = "current" }: F
               "group flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-300",
               bill.isIncluded 
                 ? "bg-primary/5 border-primary/30 shadow-sm" 
-                : "bg-background border-border/50 hover:border-primary/30"
+                : "bg-background border-transparent hover:border-muted/50"
             )}
           >
             <div className="flex items-center gap-4">
@@ -49,9 +49,9 @@ export function FixedBillsList({ bills, onToggleFixedBill, mode = "current" }: F
               
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-base line-clamp-1">{bill.description}</span>
+                  <span className="font-bold text-base">{bill.description}</span>
                   {bill.isPaid && (
-                    <span className="text-[10px] bg-success/20 text-success px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0">Paga</span>
+                    <span className="text-[10px] bg-success/20 text-success px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Paga</span>
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -70,7 +70,7 @@ export function FixedBillsList({ bills, onToggleFixedBill, mode = "current" }: F
               size="sm"
               onClick={() => onToggleFixedBill(bill, !bill.isIncluded)}
               className={cn(
-                "h-10 px-4 rounded-xl gap-2 font-semibold transition-all shrink-0",
+                "h-10 px-4 rounded-xl gap-2 font-semibold transition-all",
                 bill.isIncluded 
                   ? "text-destructive hover:bg-destructive/10" 
                   : "border-primary/50 text-primary hover:bg-primary hover:text-white"
@@ -79,18 +79,18 @@ export function FixedBillsList({ bills, onToggleFixedBill, mode = "current" }: F
               {bill.isIncluded ? (
                 <>
                   <Trash2 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Remover</span>
+                  Remover
                 </>
               ) : (
                 <>
                   <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Incluir</span>
+                  Incluir
                 </>
               )}
             </Button>
           </div>
         );
       })}
-    </>
+    </div>
   );
 }

@@ -57,56 +57,48 @@ export function FixedBillSelectorModal({ open, onOpenChange, mode, currentDate }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl p-0 overflow-hidden border-border/50 shadow-2xl rounded-3xl">
+      <DialogContent className="max-w-2xl p-0 overflow-hidden border-none shadow-2xl">
         <DialogHeader className={cn(
-            "p-8 border-b bg-muted/30",
-            isAdvance ? "text-primary" : "text-accent"
+            "p-6 text-white",
+            isAdvance ? "bg-gradient-to-br from-primary to-primary/80" : "bg-gradient-to-br from-accent to-accent/80"
         )}>
-          <div className="flex items-center gap-5">
-            <div className={cn(
-              "p-4 rounded-2xl backdrop-blur-sm shadow-sm border",
-              isAdvance ? "bg-primary/10 border-primary/20" : "bg-accent/10 border-accent/20"
-            )}>
-              {isAdvance ? <FastForward className="w-8 h-8 text-primary" /> : <Settings2 className="w-8 h-8 text-accent" />}
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+              {isAdvance ? <FastForward className="w-6 h-6" /> : <Settings2 className="w-6 h-6" />}
             </div>
             <div>
-              <DialogTitle className="text-2xl font-bold text-foreground">
+              <DialogTitle className="text-xl font-bold">
                 {isAdvance ? "Adiantar Parcelas" : "Gerenciar Contas Fixas"}
               </DialogTitle>
-              <DialogDescription className="text-muted-foreground text-base mt-1">
+              <DialogDescription className="text-white/80 font-medium">
                 {isAdvance 
-                  ? "Selecione parcelas de meses futuros para pagar agora e manter seu fluxo de caixa atualizado." 
-                  : `Selecione quais parcelas de empréstimos, seguros ou compras devem aparecer em ${format(currentDate, 'MMMM', { locale: ptBR })}.`
+                  ? "Selecione parcelas de meses futuros para pagar agora" 
+                  : `Selecione quais parcelas automáticas devem aparecer em ${format(currentDate, 'MMMM', { locale: ptBR })}`
                 }
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="p-8 max-h-[65vh] overflow-y-auto bg-background">
+        <div className="p-6 max-h-[60vh] overflow-y-auto bg-background/50 backdrop-blur-sm">
           {potentialFixedBills.length > 0 ? (
-            <div className="space-y-6">
-               <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground bg-muted/40 p-4 rounded-2xl border border-border/50">
-                 <AlertCircle className="w-5 h-5 text-primary shrink-0" />
-                 <span>As parcelas selecionadas serão adicionadas à sua lista de controle mensal para facilitar o acompanhamento de pagamentos.</span>
+            <div className="space-y-4">
+               <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-xl border">
+                 <AlertCircle className="w-4 h-4 text-primary" />
+                 <span>As parcelas selecionadas serão adicionadas à sua lista de controle mensal.</span>
                </div>
-               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                 <FixedBillsList 
-                    bills={potentialFixedBills} 
-                    onToggleFixedBill={onToggleFixedBill}
-                    mode={mode}
-                 />
-               </div>
+               <FixedBillsList 
+                  bills={potentialFixedBills} 
+                  onToggleFixedBill={onToggleFixedBill}
+                  mode={mode}
+               />
             </div>
           ) : (
-            <div className="py-20 text-center space-y-4">
-              <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-10 h-10 text-muted-foreground/50" />
+            <div className="py-12 text-center space-y-3">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto opacity-50">
+                <CheckCircle2 className="w-8 h-8" />
               </div>
-              <div className="space-y-1">
-                <h4 className="text-lg font-semibold text-foreground">Tudo em dia por aqui</h4>
-                <p className="text-muted-foreground">Nenhuma parcela pendente encontrada para este período.</p>
-              </div>
+              <p className="text-muted-foreground">Tudo certo! Nenhuma parcela pendente encontrada.</p>
             </div>
           )}
         </div>

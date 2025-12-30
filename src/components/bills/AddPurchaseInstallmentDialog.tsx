@@ -1,12 +1,10 @@
-"use client";
-
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Calendar, DollarSign, ListOrdered, Check } from "lucide-react";
+import { ShoppingCart, Calendar, DollarSign, ListOrdered, Tags, Check } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -17,138 +15,189 @@ interface AddPurchaseInstallmentDialogProps {
   currentDate: Date;
 }
 
-export function AddPurchaseInstallmentDialog({ open, onOpenChange, currentDate }: AddPurchaseInstallmentDialogProps) {
+export function AddPurchaseInstallmentDialog({
+  open,
+  onOpenChange,
+  currentDate,
+}: AddPurchaseInstallmentDialogProps) {
   const { addPurchaseInstallments, contasMovimento, categoriasV2 } = useFinance();
   
   const [formData, setFormData] = useState({
-    description: "",
-    totalAmount: "",
-    installments: "2",
+    description: '',
+    totalAmount: '',
+    installments: '1',
     firstDueDate: format(currentDate, 'yyyy-MM-dd'),
-    accountId: "",
-    categoryId: "",
+    suggestedAccountId: '',
+    suggestedCategoryId: '',
   });
+
+  const expenseCategories = useMemo(() => 
+    categoriasV2.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel'),
+    [categoriasV2]
+  );
+
+  const availableAccounts = useMemo(() => 
+    contasMovimento.filter(c => c.accountType === 'corrente' || c.accountType === 'cartao_credito'),
+    [contasMovimento]
+  );
+
+  const handleAmountChange = (value: string) => {
+    const cleaned = value.replace(/[^\d,]/g, '');
+    setFormData(prev => ({ ...prev, totalAmount: cleaned }));
+  };
+
+  const parseAmount = (value: string): number => {
+    const parsed = parseFloat(value.replace('.', '').replace(',', '.'));
+    return isNaN(parsed) ? 0 : parsed;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const amount = parseFloat(formData.totalAmount.replace(',', '.'));
-    const inst = parseInt(formData.installments);
+    const amount = parseAmount(formData.totalAmount);
+    const installments = parseInt(formData.installments);
 
-    if (!formData.description || isNaN(amount) || amount <= 0 || isNaN(inst) || inst < 2) {
-      toast.error("Preencha todos os campos corretamente.");
+    if (!formData.description || amount <= 0 || installments <= 0 || !formData.firstDueDate) {
+      toast.error("Preencha todos os campos obrigatórios.");
       return;
     }
 
     addPurchaseInstallments({
       description: formData.description,
       totalAmount: amount,
-      installments: inst,
+      installments,
       firstDueDate: formData.firstDueDate,
-      suggestedAccountId: formData.accountId || undefined,
-      suggestedCategoryId: formData.categoryId || undefined,
+      suggestedAccountId: formData.suggestedAccountId || undefined,
+      suggestedCategoryId: formData.suggestedCategoryId || undefined,
     });
 
-    toast.success(`${inst} parcelas geradas com sucesso!`);
+    toast.success(`Compra "${formData.description}" parcelada em ${installments}x registrada!`);
     onOpenChange(false);
+    
+    // Reset form
     setFormData({
-      description: "",
-      totalAmount: "",
-      installments: "2",
+      description: '',
+      totalAmount: '',
+      installments: '1',
       firstDueDate: format(currentDate, 'yyyy-MM-dd'),
-      accountId: "",
-      categoryId: "",
+      suggestedAccountId: '',
+      suggestedCategoryId: '',
     });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-2xl">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <div className="w-12 h-12 rounded-xl bg-pink-500/10 flex items-center justify-center mb-2">
-            <ShoppingCart className="w-6 h-6 text-pink-500" />
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <ShoppingCart className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <DialogTitle>Nova Compra Parcelada</DialogTitle>
+              <DialogDescription>
+                Registre uma compra e gere as parcelas automaticamente.
+              </DialogDescription>
+            </div>
           </div>
-          <DialogTitle className="text-xl">Nova Compra Parcelada</DialogTitle>
-          <DialogDescription>
-            Informe os detalhes para gerar as parcelas automaticamente.
-          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label>Descrição da Compra</Label>
-            <Input 
-              placeholder="Ex: Novo Smartphone" 
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Valor Total (R$)</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  className="pl-9" 
-                  placeholder="0,00"
-                  value={formData.totalAmount}
-                  onChange={(e) => setFormData(prev => ({ ...prev, totalAmount: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Nº Parcelas</Label>
-              <div className="relative">
-                <ListOrdered className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  type="number" 
-                  min="2" 
-                  className="pl-9"
-                  value={formData.installments}
-                  onChange={(e) => setFormData(prev => ({ ...prev, installments: e.target.value }))}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Data da 1ª Parcela</Label>
+            <Label className="text-xs font-medium text-muted-foreground uppercase">Descrição da Compra</Label>
             <div className="relative">
-              <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-              <Input 
-                type="date" 
-                className="pl-9"
-                value={formData.firstDueDate}
-                onChange={(e) => setFormData(prev => ({ ...prev, firstDueDate: e.target.value }))}
+              <ShoppingCart className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Ex: Geladeira Brastemp"
+                className="pl-10"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Conta sugerida</Label>
-              <Select value={formData.accountId} onValueChange={(v) => setFormData(prev => ({ ...prev, accountId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+              <Label className="text-xs font-medium text-muted-foreground uppercase">Valor Total (R$)</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={formData.totalAmount}
+                  onChange={(e) => handleAmountChange(e.target.value)}
+                  placeholder="0,00"
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase">Nº de Parcelas</Label>
+              <div className="relative">
+                <ListOrdered className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={formData.installments}
+                  onChange={(e) => setFormData(prev => ({ ...prev, installments: e.target.value }))}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-medium text-muted-foreground uppercase">1º Vencimento</Label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="date"
+                value={formData.firstDueDate}
+                onChange={(e) => setFormData(prev => ({ ...prev, firstDueDate: e.target.value }))}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase">Conta Sugerida</Label>
+              <Select 
+                value={formData.suggestedAccountId} 
+                onValueChange={(v) => setFormData(prev => ({ ...prev, suggestedAccountId: v }))}
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
                 <SelectContent>
-                  {contasMovimento.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                  {availableAccounts.map(a => (
+                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Categoria sugerida</Label>
-              <Select value={formData.categoryId} onValueChange={(v) => setFormData(prev => ({ ...prev, categoryId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+              <Label className="text-xs font-medium text-muted-foreground uppercase">Categoria</Label>
+              <Select 
+                value={formData.suggestedCategoryId} 
+                onValueChange={(v) => setFormData(prev => ({ ...prev, suggestedCategoryId: v }))}
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
                 <SelectContent>
-                  {categoriasV2.filter(c => c.nature !== 'receita').map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
+                  {expenseCategories.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.icon} {c.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <DialogFooter className="pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">Cancelar</Button>
-            <Button type="submit" className="rounded-xl bg-pink-500 hover:bg-pink-600 gap-2">
-              <Check className="w-4 h-4" />
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
+              Cancelar
+            </Button>
+            <Button type="submit" className="flex-1">
+              <Check className="w-4 h-4 mr-2" />
               Gerar Parcelas
             </Button>
           </DialogFooter>

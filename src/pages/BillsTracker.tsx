@@ -51,10 +51,10 @@ export default function BillsTracker() {
           <Button
             variant="outline"
             onClick={() => setIsPurchaseDialogOpen(true)}
-            className="rounded-xl border-pink-500/50 text-pink-500 hover:bg-pink-500 hover:text-white gap-2 shrink-0 h-10 transition-all"
+            className="rounded-xl border-pink-500/50 text-pink-500 hover:bg-pink-500/10 gap-2 shrink-0 h-10"
           >
             <ShoppingCart className="w-4 h-4" />
-            <span className="font-semibold">Compras Parceladas</span>
+            <span className="hidden sm:inline">Parcelado</span>
           </Button>
 
           <Button
