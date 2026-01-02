@@ -29,8 +29,12 @@ export function MainLayout({ children }: MainLayoutProps) {
       <Sidebar />
       <main
         className={cn(
-          "min-h-screen p-4 md:p-6 transition-all duration-300",
-          sidebarCollapsed ? "ml-16" : "ml-64"
+          "min-h-screen p-3 md:p-6 transition-all duration-300",
+          // Mobile: no left margin, add top padding for fixed header
+          "pt-[calc(3.5rem+0.75rem)] md:pt-6",
+          // Desktop: left margin based on sidebar state
+          "ml-0",
+          sidebarCollapsed ? "md:ml-16" : "md:ml-64"
         )}
       >
         <div className="max-w-7xl mx-auto">{children}</div>

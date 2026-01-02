@@ -24,7 +24,9 @@ import {
   Bitcoin,
   Palette,
   Check,
-  CircleDollarSign, // Added CircleDollarSign
+  CircleDollarSign,
+  Menu,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFinance } from "@/contexts/FinanceContext";
@@ -92,6 +94,7 @@ const navSections: NavSection[] = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [openSections, setOpenSections] = useState<string[]>(["financeiro", "patrimonio", "investimentos", "relatorios"]);
   const location = useLocation();
   const { exportData, importData } = useFinance();
@@ -111,6 +114,23 @@ export function Sidebar() {
     localStorage.setItem("sidebar-collapsed", JSON.stringify(collapsed));
     window.dispatchEvent(new CustomEvent("sidebar-toggle", { detail: collapsed }));
   }, [collapsed]);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileOpen]);
 
   const handleExport = () => {
     exportData();
@@ -208,14 +228,45 @@ export function Sidebar() {
   };
 
   return (
-    <aside
-      className={cn(
-        "fixed left-0 top-0 z-40 h-screen sidebar-bg border-r sidebar-border transition-all duration-300 ease-in-out flex flex-col",
-        collapsed ? "w-16" : "w-64"
+    <>
+      {/* Mobile Header with Hamburger */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-background border-b flex items-center justify-between px-4">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg sidebar-logo-bg flex items-center justify-center">
+            <CircleDollarSign className="w-4 h-4 sidebar-logo-icon" />
+          </div>
+          <span className="font-bold text-sm">Orbium Finance</span>
+        </div>
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-muted transition-colors"
+          aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
+        >
+          {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </header>
+
+      {/* Mobile Overlay */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          onClick={() => setMobileOpen(false)}
+        />
       )}
-    >
-      {/* Header - Logo & App Name */}
-      <div className="flex h-16 items-center justify-between px-4 border-b sidebar-border shrink-0">
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed left-0 top-0 z-50 h-screen sidebar-bg border-r sidebar-border transition-all duration-300 ease-in-out flex flex-col",
+          // Desktop styles
+          "hidden md:flex",
+          collapsed ? "md:w-16" : "md:w-64",
+          // Mobile styles - slide in from left
+          mobileOpen && "flex w-[280px] top-14 h-[calc(100vh-3.5rem)]"
+        )}
+      >
+      {/* Header - Logo & App Name (Desktop only, mobile has separate header) */}
+      <div className="hidden md:flex h-16 items-center justify-between px-4 border-b sidebar-border shrink-0">
         {!collapsed ? (
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-9 h-9 rounded-xl sidebar-logo-bg flex items-center justify-center shrink-0">
@@ -455,8 +506,8 @@ export function Sidebar() {
           </Tooltip>
         )}
 
-        {/* Collapse Toggle */}
-        <div className="mt-3 flex justify-center">
+        {/* Collapse Toggle - Desktop only */}
+        <div className="mt-3 hidden md:flex justify-center">
           {collapsed ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -483,5 +534,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }
