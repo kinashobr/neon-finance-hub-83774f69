@@ -103,7 +103,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
 
   return (
     <TooltipProvider>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
         {cards.map((card) => (
           <Tooltip key={card.id}>
             <TooltipTrigger asChild>
@@ -126,7 +126,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
                 </div>
                 
                 <div className="flex flex-col">
-                  <span className={cn("text-xl font-bold whitespace-nowrap", card.color)}>
+                  <span className={cn("text-lg md:text-xl font-bold", card.color)}>
                     {card.trend === 'down' && '-'}
                     {card.trend === 'up' && '+'}
                     {card.value}

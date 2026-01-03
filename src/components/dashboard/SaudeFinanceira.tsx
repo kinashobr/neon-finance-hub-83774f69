@@ -272,10 +272,10 @@ export function SaudeFinanceira({
 
   return (
     <TooltipProvider>
-      <div className="glass-card p-5">
-        <div className="flex items-center justify-between mb-4">
+      <div className="glass-card p-4 md:p-5">
+        <div className="flex items-center justify-between mb-3 md:mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-foreground">Saúde Financeira</h3>
+            <h3 className="text-base md:text-lg font-semibold text-foreground">Saúde Financeira</h3>
             <p className="text-xs text-muted-foreground">Indicadores sintéticos</p>
           </div>
           <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-full", configGeral.bgColor)}>
@@ -286,7 +286,7 @@ export function SaudeFinanceira({
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2 md:space-y-3">
           {indicadores.map((ind) => {
             const config = statusConfig[ind.status];
             const tooltipData = ind.getTooltip(ind.status, ind.valorBruto);

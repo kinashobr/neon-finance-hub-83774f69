@@ -102,9 +102,9 @@ export function AcompanhamentoAtivos({
   };
 
   return (
-    <div className="glass-card p-5">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-foreground">Acompanhamento de Ativos</h3>
+    <div className="glass-card p-4 md:p-5">
+      <div className="mb-3 md:mb-4">
+        <h3 className="text-base md:text-lg font-semibold text-foreground">Acompanhamento de Ativos</h3>
         <p className="text-xs text-muted-foreground">Visão consolidada dos investimentos</p>
       </div>
 

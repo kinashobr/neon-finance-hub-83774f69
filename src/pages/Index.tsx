@@ -262,9 +262,9 @@ const Index = () => {
         </section>
 
         {/* Grid principal */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
           {/* Coluna esquerda - Movimentações e Fluxo */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 md:space-y-6">
             {/* Bloco 3 - Movimentações Relevantes */}
             <section className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
               <MovimentacoesRelevantes transacoes={transacoesPeriodo1} limit={6} />
@@ -281,7 +281,7 @@ const Index = () => {
           </div>
 
           {/* Coluna direita - Ativos e Saúde */}
-          <div className="space-y-6">
+          <div className="space-y-4 md:space-y-6">
             {/* Bloco 4 - Acompanhamento de Ativos */}
             <section className="animate-fade-in-up" style={{ animationDelay: '150ms' }}>
               <AcompanhamentoAtivos

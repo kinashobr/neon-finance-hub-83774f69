@@ -161,7 +161,7 @@ export function AccountsCarousel({
               ))}
 
               {orderedSummaries.length === 0 && (
-                <div className="min-w-[280px] p-8 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                <div className="min-w-[85vw] sm:min-w-[280px] p-6 md:p-8 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-3 text-muted-foreground">
                   <p className="text-sm">Nenhuma conta cadastrada</p>
                   {onAddAccount && (
                     <Button variant="outline" size="sm" onClick={onAddAccount}>

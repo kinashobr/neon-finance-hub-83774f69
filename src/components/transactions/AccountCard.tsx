@@ -52,7 +52,7 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
 
   return (
     <Card className={cn(
-      "glass-card min-w-[280px] max-w-[320px] p-4 transition-all hover:shadow-md",
+      "glass-card min-w-[85vw] sm:min-w-[280px] max-w-[320px] p-3 md:p-4 transition-all hover:shadow-md",
       statusClasses[reconciliationStatus] // Aplica a classe customizada que define a borda de 4px
     )}>
       <div className="flex items-start justify-between mb-3">
