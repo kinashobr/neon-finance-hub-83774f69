@@ -80,7 +80,60 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
 
   return (
     <div className={cn("space-y-4", className)}>
-      <div className="rounded-xl border border-border overflow-hidden bg-card shadow-sm">
+      {/* Mobile: Card Layout */}
+      <div className="md:hidden space-y-2">
+        {parcelas.map((parcela) => {
+          const config = statusConfig[parcela.status];
+          const StatusIcon = config.icon;
+          
+          return (
+            <div
+              key={parcela.parcela}
+              className={cn(
+                "glass-card p-3 space-y-2",
+                parcela.status === 'pago' && "border-l-2 border-l-success",
+                parcela.status === 'atrasado' && "border-l-2 border-l-destructive"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-muted-foreground">#{parcela.parcela}</span>
+                  <span className="text-sm font-medium">
+                    {parcela.dataVencimento.toLocaleDateString("pt-BR")}
+                  </span>
+                </div>
+                <Badge variant="outline" className={cn("gap-1 text-xs", config.color)}>
+                  <StatusIcon className="w-3 h-3" />
+                  {config.label}
+                </Badge>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Valor da Parcela</span>
+                <span className="font-bold text-sm">{formatCurrency(emprestimo.parcela)}</span>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2 text-xs pt-1 border-t border-border/50">
+                <div>
+                  <p className="text-muted-foreground">Amortiz.</p>
+                  <p className="font-medium text-success/80">{formatCurrency(parcela.amortizacao)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Juros</p>
+                  <p className="font-medium text-destructive/80">{formatCurrency(parcela.juros)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Saldo</p>
+                  <p className="font-medium">{formatCurrency(parcela.saldoDevedor)}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop: Table Layout */}
+      <div className="hidden md:block rounded-xl border border-border overflow-hidden bg-card shadow-sm">
         <div className="max-h-[500px] overflow-y-auto scrollbar-thin">
           <Table>
             <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm z-10">

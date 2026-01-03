@@ -96,22 +96,137 @@ export function TransactionTable({
   // Removido: allSelected
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow className="border-border hover:bg-transparent">
-            {/* Removido: Checkbox de seleção */}
-            <TableHead className="text-muted-foreground">Data</TableHead>
-            <TableHead className="text-muted-foreground">Descrição</TableHead>
-            <TableHead className="text-muted-foreground">Conta</TableHead>
-            <TableHead className="text-muted-foreground">Categoria</TableHead>
-            <TableHead className="text-muted-foreground">Valor</TableHead>
-            <TableHead className="text-muted-foreground">Tipo</TableHead>
-            <TableHead className="text-muted-foreground">Vínculos</TableHead>
-            <TableHead className="text-muted-foreground text-center">Conciliado</TableHead>
-            <TableHead className="text-muted-foreground w-16">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
+    <>
+      {/* Mobile: Card Layout */}
+      <div className="md:hidden space-y-3">
+        {transactions.map((transaction) => {
+          const Icon = OPERATION_ICONS[transaction.operationType];
+          return (
+            <div 
+              key={transaction.id}
+              className="glass-card p-3 space-y-2"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-foreground truncate">
+                    {transaction.description}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDate(transaction.date)} • {getAccountName(transaction.accountId)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => onToggleConciliated(transaction.id, !transaction.conciliated)}
+                  >
+                    {transaction.conciliated ? (
+                      <CheckCircle2 className="w-4 h-4 text-success" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-popover border-border">
+                      <DropdownMenuItem onClick={() => onEdit(transaction)}>
+                        <Pencil className="w-4 h-4 mr-2" />
+                        Editar
+                      </DropdownMenuItem>
+                      {transaction.attachments.length > 0 && onViewAttachments && (
+                        <DropdownMenuItem onClick={() => onViewAttachments(transaction)}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          Ver Comprovante
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem 
+                        onClick={() => onDelete(transaction.id)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Excluir
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between gap-2">
+                <Badge className={cn("gap-1 text-xs", OPERATION_COLORS[transaction.operationType])}>
+                  <Icon className="w-3 h-3" />
+                  {OPERATION_LABELS[transaction.operationType]}
+                </Badge>
+                <span className={cn(
+                  "font-bold text-sm",
+                  transaction.flow === 'in' || transaction.flow === 'transfer_in' 
+                    ? "text-success" 
+                    : "text-destructive"
+                )}>
+                  {transaction.flow === 'in' || transaction.flow === 'transfer_in' ? '+' : '-'}
+                  {formatCurrency(transaction.amount)}
+                </span>
+              </div>
+              
+              {(getCategoryLabel(transaction.categoryId) !== '-' || hasLinks(transaction)) && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/50">
+                  <span>{getCategoryLabel(transaction.categoryId)}</span>
+                  <div className="flex items-center gap-1">
+                    {transaction.links.investmentId && (
+                      <Badge variant="outline" className="text-xs px-1">
+                        <PiggyBank className="w-3 h-3" />
+                      </Badge>
+                    )}
+                    {transaction.links.loanId && (
+                      <Badge variant="outline" className="text-xs px-1">
+                        <CreditCard className="w-3 h-3" />
+                      </Badge>
+                    )}
+                    {transaction.links.transferGroupId && (
+                      <Badge variant="outline" className="text-xs px-1">
+                        <ArrowLeftRight className="w-3 h-3" />
+                      </Badge>
+                    )}
+                    {transaction.attachments.length > 0 && (
+                      <Badge variant="outline" className="text-xs px-1">
+                        <Paperclip className="w-3 h-3" />
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {transactions.length === 0 && (
+          <div className="text-center py-10 text-muted-foreground">
+            Nenhuma transação encontrada
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: Table Layout */}
+      <div className="hidden md:block rounded-lg border border-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-muted-foreground">Data</TableHead>
+                <TableHead className="text-muted-foreground">Descrição</TableHead>
+                <TableHead className="text-muted-foreground">Conta</TableHead>
+                <TableHead className="text-muted-foreground">Categoria</TableHead>
+                <TableHead className="text-muted-foreground">Valor</TableHead>
+                <TableHead className="text-muted-foreground">Tipo</TableHead>
+                <TableHead className="text-muted-foreground">Vínculos</TableHead>
+                <TableHead className="text-muted-foreground text-center">Conciliado</TableHead>
+                <TableHead className="text-muted-foreground w-16">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
         <TableBody>
           {transactions.map((transaction) => {
             const Icon = OPERATION_ICONS[transaction.operationType];
@@ -264,6 +379,8 @@ export function TransactionTable({
           )}
         </TableBody>
       </Table>
-    </div>
+        </div>
+      </div>
+    </>
   );
 }
