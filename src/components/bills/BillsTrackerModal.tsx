@@ -397,7 +397,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           hideCloseButton={true}
           className="bg-card border-border overflow-hidden flex flex-col min-w-0"
         >
-          <DialogHeader className="px-6 pt-4 pb-2 border-b shrink-0">
+          {/* Ajuste de padding no cabeçalho: pt-3 em vez de pt-4 */}
+          <DialogHeader className="px-6 pt-3 pb-2 border-b shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CalendarCheck className="w-5 h-5 text-primary" />
