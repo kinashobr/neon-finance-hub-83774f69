@@ -98,12 +98,31 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       .reduce((acc, b) => acc + b.expectedAmount, 0)
   , [combinedBills]);
   
-  // Total Pago
+  // Total Pago (Total bruto)
   const totalPaidBills = useMemo(() => {
     const trackerPaid = trackerManagedBills.filter(b => b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0);
     const externalPaid = externalPaidBills.reduce((acc, b) => acc + b.expectedAmount, 0);
     return trackerPaid + externalPaid;
   }, [trackerManagedBills, externalPaidBills]);
+
+  // NOVO: Valor pago via Cartão de Crédito (Tracker + Externo)
+  const totalCreditCardPaidBills = useMemo(() => {
+    const creditCardAccountIds = new Set(contasMovimento.filter(a => a.accountType === 'cartao_credito').map(a => a.id));
+    
+    const trackerCC = trackerManagedBills
+        .filter(b => b.isPaid && b.transactionId)
+        .filter(b => {
+            const tx = transacoesV2.find(t => t.id === b.transactionId);
+            return tx && creditCardAccountIds.has(tx.accountId);
+        })
+        .reduce((acc, b) => acc + b.expectedAmount, 0);
+
+    const externalCC = externalPaidBills
+        .filter(b => creditCardAccountIds.has(b.suggestedAccountId))
+        .reduce((acc, b) => acc + b.expectedAmount, 0);
+
+    return trackerCC + externalCC;
+  }, [trackerManagedBills, externalPaidBills, transacoesV2, contasMovimento]);
 
   // --- Handlers ---
   
@@ -419,6 +438,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                   currentDate={currentDate}
                   totalPendingBills={totalUnpaidBills}
                   totalPaidBills={totalPaidBills}
+                  totalCreditCardPaidBills={totalCreditCardPaidBills}
                 />
               </div>
             </div>
