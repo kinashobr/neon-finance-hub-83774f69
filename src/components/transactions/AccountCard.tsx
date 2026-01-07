@@ -101,7 +101,7 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
       </div>
 
       {/* Seção compacta com os 3 valores em uma linha */}
-      <div className="flex items-center justify-between pt-2 border-t border-border/50 text-[10px]">
+      <div className="flex items-center justify-between mb-3 text-[10px]">
         <div className="flex items-center gap-1 text-success">
           <ArrowUpRight className="w-3 h-3" />
           <span className="font-bold">+{formatCurrency(totalIn)}</span>
@@ -120,6 +120,15 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
           <span>{isPositive ? '+' : ''}{formatCurrency(balanceChange)}</span>
         </div>
       </div>
+
+      {/* Botão de ação */}
+      <Button 
+        size="sm" 
+        className="w-full bg-primary hover:bg-primary/90"
+        onClick={() => onMovimentar(accountId)}
+      >
+        Movimentar
+      </Button>
     </Card>
   );
 }
