@@ -11,30 +11,20 @@ interface AccountCardProps {
   onMovimentar: (accountId: string) => void;
   onViewHistory: (accountId: string) => void;
   onEdit?: (accountId: string) => void;
-  onImport?: (accountId: string) => void; // NOVO PROP
+  onImport?: (accountId: string) => void;
 }
-
-const ACCOUNT_ICONS: Record<string, typeof Building2> = {
-  'building-2': Building2,
-  'piggy-bank': PiggyBank,
-  'wallet': Wallet,
-  'trending-up': TrendingUp,
-};
 
 export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onImport }: AccountCardProps) {
   const {
     accountId,
     accountName,
-    initialBalance, // Saldo inicial do período (calculado em ReceitasDespesas.tsx)
+    initialBalance,
     currentBalance,
     projectedBalance,
-    totalIn,
-    totalOut,
     reconciliationStatus,
     transactionCount
   } = summary;
 
-  // Mapeamento para as classes CSS customizadas
   const statusClasses = {
     ok: 'stat-card-positive',
     warning: 'stat-card-warning',
@@ -53,7 +43,7 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
   return (
     <Card className={cn(
       "glass-card min-w-[85vw] sm:min-w-[280px] max-w-[320px] p-3 md:p-4 transition-all hover:shadow-md",
-      statusClasses[reconciliationStatus] // Aplica a classe customizada que define a borda de 4px
+      statusClasses[reconciliationStatus]
     )}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
@@ -97,8 +87,7 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
 
       <div className="space-y-2 mb-4">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Saldo Inicial (período)</span>
-          {/* Exibe o saldo inicial do período, formatado */}
+          <span>Saldo Inicial</span>
           <span>{formatCurrency(initialBalance)}</span>
         </div>
         
@@ -113,52 +102,29 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
         </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-4 py-2 border-y border-border">
+      {/* Seção de rodapé com variação e botão */}
+      <div className="flex items-center justify-between pt-4 border-t border-border">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center gap-1 text-xs text-success">
-                <ArrowUpRight className="w-3 h-3" />
-                <span>{formatCurrency(totalIn)}</span>
+              <div className={cn(
+                "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md",
+                isPositive ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+              )}>
+                {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                <span>{isPositive ? '+' : ''}{formatCurrency(balanceChange)}</span>
               </div>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Total de entradas no período</p>
+              <p>Variação líquida no período selecionado</p>
+              <p className="text-[10px] opacity-70">Baseado em {transactionCount} transações</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-1 text-xs text-destructive">
-                <ArrowDownRight className="w-3 h-3" />
-                <span>{formatCurrency(totalOut)}</span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Total de saídas no período</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        <span className="text-xs text-muted-foreground ml-auto">
-          {transactionCount} transações
-        </span>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className={cn(
-          "flex items-center gap-1 text-xs",
-          isPositive ? "text-success" : "text-destructive"
-        )}>
-          {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-          <span>{isPositive ? '+' : ''}{formatCurrency(balanceChange)}</span>
-        </div>
 
         <Button 
           size="sm" 
-          className="bg-primary hover:bg-primary/90"
+          className="bg-primary hover:bg-primary/90 h-8"
           onClick={() => onMovimentar(accountId)}
         >
           Movimentar

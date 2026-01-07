@@ -1,8 +1,7 @@
-import { useRef, useState, useCallback, useMemo } from "react";
+import { useRef, useCallback, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { AccountSummary, ContaCorrente } from "@/types/finance";
+import { AccountSummary } from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
 import { SortableAccountCard } from "./SortableAccountCard";
 import {
@@ -28,7 +27,7 @@ interface AccountsCarouselProps {
   onViewHistory: (accountId: string) => void;
   onAddAccount?: () => void;
   onEditAccount?: (accountId: string) => void;
-  onImportAccount?: (accountId: string) => void; // NOVO PROP
+  onImportAccount?: (accountId: string) => void;
 }
 
 export function AccountsCarousel({ 
@@ -37,18 +36,17 @@ export function AccountsCarousel({
   onViewHistory,
   onAddAccount,
   onEditAccount,
-  onImportAccount, // RECEBIDO AQUI
+  onImportAccount,
 }: AccountsCarouselProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // Alterado para focar no elemento de scroll real
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { contasMovimento, setContasMovimento } = useFinance();
 
-  // Filtra contas ocultas (como a conta de contrapartida)
   const visibleContasMovimento = useMemo(() => 
     contasMovimento.filter(c => !c.hidden), 
     [contasMovimento]
   );
 
-  // Mapear summaries para a ordem atual das contas visíveis
   const orderedSummaries = useMemo(() => visibleContasMovimento
     .map(account => accounts.find(s => s.accountId === account.id))
     .filter((s): s is AccountSummary => !!s), 
@@ -59,7 +57,6 @@ export function AccountsCarousel({
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      // Aumenta a tolerância para evitar drag acidental ao rolar
       activationConstraint: {
         distance: 8,
       },
@@ -69,10 +66,10 @@ export function AccountsCarousel({
     })
   );
 
-  const scroll = (direction: 'left' | 'right') => {
-    if (scrollRef.current) {
+  const handleScroll = (direction: 'left' | 'right') => {
+    if (scrollContainerRef.current) {
       const scrollAmount = 320;
-      scrollRef.current.scrollBy({
+      scrollContainerRef.current.scrollBy({
         left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth'
       });
@@ -83,20 +80,15 @@ export function AccountsCarousel({
     const { active, over } = event;
 
     if (active.id !== over?.id) {
-      // Encontra os IDs das contas visíveis e suas posições
       const visibleIds = contasMovimento.filter(c => !c.hidden).map(c => c.id);
       const oldIndex = visibleIds.indexOf(active.id as string);
       const newIndex = visibleIds.indexOf(over?.id as string);
       
       if (oldIndex !== -1 && newIndex !== -1) {
-        // Cria uma lista temporária apenas com as contas visíveis
         const visibleAccounts = contasMovimento.filter(c => !c.hidden);
         const newVisibleOrder = arrayMove(visibleAccounts, oldIndex, newIndex);
-        
-        // Reconstroi a lista completa, mantendo as contas ocultas no final (ou onde estavam)
         const hiddenAccounts = contasMovimento.filter(c => c.hidden);
         const newFullOrder = [...newVisibleOrder, ...hiddenAccounts];
-        
         setContasMovimento(newFullOrder);
       }
     }
@@ -118,7 +110,8 @@ export function AccountsCarousel({
               variant="ghost" 
               size="icon" 
               className="h-8 w-8"
-              onClick={() => scroll('left')}
+              onClick={() => handleScroll('left')}
+              title="Rolar para esquerda"
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
@@ -126,7 +119,8 @@ export function AccountsCarousel({
               variant="ghost" 
               size="icon" 
               className="h-8 w-8"
-              onClick={() => scroll('right')}
+              onClick={() => handleScroll('right')}
+              title="Rolar para direita"
             >
               <ChevronRight className="w-4 h-4" />
             </Button>
@@ -144,36 +138,34 @@ export function AccountsCarousel({
           items={accountIds}
           strategy={horizontalListSortingStrategy}
         >
-          <ScrollArea className="w-full" ref={scrollRef}>
-            <div 
-              className="flex gap-4 pb-4"
-              // O innerRef do SortableContext não é necessário aqui, pois o ScrollArea já gerencia o container
-            >
-              {orderedSummaries.map((summary) => (
-                <SortableAccountCard
-                  key={summary.accountId}
-                  summary={summary}
-                  onMovimentar={onMovimentar}
-                  onViewHistory={onViewHistory}
-                  onEdit={onEditAccount}
-                  onImport={onImportAccount} // PASSADO AQUI
-                />
-              ))}
+          {/* Usando div com overflow direto para garantir que o ref funcione com scrollBy */}
+          <div 
+            ref={scrollContainerRef}
+            className="flex gap-4 pb-4 overflow-x-auto hide-scrollbar-mobile scroll-smooth"
+          >
+            {orderedSummaries.map((summary) => (
+              <SortableAccountCard
+                key={summary.accountId}
+                summary={summary}
+                onMovimentar={onMovimentar}
+                onViewHistory={onViewHistory}
+                onEdit={onEditAccount}
+                onImport={onImportAccount}
+              />
+            ))}
 
-              {orderedSummaries.length === 0 && (
-                <div className="min-w-[85vw] sm:min-w-[280px] p-6 md:p-8 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-3 text-muted-foreground">
-                  <p className="text-sm">Nenhuma conta cadastrada</p>
-                  {onAddAccount && (
-                    <Button variant="outline" size="sm" onClick={onAddAccount}>
-                      <Plus className="w-4 h-4 mr-1" />
-                      Adicionar Conta
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+            {orderedSummaries.length === 0 && (
+              <div className="min-w-[85vw] sm:min-w-[280px] p-6 md:p-8 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                <p className="text-sm">Nenhuma conta cadastrada</p>
+                {onAddAccount && (
+                  <Button variant="outline" size="sm" onClick={onAddAccount}>
+                    <Plus className="w-4 h-4 mr-1" />
+                    Adicionar Conta
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </SortableContext>
       </DndContext>
     </div>
