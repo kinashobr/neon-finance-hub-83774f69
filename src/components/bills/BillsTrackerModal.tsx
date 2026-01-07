@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, Settings, ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, Settings, ShoppingCart, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, PotentialFixedBill, BillSourceType, formatCurrency, generateBillId, TransactionLinks, OperationType, BillDisplayItem, ExternalPaidBill } from "@/types/finance";
 import { BillsTrackerList } from "./BillsTrackerList";
@@ -13,7 +13,7 @@ import { AddPurchaseInstallmentDialog } from "./AddPurchaseInstallmentDialog";
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { parseDateLocal } from "@/lib/utils";
+import { parseDateLocal, cn } from "@/lib/utils";
 import { ResizableDialogContent } from "../ui/ResizableDialogContent";
 
 // Tipo auxiliar para links parciais
@@ -24,7 +24,6 @@ const isBillTracker = (bill: BillDisplayItem): bill is BillTracker => {
     return bill.type === 'tracker';
 };
 
-// NEW: BillsTrackerModalProps interface
 interface BillsTrackerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -59,15 +58,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const [fixedBillSelectorMode, setFixedBillSelectorMode] = useState<'current' | 'future'>('current');
   const [showAddPurchaseDialog, setShowAddPurchaseDialog] = useState(false);
   
-  // Contas gerenciadas pelo tracker (pendentes e pagas via tracker)
   const trackerManagedBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
   
-  // Obter pagamentos externos (somente leitura)
   const externalPaidBills = useMemo(() => 
     getOtherPaidExpensesForMonth(currentDate) 
   , [getOtherPaidExpensesForMonth, currentDate]);
   
-  // Lista combinada e ordenada para exibição
   const combinedBills: BillDisplayItem[] = useMemo(() => {
     const trackerPaidTxIds = new Set(trackerManagedBills
         .filter(b => b.isPaid && b.transactionId)
@@ -91,16 +87,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     getFutureFixedBills(currentDate, trackerManagedBills)
   , [getFutureFixedBills, currentDate, trackerManagedBills]);
   
-  // --- NOVA LÓGICA DE TOTAIS (CONSIDERANDO CARTÃO DE CRÉDITO) ---
-
-  // A pagar (Pendentes + Cartão de Crédito)
-  // Representa tudo o que ainda não saiu do saldo das contas correntes/reservas
   const totalUnpaidBills = useMemo(() => {
     const creditCardAccountIds = new Set(contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id));
     
     return combinedBills.reduce((acc, b) => {
         const isCC = b.suggestedAccountId && creditCardAccountIds.has(b.suggestedAccountId);
-        // Entra no "Pendente" se: NÃO está pago OU se está pago via CARTÃO
         if (!b.isPaid || isCC) {
             return acc + b.expectedAmount;
         }
@@ -108,14 +99,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     }, 0);
   }, [combinedBills, contasMovimento]);
   
-  // Total Pago (Desembolso Real de Caixa)
-  // Representa o que já saiu efetivamente das contas bancárias
   const totalPaidBills = useMemo(() => {
     const creditCardAccountIds = new Set(contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id));
 
     return combinedBills.reduce((acc, b) => {
         const isCC = b.suggestedAccountId && creditCardAccountIds.has(b.suggestedAccountId);
-        // Entra no "Pago" apenas se: ESTÁ pago E NÃO foi via CARTÃO
         if (b.isPaid && !isCC) {
             return acc + b.expectedAmount;
         }
@@ -123,8 +111,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     }, 0);
   }, [combinedBills, contasMovimento]);
 
-  // --- Handlers ---
-  
   const handleMonthChange = (direction: 'prev' | 'next') => {
     setCurrentDate(prev => direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1));
   };
@@ -408,31 +394,39 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           storageKey="bills_tracker_modal"
           initialWidth={1300}
           initialHeight={800}
-          minWidth={900}
+          minWidth={350} // Reduzido minWidth para mobile
           minHeight={600}
           hideCloseButton={true}
-          className="bg-card border-border overflow-hidden flex flex-col min-w-0 p-0"
+          className="bg-card border-border overflow-hidden flex flex-col min-w-0 p-0 max-w-[100vw]"
         >
-          <DialogHeader className="px-6 pt-1 pb-2 border-b shrink-0">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                    <CalendarCheck className="w-6 h-6 text-primary" />
+          <DialogHeader className="px-4 md:px-6 pt-1 pb-2 border-b shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="p-1.5 md:p-2 bg-primary/10 rounded-lg">
+                    <CalendarCheck className="w-5 h-5 md:w-6 md:h-6 text-primary" />
                 </div>
-                <div>
-                  <DialogTitle className="text-xl font-bold leading-none">Contas a Pagar</DialogTitle>
-                  <p className="text-sm text-muted-foreground mt-1.5">
-                    Gestão de despesas de {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+                <div className="min-w-0">
+                  <DialogTitle className="text-base md:text-xl font-bold leading-none truncate">Contas a Pagar</DialogTitle>
+                  <p className="text-[10px] md:text-sm text-muted-foreground mt-1 truncate">
+                    {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
                   </p>
                 </div>
               </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 md:hidden" 
+                onClick={() => onOpenChange(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           </DialogHeader>
 
-          <div className="flex flex-1 overflow-hidden min-w-0">
-            {/* Sidebar de KPIs */}
-            <div className="w-[400px] shrink-0 border-r border-border">
-              <div className="p-4 overflow-y-auto h-full">
+          <div className="flex flex-col lg:flex-row flex-1 overflow-hidden min-w-0">
+            {/* Sidebar de KPIs - No mobile vira topo */}
+            <div className="w-full lg:w-[400px] shrink-0 border-b lg:border-b-0 lg:border-r border-border bg-muted/10 lg:bg-transparent">
+              <div className="p-3 md:p-4 overflow-y-auto max-h-[40vh] lg:max-h-full">
                 <BillsSidebarKPIs 
                   currentDate={currentDate}
                   totalPendingBills={totalUnpaidBills}
@@ -442,48 +436,49 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             </div>
 
             {/* Conteúdo Principal */}
-            <div className="flex-1 flex flex-col p-4 overflow-hidden">
-              <div className="flex items-center justify-between mb-4 shrink-0">
+            <div className="flex-1 flex flex-col p-3 md:p-4 overflow-hidden bg-background">
+              <div className="flex flex-col sm:flex-row items-center justify-between mb-4 gap-3 shrink-0">
                 {/* Navegação de Data Moderna */}
-                <div className="flex items-center bg-muted/50 rounded-lg p-1.5 border border-border/50">
+                <div className="flex items-center bg-muted/50 rounded-lg p-1 border border-border/50 w-full sm:w-auto justify-between sm:justify-start">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-10 w-10 hover:bg-background hover:shadow-sm"
+                    className="h-8 w-8 md:h-10 md:w-10 hover:bg-background hover:shadow-sm"
                     onClick={() => handleMonthChange('prev')}
                   >
-                    <ChevronLeft className="w-5 h-5" />
+                    <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
                   </Button>
-                  <div className="px-6 min-w-[160px] text-center">
-                    <span className="text-lg font-bold text-foreground capitalize">
+                  <div className="px-4 md:px-6 min-w-[120px] md:min-w-[160px] text-center">
+                    <span className="text-sm md:text-lg font-bold text-foreground capitalize">
                       {format(currentDate, 'MMMM', { locale: ptBR })}
                     </span>
-                    <span className="text-xs text-muted-foreground block leading-none font-medium">
+                    <span className="text-[10px] md:text-xs text-muted-foreground block leading-none font-medium">
                       {format(currentDate, 'yyyy')}
                     </span>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-10 w-10 hover:bg-background hover:shadow-sm"
+                    className="h-8 w-8 md:h-10 md:w-10 hover:bg-background hover:shadow-sm"
                     onClick={() => handleMonthChange('next')}
                   >
-                    <ChevronRight className="w-5 h-5" />
+                    <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />
                   </Button>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setShowAddPurchaseDialog(true)} className="gap-2">
-                    <ShoppingCart className="w-4 h-4" />
-                    Compra Parcelada
+                <div className="flex items-center gap-1 md:gap-2 w-full sm:w-auto">
+                  <Button variant="outline" size="sm" onClick={() => setShowAddPurchaseDialog(true)} className="flex-1 sm:flex-none gap-1.5 h-8 text-[11px] md:text-xs">
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <span className="hidden xs:inline">Compra Parcelada</span>
+                    <span className="xs:hidden">Compra</span>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => { setFixedBillSelectorMode('current'); setShowFixedBillSelector(true); }} className="gap-2">
-                    <Settings className="w-4 h-4" />
-                    Gerenciar Fixas
+                  <Button variant="outline" size="sm" onClick={() => { setFixedBillSelectorMode('current'); setShowFixedBillSelector(true); }} className="flex-1 sm:flex-none gap-1.5 h-8 text-[11px] md:text-xs">
+                    <Settings className="w-3.5 h-3.5" />
+                    Fixas
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => { setFixedBillSelectorMode('future'); setShowFixedBillSelector(true); }} className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Adiantar Parcelas
+                  <Button variant="outline" size="sm" onClick={() => { setFixedBillSelectorMode('future'); setShowFixedBillSelector(true); }} className="flex-1 sm:flex-none gap-1.5 h-8 text-[11px] md:text-xs">
+                    <Plus className="w-3.5 h-3.5" />
+                    Adiantar
                   </Button>
                 </div>
               </div>
@@ -501,7 +496,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         </ResizableDialogContent>
       </Dialog>
 
-      {/* Modais Secundários */}
       <FixedBillSelectorModal
         open={showFixedBillSelector}
         onOpenChange={setShowFixedBillSelector}
