@@ -1,4 +1,4 @@
-import { Building2, PiggyBank, Wallet, TrendingUp, MoreVertical, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Building2, MoreVertical, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -20,7 +20,8 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
     accountName,
     initialBalance,
     currentBalance,
-    projectedBalance,
+    totalIn,
+    totalOut,
     reconciliationStatus,
     transactionCount
   } = summary;
@@ -91,14 +92,25 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
           <span>{formatCurrency(initialBalance)}</span>
         </div>
         
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between py-1 border-y border-border/30">
           <span className="text-sm font-medium text-foreground">Saldo Atual</span>
           <span className="text-lg font-bold text-foreground">{formatCurrency(currentBalance)}</span>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Saldo Projetado</span>
-          <span>{formatCurrency(projectedBalance)}</span>
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="space-y-0.5">
+            <span className="text-[10px] text-muted-foreground uppercase font-semibold">Entradas</span>
+            <p className="text-xs font-bold text-success">+{formatCurrency(totalIn)}</p>
+          </div>
+          <div className="space-y-0.5 text-right">
+            <span className="text-[10px] text-muted-foreground uppercase font-semibold">Saídas</span>
+            <p className="text-xs font-bold text-destructive">-{formatCurrency(totalOut)}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1">
+          <span>Total de Transações</span>
+          <span className="font-bold">{transactionCount}</span>
         </div>
       </div>
 
@@ -117,7 +129,6 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
             </TooltipTrigger>
             <TooltipContent>
               <p>Variação líquida no período selecionado</p>
-              <p className="text-[10px] opacity-70">Baseado em {transactionCount} transações</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
