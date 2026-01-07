@@ -121,14 +121,16 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
         </div>
       </div>
 
-      {/* Botão de ação */}
-      <Button 
-        size="sm" 
-        className="w-full bg-primary hover:bg-primary/90"
-        onClick={() => onMovimentar(accountId)}
-      >
-        Movimentar
-      </Button>
+      {/* Botão de ação no canto inferior direito */}
+      <div className="flex justify-end">
+        <Button 
+          size="sm" 
+          className="bg-primary hover:bg-primary/90 h-8"
+          onClick={() => onMovimentar(accountId)}
+        >
+          Movimentar
+        </Button>
+      </div>
     </Card>
   );
 }
