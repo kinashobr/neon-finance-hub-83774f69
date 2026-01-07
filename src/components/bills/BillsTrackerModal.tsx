@@ -96,11 +96,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   
   const handleUpdateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
     updateBill(id, updates);
-    const bill = billsTracker.find(b => b.id === id);
-    if (bill?.transactionId) {
-      setTransacoesV2(prev => prev.map(t => t.id === bill.transactionId ? { ...t, date: updates.paymentDate || t.date, amount: updates.expectedAmount !== undefined ? updates.expectedAmount : t.amount, accountId: updates.suggestedAccountId || t.accountId, categoryId: updates.suggestedCategoryId || t.categoryId, description: updates.description || t.description } : t));
-    }
-  }, [updateBill, billsTracker, setTransacoesV2]);
+  }, [updateBill]);
 
   const handleDeleteBill = useCallback((id: string) => { deleteBill(id); }, [deleteBill]);
   const handleAddBill = useCallback((bill: Omit<BillTracker, "id" | "isPaid" | "type">) => { setBillsTracker(prev => [...prev, { ...bill, id: generateBillId(), type: 'tracker', isPaid: false, isExcluded: false }]); }, [setBillsTracker]);
@@ -113,7 +109,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       const category = categoriasV2.find(c => c.id === trackerBill.suggestedCategoryId);
       if (!account || !category) { toast.error("Conta ou categoria sugerida não encontrada."); return; }
       const transactionId = `bill_tx_${trackerBill.id}`;
-      const baseLinks: PartialTransactionLinks = {};
+      const baseLinks: Partial<TransactionLinks> = {};
       let description = trackerBill.description;
       const operationType: OperationType = trackerBill.sourceType === 'loan_installment' ? 'pagamento_emprestimo' : 'despesa';
       const domain = trackerBill.sourceType === 'loan_installment' ? 'financing' : 'operational';
@@ -133,7 +129,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         const seguroId = parseInt(trackerBill.sourceRef);
         markSeguroParcelPaid(seguroId, trackerBill.parcelaNumber, transactionId);
       }
-      addTransacaoV2({ id: transactionId, date: format(new Date(), 'yyyy-MM-dd'), accountId: account.id, flow: 'out', operationType, domain, amount: trackerBill.expectedAmount, categoryId: category.id, description, links: { investmentId: baseLinks.investmentId || null, transferGroupId: baseLinks.transferGroupId || null, vehicleTransactionId: baseLinks.vehicleTransactionId || null, loanId: baseLinks.loanId || null, parcelaId: baseLinks.parcelaId || null }, conciliated: false, attachments: [], meta: { createdBy: 'bill_tracker', source: 'bill_tracker', createdAt: new Date().toISOString(), notes: `Gerado pelo Contas a Pagar. Bill ID: ${trackerBill.id}` } });
+      addTransacaoV2({ id: transactionId, date: format(new Date(), 'yyyy-MM-dd'), accountId: account.id, flow: 'out', operationType, domain, amount: trackerBill.expectedAmount, categoryId: category.id, description, links: { investmentId: null, transferGroupId: null, vehicleTransactionId: baseLinks.vehicleTransactionId || null, loanId: baseLinks.loanId || null, parcelaId: baseLinks.parcelaId || null }, conciliated: false, attachments: [], meta: { createdBy: 'bill_tracker', source: 'bill_tracker', createdAt: new Date().toISOString(), notes: `Gerado pelo Contas a Pagar. Bill ID: ${trackerBill.id}` } });
       updateBill(trackerBill.id, { isPaid: true, transactionId, paymentDate: format(new Date(), 'yyyy-MM-dd') });
       toast.success(`Conta "${trackerBill.description}" paga!`);
     } else {
@@ -160,7 +156,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             const category = categoriasV2.find(c => c.id === newBill.suggestedCategoryId);
             if (!account || !category) return;
             const transactionId = newBill.transactionId;
-            const baseLinks: PartialTransactionLinks = {};
+            const baseLinks: Partial<TransactionLinks> = {};
             if (newBill.sourceType === 'loan_installment' && newBill.sourceRef && newBill.parcelaNumber) {
                 const loanId = parseInt(newBill.sourceRef);
                 baseLinks.loanId = `loan_${loanId}`; baseLinks.parcelaId = String(newBill.parcelaNumber);
@@ -218,8 +214,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             </DialogHeader>
 
             <div className="flex flex-1 overflow-hidden">
-              {/* Sidebar de KPIs com largura proporcional */}
-              <div className="w-[28%] min-w-[280px] max-w-[450px] shrink-0 border-r border-border bg-muted/10">
+              {/* Sidebar de KPIs com largura proporcional reduzida em 30% */}
+              <div className="w-[20%] min-w-[200px] max-w-[320px] shrink-0 border-r border-border bg-muted/10">
                 <div className="p-4 overflow-y-auto h-full">
                   <BillsSidebarKPIs 
                     currentDate={currentDate}
