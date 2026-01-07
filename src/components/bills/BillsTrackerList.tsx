@@ -1,12 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -45,26 +38,26 @@ type ColumnKey = typeof COLUMN_KEYS[number];
 
 const INITIAL_WIDTHS: Record<ColumnKey, number> = {
   pay: 40,
-  due: 80,
-  paymentDate: 80,
-  description: 180,
-  account: 112,
-  type: 64,
-  category: 150,
-  amount: 80,
-  actions: 40,
+  due: 90,
+  paymentDate: 90,
+  description: 200,
+  account: 120,
+  type: 70,
+  category: 160,
+  amount: 100,
+  actions: 50,
 };
 
 const columnHeaders: { key: ColumnKey, label: string, align?: 'center' | 'right' }[] = [
-  { key: 'pay', label: 'Pagar', align: 'center' },
-  { key: 'due', label: 'Vencimento' },
-  { key: 'paymentDate', label: 'Data Pgto' },
+  { key: 'pay', label: 'Pg', align: 'center' },
+  { key: 'due', label: 'Vencto' },
+  { key: 'paymentDate', label: 'Pgto' },
   { key: 'description', label: 'Descrição' },
-  { key: 'account', label: 'Conta Pgto' },
+  { key: 'account', label: 'Conta' },
   { key: 'type', label: 'Tipo' },
   { key: 'category', label: 'Categoria' },
   { key: 'amount', label: 'Valor', align: 'right' },
-  { key: 'actions', label: 'Ações', align: 'center' },
+  { key: 'actions', label: '', align: 'center' },
 ];
 
 const isBillTracker = (bill: BillDisplayItem): bill is BillTracker => bill.type === 'tracker';
@@ -79,453 +72,139 @@ export function BillsTrackerList({
   currentDate,
 }: BillsTrackerListProps) {
   const { categoriasV2, contasMovimento, setBillsTracker } = useFinance();
-  
-  const [newBillData, setNewBillData] = useState({
-    description: '',
-    amount: '',
-    dueDate: format(currentDate, 'yyyy-MM-dd'),
-  });
-
+  const [newBillData, setNewBillData] = useState({ description: '', amount: '', dueDate: format(currentDate, 'yyyy-MM-dd') });
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(() => {
-    try {
-      const saved = localStorage.getItem('bills_column_widths');
-      return saved ? JSON.parse(saved) : INITIAL_WIDTHS;
-    } catch {
-      return INITIAL_WIDTHS;
-    }
+    try { const saved = localStorage.getItem('bills_column_widths'); return saved ? JSON.parse(saved) : INITIAL_WIDTHS; } catch { return INITIAL_WIDTHS; }
   });
   
-  useEffect(() => {
-    localStorage.setItem('bills_column_widths', JSON.stringify(columnWidths));
-  }, [columnWidths]);
-
+  useEffect(() => { localStorage.setItem('bills_column_widths', JSON.stringify(columnWidths)); }, [columnWidths]);
   const [resizingColumn, setResizingColumn] = useState<ColumnKey | null>(null);
   const [startX, setStartX] = useState(0);
   const [startWidth, setStartWidth] = useState(0);
 
-  const handleMouseDown = (e: React.MouseEvent, key: ColumnKey) => {
-    e.preventDefault();
-    setResizingColumn(key);
-    setStartX(e.clientX);
-    setStartWidth(columnWidths[key]);
-  };
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!resizingColumn) return;
-    const deltaX = e.clientX - startX;
-    const newWidth = Math.max(30, startWidth + deltaX);
-    setColumnWidths(prev => ({ ...prev, [resizingColumn]: newWidth }));
-  }, [resizingColumn, startX, startWidth]);
-
-  const handleMouseUp = useCallback(() => {
-    setResizingColumn(null);
-  }, []);
-
+  const handleMouseDown = (e: React.MouseEvent, key: ColumnKey) => { e.preventDefault(); setResizingColumn(key); setStartX(e.clientX); setStartWidth(columnWidths[key]); };
+  const handleMouseMove = useCallback((e: MouseEvent) => { if (!resizingColumn) return; const deltaX = e.clientX - startX; const newWidth = Math.max(30, startWidth + deltaX); setColumnWidths(prev => ({ ...prev, [resizingColumn]: newWidth })); }, [resizingColumn, startX, startWidth]);
+  const handleMouseUp = useCallback(() => { setResizingColumn(null); }, []);
   useEffect(() => {
-    if (resizingColumn) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
-    } else {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'default';
-    }
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'default';
-    };
+    if (resizingColumn) { window.addEventListener('mousemove', handleMouseMove); window.addEventListener('mouseup', handleMouseUp); document.body.style.cursor = 'col-resize'; } 
+    else { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); document.body.style.cursor = 'default'; }
+    return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); document.body.style.cursor = 'default'; };
   }, [resizingColumn, handleMouseMove, handleMouseUp]);
   
   const totalWidth = useMemo(() => Object.values(columnWidths).reduce((sum, w) => sum + w, 0), [columnWidths]);
-
-  const formatAmount = (value: string) => {
-    const cleaned = value.replace(/[^\d,]/g, '');
-    const parts = cleaned.split(',');
-    if (parts.length > 2) return value;
-    return cleaned;
-  };
-
-  const parseAmount = (value: string): number => {
-    const parsed = parseFloat(value.replace('.', '').replace(',', '.'));
-    return isNaN(parsed) ? 0 : parsed;
-  };
+  const formatAmount = (v: string) => { const c = v.replace(/[^\d,]/g, ''); const p = c.split(','); return p.length > 2 ? v : c; };
+  const parseAmount = (v: string): number => { const p = parseFloat(v.replace('.', '').replace(',', '.')); return isNaN(p) ? 0 : p; };
 
   const handleAddAdHocBill = () => {
     const amount = parseAmount(newBillData.amount);
-    if (!newBillData.description || amount <= 0 || !newBillData.dueDate) {
-      toast.error("Preencha a descrição, valor e data de vencimento.");
-      return;
-    }
-    onAddBill({
-      description: newBillData.description,
-      dueDate: newBillData.dueDate,
-      expectedAmount: amount,
-      sourceType: 'ad_hoc',
-      suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
-      suggestedCategoryId: null,
-    });
+    if (!newBillData.description || amount <= 0 || !newBillData.dueDate) return;
+    onAddBill({ description: newBillData.description, dueDate: newBillData.dueDate, expectedAmount: amount, sourceType: 'ad_hoc', suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id, suggestedCategoryId: null });
     setNewBillData({ description: '', amount: '', dueDate: format(currentDate, 'yyyy-MM-dd') });
-    toast.success("Conta avulsa adicionada!");
   };
   
-  const handleExcludeBill = (bill: BillTracker) => {
-    if (bill.sourceType === 'loan_installment' || bill.sourceType === 'insurance_installment') {
-        toast.error("Não é possível excluir parcelas de empréstimo ou seguro.");
-        return;
-    }
-    if (bill.isPaid) {
-        toast.error("Desmarque o pagamento antes de excluir.");
-        return;
-    }
-    onUpdateBill(bill.id, { isExcluded: true });
-    toast.info(`Conta "${bill.description}" excluída da lista deste mês.`);
+  const handleExcludeBill = (bill: BillTracker) => { if (bill.isPaid) return; onUpdateBill(bill.id, { isExcluded: true }); };
+  const handleDeletePurchaseGroup = (ref: string) => { setBillsTracker(prev => prev.filter(b => b.sourceRef !== ref || b.isPaid)); };
+  const handleUpdateExpectedAmount = (b: BillTracker, n: number) => { onUpdateBill(b.id, { expectedAmount: n }); };
+  const handleUpdateSuggestedAccount = (b: BillTracker, n: string) => { onUpdateBill(b.id, { suggestedAccountId: n }); };
+  const handleUpdateSuggestedCategory = (b: BillTracker, n: string) => {
+    const s = categoriasV2.find(c => c.id === n);
+    let type: BillSourceType = b.sourceType;
+    if (s && b.sourceType !== 'purchase_installment') { type = s.nature === 'despesa_fixa' ? 'fixed_expense' : 'variable_expense'; }
+    onUpdateBill(b.id, { suggestedCategoryId: n, sourceType: type });
   };
-
-  const handleDeletePurchaseGroup = (sourceRef: string) => {
-    setBillsTracker(prev => prev.filter(b => b.sourceRef !== sourceRef || b.isPaid));
-    toast.success("Parcelas futuras da compra removidas!");
-  };
-  
-  const handleUpdateExpectedAmount = (bill: BillTracker, newAmount: number) => {
-    if (bill.sourceType === 'loan_installment' || bill.sourceType === 'insurance_installment') {
-        toast.error("Valor de parcelas fixas deve ser alterado no cadastro do Empréstimo/Seguro.");
-        return;
-    }
-    onUpdateBill(bill.id, { expectedAmount: newAmount });
-    toast.success("Valor atualizado!");
-  };
-  
-  const handleUpdateSuggestedAccount = (bill: BillTracker, newAccountId: string) => {
-    onUpdateBill(bill.id, { suggestedAccountId: newAccountId });
-    toast.success("Conta de pagamento sugerida atualizada!");
-  };
-  
-  const handleUpdateSuggestedCategory = (bill: BillTracker, newCategoryId: string) => {
-    if (bill.sourceType === 'ad_hoc' || bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense' || bill.sourceType === 'purchase_installment') {
-        const selectedCategory = categoriasV2.find(c => c.id === newCategoryId);
-        let newSourceType: BillSourceType = bill.sourceType;
-        if (selectedCategory && bill.sourceType !== 'purchase_installment') {
-            if (selectedCategory.nature === 'despesa_fixa') {
-                newSourceType = 'fixed_expense';
-            } else if (selectedCategory.nature === 'despesa_variavel') {
-                newSourceType = 'variable_expense';
-            }
-        }
-        onUpdateBill(bill.id, { suggestedCategoryId: newCategoryId, sourceType: newSourceType });
-        toast.success("Categoria atualizada!");
-    } else {
-        toast.error("A categoria para parcelas fixas é definida automaticamente.");
-    }
-  };
-  
-  const handleUpdateDueDate = (bill: BillTracker, newDateStr: string) => {
-    if (bill.isPaid) {
-        toast.error("Não é possível alterar a data de vencimento de contas já pagas.");
-        return;
-    }
-    onUpdateBill(bill.id, { dueDate: newDateStr });
-    toast.success("Data de vencimento atualizada!");
-  };
-  
-  const handleUpdatePaymentDate = (bill: BillTracker, newDateStr: string) => {
-    if (!bill.isPaid) {
-        toast.error("A conta deve estar paga para alterar a data de pagamento.");
-        return;
-    }
-    onUpdateBill(bill.id, { paymentDate: newDateStr });
-    toast.success("Data de pagamento atualizada!");
-  };
+  const handleUpdateDueDate = (b: BillTracker, n: string) => { if (!b.isPaid) onUpdateBill(b.id, { dueDate: n }); };
+  const handleUpdatePaymentDate = (b: BillTracker, n: string) => { if (b.isPaid) onUpdateBill(b.id, { paymentDate: n }); };
 
   const sortedBills = useMemo(() => {
-    const trackerBills = bills.filter(isBillTracker).filter(b => !b.isExcluded);
-    const externalBills = bills.filter(isExternalPaidBill);
-    const pending = trackerBills.filter(b => !b.isPaid);
-    const paidTracker = trackerBills.filter(b => b.isPaid);
-    const allPaid: BillDisplayItem[] = [...paidTracker, ...externalBills];
-    pending.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
-    allPaid.sort((a, b) => parseDateLocal(b.paymentDate || b.dueDate).getTime() - parseDateLocal(a.paymentDate || a.dueDate).getTime());
-    return [...pending, ...allPaid];
+    const tracker = bills.filter(isBillTracker).filter(b => !b.isExcluded);
+    const external = bills.filter(isExternalPaidBill);
+    const pending = tracker.filter(b => !b.isPaid).sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
+    const paid = [...tracker.filter(b => b.isPaid), ...external].sort((a, b) => parseDateLocal(b.paymentDate || b.dueDate).getTime() - parseDateLocal(a.paymentDate || a.dueDate).getTime());
+    return [...pending, ...paid];
   }, [bills]);
   
-  // NOVA LÓGICA: Soma pendências considerando pagamentos em cartão como "ainda por sair do caixa"
   const totalPending = useMemo(() => {
-    const creditCardAccountIds = new Set(contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id));
-    return sortedBills.reduce((acc, b) => {
-        const isCC = b.suggestedAccountId && creditCardAccountIds.has(b.suggestedAccountId);
-        if (!b.isPaid || isCC) {
-            return acc + b.expectedAmount;
-        }
-        return acc;
-    }, 0);
+    const creditIds = new Set(contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id));
+    return sortedBills.reduce((acc, b) => (!b.isPaid || (b.suggestedAccountId && creditIds.has(b.suggestedAccountId))) ? acc + b.expectedAmount : acc, 0);
   }, [sortedBills, contasMovimento]);
 
-  const formatDate = (dateStr: string) => {
-    const date = parseDateLocal(dateStr);
-    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-  };
-  
-  const availableAccounts = useMemo(() => 
-    contasMovimento.filter(c => c.accountType === 'corrente' || c.accountType === 'cartao_credito'),
-    [contasMovimento]
-  );
-  
-  const accountOptions = useMemo(() => 
-    availableAccounts.map(a => ({ value: a.id, label: a.name })),
-    [availableAccounts]
-  );
-  
-  const expenseCategories = useMemo(() => 
-    categoriasV2.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel'),
-    [categoriasV2]
-  );
+  const formatDate = (dateStr: string) => { const date = parseDateLocal(dateStr); return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }); };
+  const accountOptions = useMemo(() => contasMovimento.filter(c => c.accountType === 'corrente' || c.accountType === 'cartao_credito').map(a => ({ value: a.id, label: a.name })), [contasMovimento]);
+  const expenseCategories = useMemo(() => categoriasV2.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel'), [categoriasV2]);
 
   return (
-    <div className="space-y-4 h-full flex flex-col">
-      {/* Adição Rápida (Ad-Hoc) */}
-      <div className="glass-card p-3 shrink-0">
-        <div className="grid grid-cols-[1fr_120px_120px_40px] gap-2 items-end">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Descrição</Label>
-            <Input
-              value={newBillData.description}
-              onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Conta avulsa"
-              className="h-8 text-sm rounded-lg"
-            />
+    <div className="space-y-4 h-full flex flex-col overflow-hidden">
+      <div className="glass-card p-2 shrink-0 bg-muted/30">
+        <div className="grid grid-cols-[1fr_100px_110px_40px] gap-2 items-end">
+          <div className="space-y-0.5">
+            <Label className="cq-text-xs text-muted-foreground opacity-70">Nova Conta</Label>
+            <Input value={newBillData.description} onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))} placeholder="Descrição..." className="h-8 cq-text-xs rounded-lg" />
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Valor (R$)</Label>
-            <Input
-              type="text"
-              inputMode="decimal"
-              value={newBillData.amount}
-              onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))}
-              placeholder="0,00"
-              className="h-8 text-sm rounded-lg"
-            />
+          <div className="space-y-0.5">
+            <Label className="cq-text-xs text-muted-foreground opacity-70">Valor</Label>
+            <Input type="text" inputMode="decimal" value={newBillData.amount} onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))} placeholder="0,00" className="h-8 cq-text-xs rounded-lg" />
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Vencimento</Label>
-            <Input
-              type="date"
-              value={newBillData.dueDate}
-              onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))}
-              className="h-8 text-sm rounded-lg"
-            />
+          <div className="space-y-0.5">
+            <Label className="cq-text-xs text-muted-foreground opacity-70">Vencimento</Label>
+            <Input type="date" value={newBillData.dueDate} onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} className="h-8 cq-text-xs rounded-lg" />
           </div>
-          <Button 
-            onClick={handleAddAdHocBill} 
-            className="h-8 w-full p-0 rounded-lg"
-            disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0 || !newBillData.dueDate}
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
+          <Button onClick={handleAddAdHocBill} className="h-8 w-full p-0" disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}><Plus className="w-4 h-4" /></Button>
         </div>
       </div>
 
-      {/* Tabela de Contas */}
-      <div className="glass-card p-3 flex-1 flex flex-col min-h-0">
-        <div className="flex items-center justify-between mb-2 shrink-0">
-          <h3 className="text-sm font-semibold text-foreground">Contas do Mês ({sortedBills.length})</h3>
-          <Badge variant="destructive" className="text-xs">
-            Pendentes + Cartão: {formatCurrency(totalPending)}
-          </Badge>
-        </div>
-        
-        <div className="rounded-lg border border-border overflow-y-auto flex-1 min-h-[100px] pb-12">
+      <div className="glass-card flex-1 flex flex-col min-h-0 border-t-0 rounded-t-none">
+        <div className="rounded-lg overflow-y-auto flex-1 scrollbar-thin">
           <Table style={{ minWidth: `${totalWidth}px` }}>
-            <TableHeader className="sticky top-0 bg-card z-10">
+            <TableHeader className="sticky top-0 bg-card/95 backdrop-blur-sm z-10">
               <TableRow className="border-border hover:bg-transparent h-10">
-                {columnHeaders.map((header) => (
-                  <TableHead 
-                    key={header.key} 
-                    className={cn(
-                      "text-muted-foreground p-2 text-sm relative",
-                      header.align === 'center' && 'text-center',
-                      header.align === 'right' && 'text-right'
-                    )}
-                    style={{ width: columnWidths[header.key] }}
-                  >
-                    {header.label}
-                    {header.key !== 'actions' && (
-                      <div
-                        className="absolute right-0 top-0 h-full w-2 cursor-col-resize"
-                        onMouseDown={(e) => handleMouseDown(e, header.key)}
-                      />
-                    )}
+                {columnHeaders.map((h) => (
+                  <TableHead key={h.key} className={cn("text-muted-foreground p-2 cq-text-xs font-bold uppercase tracking-tight relative", h.align === 'center' && 'text-center', h.align === 'right' && 'text-right')} style={{ width: columnWidths[h.key] }}>
+                    {h.label}
+                    {h.key !== 'actions' && <div className="absolute right-0 top-0 h-full w-2 cursor-col-resize" onMouseDown={(e) => handleMouseDown(e, h.key)} />}
                   </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedBills.map((bill) => {
-                const isExternalPaid = isExternalPaidBill(bill);
-                const config = SOURCE_CONFIG[bill.sourceType] || SOURCE_CONFIG.ad_hoc;
-                const Icon = config.icon;
-                const dueDate = parseDateLocal(bill.dueDate);
-                const isOverdue = dueDate < currentDate && !bill.isPaid;
+                const isExt = isExternalPaidBill(bill);
+                const cfg = SOURCE_CONFIG[bill.sourceType] || SOURCE_CONFIG.ad_hoc;
+                const Icon = cfg.icon;
+                const isOver = parseDateLocal(bill.dueDate) < currentDate && !bill.isPaid;
                 const isPaid = bill.isPaid;
-                const isAmountEditable = isBillTracker(bill) && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
-                const isDateEditable = isBillTracker(bill) && !isPaid;
-                const isCategoryEditable = isBillTracker(bill) && (bill.sourceType === 'ad_hoc' || bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense' || bill.sourceType === 'purchase_installment') && !isPaid;
-                const currentCategory = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
+                const cat = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
                 
                 return (
-                  <TableRow 
-                    key={bill.id} 
-                    className={cn(
-                      "hover:bg-muted/30 transition-colors h-12",
-                      isExternalPaid && "bg-muted/10 text-muted-foreground/80",
-                      isOverdue && "bg-destructive/5 hover:bg-destructive/10",
-                      isPaid && !isExternalPaid && "bg-success/5 hover:bg-success/10 border-l-4 border-success/50"
-                    )}
-                  >
-                    <TableCell className="text-center p-2 text-base" style={{ width: columnWidths.pay }}>
-                      {isExternalPaid ? (
-                        <CheckCircle2 className="w-5 h-5 text-success mx-auto" />
-                      ) : (
-                        <Checkbox
-                          checked={isPaid}
-                          onCheckedChange={(checked) => onTogglePaid(bill as BillTracker, checked as boolean)}
-                          className={cn("w-5 h-5", isPaid && "border-success data-[state=checked]:bg-success")}
-                        />
-                      )}
+                  <TableRow key={bill.id} className={cn("hover:bg-muted/30 transition-colors h-10 border-b border-border/50", isExt && "opacity-60", isOver && "bg-destructive/5", isPaid && !isExt && "bg-success/5")}>
+                    <TableCell className="text-center p-1" style={{ width: columnWidths.pay }}>
+                      {isExt ? <CheckCircle2 className="w-4 h-4 text-success mx-auto" /> : <Checkbox checked={isPaid} onCheckedChange={(c) => onTogglePaid(bill as BillTracker, c as boolean)} className="h-4 w-4" />}
                     </TableCell>
-                    
-                    <TableCell className={cn("font-medium whitespace-nowrap text-base p-2", isOverdue && "text-destructive")} style={{ width: columnWidths.due }}>
-                      <div className="flex items-center gap-1">
-                        {isOverdue && <AlertTriangle className="w-4 h-4 text-destructive" />}
-                        {isDateEditable ? (
-                            <EditableCell
-                                value={bill.dueDate}
-                                type="date"
-                                onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))}
-                                className={cn("text-base", isOverdue && "text-destructive")}
-                            />
-                        ) : (
-                            <span className={cn("text-base", isExternalPaid && "text-muted-foreground")}>
-                                {formatDate(bill.dueDate)}
-                            </span>
-                        )}
-                      </div>
+                    <TableCell className={cn("cq-text-xs font-medium p-2", isOver && "text-destructive")} style={{ width: columnWidths.due }}>
+                        {isExt || isPaid ? formatDate(bill.dueDate) : <EditableCell value={bill.dueDate} type="date" onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))} className="cq-text-xs h-7" />}
                     </TableCell>
-                    
-                    <TableCell className="font-medium whitespace-nowrap text-base p-2" style={{ width: columnWidths.paymentDate }}>
-                        {isPaid && bill.paymentDate ? (
-                            isExternalPaid ? (
-                                <span className="text-base text-muted-foreground">{formatDate(bill.paymentDate)}</span>
-                            ) : (
-                                <EditableCell
-                                    value={bill.paymentDate}
-                                    type="date"
-                                    onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))}
-                                    className="text-base text-success"
-                                />
-                            )
-                        ) : (
-                            <span className="text-muted-foreground">—</span>
-                        )}
+                    <TableCell className="cq-text-xs p-2" style={{ width: columnWidths.paymentDate }}>
+                        {isPaid && bill.paymentDate ? (isExt ? formatDate(bill.paymentDate) : <EditableCell value={bill.paymentDate} type="date" onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))} className="cq-text-xs text-success h-7" />) : <span className="opacity-30">—</span>}
                     </TableCell>
-                    
-                    <TableCell className="text-base max-w-[200px] truncate p-2" style={{ width: columnWidths.description }}>
-                      {bill.description}
+                    <TableCell className="cq-text-xs max-w-[200px] truncate p-2 font-medium" style={{ width: columnWidths.description }}>{bill.description}</TableCell>
+                    <TableCell className="p-2" style={{ width: columnWidths.account }}>
+                      {isExt || isPaid ? <span className="cq-text-xs opacity-80">{contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}</span> : 
+                      <Select value={bill.suggestedAccountId || ''} onValueChange={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}><SelectTrigger className="h-7 cq-text-xs px-2"><SelectValue placeholder="..." /></SelectTrigger><SelectContent>{accountOptions.map(o => <SelectItem key={o.value} value={o.value} className="cq-text-xs">{o.label}</SelectItem>)}</SelectContent></Select>}
                     </TableCell>
-                    
-                    <TableCell className="text-base p-2" style={{ width: columnWidths.account }}>
-                      {isExternalPaid ? (
-                        <span className="text-sm text-muted-foreground">
-                          {contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}
-                        </span>
-                      ) : (
-                        <Select 
-                          value={bill.suggestedAccountId || ''} 
-                          onValueChange={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}
-                          disabled={isPaid}
-                        >
-                          <SelectTrigger className="h-9 text-base p-2 w-full">
-                            <SelectValue placeholder="Conta..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {accountOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value} className="text-base">
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
+                    <TableCell className="p-1" style={{ width: columnWidths.type }}>
+                      <Badge variant="outline" className={cn("px-1.5 py-0 cq-text-xs border-0", cfg.color)} title={cfg.label}><Icon className="w-3.5 h-3.5" /></Badge>
                     </TableCell>
-                    
-                    <TableCell className="p-2 text-base" style={{ width: columnWidths.type }}>
-                      <Badge variant="outline" className={cn("gap-1 text-sm px-2 py-0.5", config.color)}>
-                        <Icon className="w-4 h-4" />
-                        {config.label}
-                      </Badge>
+                    <TableCell className="p-2" style={{ width: columnWidths.category }}>
+                        {isExt || isPaid ? <span className="cq-text-xs opacity-70">{cat?.icon} {cat?.label || '—'}</span> : 
+                        <Select value={bill.suggestedCategoryId || ''} onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}><SelectTrigger className="h-7 cq-text-xs px-2"><SelectValue placeholder="..." /></SelectTrigger><SelectContent className="max-h-48">{expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="cq-text-xs">{c.icon} {c.label}</SelectItem>)}</SelectContent></Select>}
                     </TableCell>
-                    
-                    <TableCell className="p-2 text-base" style={{ width: columnWidths.category }}>
-                        {isExternalPaid ? (
-                            <span className="text-sm text-muted-foreground">
-                                {currentCategory?.icon} {currentCategory?.label || 'N/A'}
-                            </span>
-                        ) : (
-                            <Select 
-                                value={bill.suggestedCategoryId || ''} 
-                                onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}
-                                disabled={!isCategoryEditable}
-                            >
-                                <SelectTrigger className="h-9 text-base p-2 w-full">
-                                    <SelectValue placeholder={currentCategory?.label || "Selecione..."} />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-60">
-                                    {expenseCategories.map(cat => (
-                                        <SelectItem key={cat.id} value={cat.id} className="text-base">
-                                            {cat.icon} {cat.label} ({CATEGORY_NATURE_LABELS[cat.nature]})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
+                    <TableCell className={cn("text-right font-bold cq-text-xs p-2", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
+                      {!isPaid && !isExt && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment' ? 
+                      <EditableCell value={bill.expectedAmount} type="currency" onSave={(v) => handleUpdateExpectedAmount(bill as BillTracker, Number(v))} className="h-7 cq-text-xs text-right" /> : 
+                      formatCurrency(bill.expectedAmount)}
                     </TableCell>
-                    
-                    <TableCell className={cn("text-right font-semibold whitespace-nowrap p-2", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
-                      {isAmountEditable && !isPaid ? (
-                        <EditableCell 
-                          value={bill.expectedAmount} 
-                          type="currency" 
-                          onSave={(v) => handleUpdateExpectedAmount(bill as BillTracker, Number(v))}
-                          className={cn("text-right text-base", isPaid ? "text-success" : "text-destructive")}
-                        />
-                      ) : (
-                        <span className={cn("text-base", isExternalPaid && "text-muted-foreground")}>{formatCurrency(bill.expectedAmount)}</span>
-                      )}
-                    </TableCell>
-                    
-                    <TableCell className="text-center p-2 text-base" style={{ width: columnWidths.actions }}>
-                      {isExternalPaid ? (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => toast.info(`ID: ${bill.id}`)}>
-                          <Info className="w-4 h-4" />
-                        </Button>
-                      ) : (
-                        isAmountEditable && !isPaid && (
-                          <div className="flex items-center justify-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleExcludeBill(bill as BillTracker)}>
-                                <X className="w-4 h-4" />
-                            </Button>
-                            {bill.sourceType === 'purchase_installment' && bill.sourceRef && (
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeletePurchaseGroup(bill.sourceRef!)}>
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
-                            )}
-                          </div>
-                        )
-                      )}
-                      {isPaid && !isExternalPaid && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => toast.info(`ID: ${(bill as BillTracker).transactionId}`)}>
-                            <Info className="w-4 h-4" />
-                          </Button>
+                    <TableCell className="text-center p-1" style={{ width: columnWidths.actions }}>
+                      {!isExt && !isPaid && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-3.5 h-3.5" /></Button>
                       )}
                     </TableCell>
                   </TableRow>
