@@ -357,6 +357,7 @@ export interface FinanceExportV2 {
     
     // Configuration/Context States
     monthlyRevenueForecast: number;
+    revenueForecasts: Record<string, number>;
     alertStartDate: string;
   };
 }
