@@ -4,12 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { TrendingUp, TrendingDown, DollarSign, Wallet, Target, RefreshCw, Calculator } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { TrendingUp, TrendingDown, Wallet, RefreshCw, Calculator, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { formatCurrency } from "@/types/finance";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import { format, subDays, startOfMonth } from "date-fns";
+import { startOfMonth, subDays } from "date-fns";
 
 interface BillsSidebarKPIsProps {
   currentDate: Date;
@@ -57,43 +57,73 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
     const totalExpensesForMonth = totalPendingBills + totalPaidBills;
     const netFlowProjected = monthlyRevenueForecast - totalExpensesForMonth;
     const projectedBalance = initialBalance + netFlowProjected;
+    
+    const percentPaid = totalExpensesForMonth > 0 ? (totalPaidBills / totalExpensesForMonth) * 100 : 0;
+    
     const status: 'success' | 'warning' | 'danger' = projectedBalance >= 0 ? (projectedBalance > initialBalance ? 'success' : 'warning') : 'danger';
-    return { initialBalance, revenuePrevMonth, projectedBalance, netFlowProjected, totalExpensesForMonth, status };
+    
+    return { initialBalance, revenuePrevMonth, projectedBalance, netFlowProjected, totalExpensesForMonth, percentPaid, status };
   }, [currentDate, highLiquidityAccountIds, calculateBalanceUpToDate, transacoesV2, contasMovimento, getRevenueForPreviousMonth, monthlyRevenueForecast, totalPendingBills, totalPaidBills]);
   
   const handleUpdateForecast = () => {
     const parsed = parseFromBR(forecastInput);
     if (isNaN(parsed) || parsed < 0) return;
     setMonthlyRevenueForecast(parsed);
-    setForecastInput(formatToBR(parsed));
   };
   
   const handleSuggestForecast = () => {
-    const suggestedValue = calculos.revenuePrevMonth;
-    setForecastInput(formatToBR(suggestedValue));
-    setMonthlyRevenueForecast(suggestedValue);
-  };
-  
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/[^\d,.]/g, '');
-    const parts = value.split(',');
-    if (parts.length > 2) value = parts[0] + ',' + parts.slice(1).join('');
-    setForecastInput(value);
+    setForecastInput(formatToBR(calculos.revenuePrevMonth));
+    setMonthlyRevenueForecast(calculos.revenuePrevMonth);
   };
 
   return (
-    <div className="space-y-4 shrink-0 w-full cq-gap-md">
+    <div className="space-y-4 w-full">
+      {/* CARD 1: RESUMO DE PAGAMENTOS */}
+      <Card className="glass-card stat-card-info overflow-hidden">
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="cq-text-sm flex items-center gap-2 font-bold">
+            <CheckCircle2 className="w-4 h-4 text-info" />
+            Progresso do Mês
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-2 space-y-3">
+          <div className="flex justify-between items-end">
+            <div className="flex flex-col">
+              <span className="cq-text-xs text-muted-foreground">Pago</span>
+              <span className="cq-text-base font-bold text-success">{formatCurrency(totalPaidBills)}</span>
+            </div>
+            <div className="flex flex-col text-right">
+              <span className="cq-text-xs text-muted-foreground">Total</span>
+              <span className="cq-text-base font-bold">{formatCurrency(calculos.totalExpensesForMonth)}</span>
+            </div>
+          </div>
+          
+          <div className="space-y-1">
+            <Progress value={calculos.percentPaid} className="h-2 bg-muted" />
+            <div className="flex justify-between cq-text-xs font-medium text-muted-foreground">
+              <span>{calculos.percentPaid.toFixed(0)}% concluído</span>
+              {totalPendingBills > 0 && (
+                <span className="flex items-center gap-1 text-warning">
+                  <Clock className="w-3 h-3" /> {formatCurrency(totalPendingBills)} pendente
+                </span>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* CARD 2: FLUXO E PROJEÇÃO */}
       <Card className="glass-card stat-card-neutral overflow-hidden">
         <CardHeader className="p-4 pb-2">
-          <CardTitle className="cq-text-sm flex items-center gap-2">
+          <CardTitle className="cq-text-sm flex items-center gap-2 font-bold">
             <Wallet className="w-4 h-4 text-primary" />
             Fluxo de Caixa Projetado
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-2 space-y-3">
           <div className="flex justify-between items-center cq-text-xs p-2 rounded-lg bg-muted/30">
-            <span className="text-muted-foreground">Saldo Inicial</span>
-            <span className="font-semibold text-primary">{formatCurrency(calculos.initialBalance)}</span>
+            <span className="text-muted-foreground">Saldo Inicial do Mês</span>
+            <span className="font-semibold">{formatCurrency(calculos.initialBalance)}</span>
           </div>
           
           <div className="space-y-1.5 border-b border-border/50 pb-3">
@@ -104,40 +134,64 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
                 </Button>
             </Label>
             <div className="flex gap-2">
-                <Input type="text" inputMode="decimal" value={forecastInput} onChange={handleInputChange} onBlur={handleUpdateForecast} className="h-8 cq-text-xs" />
-                <Button onClick={handleUpdateForecast} className="h-8 px-2 cq-text-xs">Salvar</Button>
+                <Input 
+                  type="text" 
+                  inputMode="decimal" 
+                  value={forecastInput} 
+                  onChange={(e) => setForecastInput(e.target.value)} 
+                  onBlur={handleUpdateForecast}
+                  className="h-8 cq-text-xs bg-background/50" 
+                />
             </div>
           </div>
           
-          <div className="flex justify-between items-center p-2 rounded-lg bg-destructive/5">
-            <span className="text-destructive font-medium cq-text-xs flex items-center gap-1.5">
-                <TrendingDown className="w-3.5 h-3.5" /> Despesas
-            </span>
-            <span className="font-bold text-destructive cq-text-sm">{formatCurrency(calculos.totalExpensesForMonth)}</span>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center cq-text-xs">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-success" /> Receita
+              </span>
+              <span className="font-bold text-success">{formatCurrency(monthlyRevenueForecast)}</span>
+            </div>
+            <div className="flex justify-between items-center cq-text-xs">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                  <TrendingDown className="w-3.5 h-3.5 text-destructive" /> Despesas
+              </span>
+              <span className="font-bold text-destructive">{formatCurrency(calculos.totalExpensesForMonth)}</span>
+            </div>
           </div>
 
-          <Separator className="my-2" />
+          <Separator className="my-1" />
 
           <div className="flex justify-between items-center cq-text-xs px-1">
-            <span className="text-muted-foreground flex items-center gap-1.5">
-              <Calculator className="w-3.5 h-3.5" /> Fluxo Projetado
+            <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+              <Calculator className="w-3.5 h-3.5" /> Resultado do Mês
             </span>
             <span className={cn("font-bold", calculos.netFlowProjected >= 0 ? "text-success" : "text-destructive")}>
-              {formatCurrency(calculos.netFlowProjected)}
+              {calculos.netFlowProjected > 0 ? '+' : ''}{formatCurrency(calculos.netFlowProjected)}
             </span>
           </div>
           
           <div className={cn(
-            "flex flex-col items-center p-4 rounded-xl border-2 mt-4 text-center",
-            calculos.status === 'success' && "bg-success/10 border-success/30 text-success",
+            "flex flex-col items-center p-4 rounded-xl border-2 mt-2 text-center transition-all",
+            calculos.status === 'success' && "bg-success/10 border-success/30 text-success shadow-[0_0_15px_rgba(34,197,94,0.1)]",
             calculos.status === 'warning' && "bg-warning/10 border-warning/30 text-warning",
-            calculos.status === 'danger' && "bg-destructive/10 border-destructive/30 text-destructive"
+            calculos.status === 'danger' && "bg-destructive/10 border-destructive/30 text-destructive shadow-[0_0_15px_rgba(239,68,68,0.1)]"
           )}>
             <span className="font-bold cq-text-xs uppercase tracking-widest opacity-80">Saldo Final Projetado</span>
-            <span className="font-black cq-text-xl mt-1">{formatCurrency(calculos.projectedBalance)}</span>
+            <span className="font-black cq-text-xl mt-1 leading-none">{formatCurrency(calculos.projectedBalance)}</span>
           </div>
         </CardContent>
       </Card>
+
+      {/* AVISO DE ATENÇÃO (Se houver saldo negativo) */}
+      {calculos.projectedBalance < 0 && (
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <p className="cq-text-xs font-medium leading-tight">
+            Atenção: A projeção indica saldo negativo ao fim do mês. Revise suas despesas ou adicione novas receitas.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
