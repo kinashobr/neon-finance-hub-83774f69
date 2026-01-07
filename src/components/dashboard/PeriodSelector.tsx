@@ -176,16 +176,16 @@ export function PeriodSelector({
         <Button
           variant="outline"
           className={cn(
-            "w-full sm:w-[220px] justify-start text-left font-normal h-8 border-border shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors px-2",
+            "w-full sm:w-[220px] justify-start text-left h-8 md:h-9 px-3 border-border shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors",
             (!range.from && !range.to) && "text-muted-foreground",
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-3.5 w-3.5 shrink-0 text-primary" />
-          <span className="text-xs font-medium truncate flex-1">
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-primary" />
+          <span className="text-xs md:text-sm font-medium truncate flex-1">
             {displayRange}
           </span>
-          <ChevronDown className="ml-auto h-3.5 w-3.5 opacity-50 shrink-0" />
+          <ChevronDown className="ml-auto h-4 w-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
       
