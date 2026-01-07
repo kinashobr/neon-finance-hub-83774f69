@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -57,154 +56,118 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
       return acc + balance;
     }, 0);
 
-    const revenuePrevMonth = getRevenueForPreviousMonth(currentDate);
     const totalExpensesForMonth = totalPendingBills + totalPaidBills;
     const netFlowProjected = monthlyRevenueForecast - totalExpensesForMonth;
     const projectedBalance = initialBalance + netFlowProjected;
     
-    return { 
-      initialBalance, 
-      revenuePrevMonth, 
-      projectedBalance, 
-      netFlowProjected, 
-      totalExpensesForMonth 
-    };
-  }, [currentDate, highLiquidityAccountIds, calculateBalanceUpToDate, transacoesV2, contasMovimento, getRevenueForPreviousMonth, monthlyRevenueForecast, totalPendingBills, totalPaidBills]);
+    return { initialBalance, projectedBalance, netFlowProjected, totalExpensesForMonth };
+  }, [currentDate, highLiquidityAccountIds, calculateBalanceUpToDate, transacoesV2, contasMovimento, monthlyRevenueForecast, totalPendingBills, totalPaidBills]);
   
   const handleUpdateForecast = () => {
     const parsed = parseFromBR(forecastInput);
     setMonthlyRevenueForecast(parsed);
-    toast.success("Previsão atualizada!");
-  };
-  
-  const handleSuggestForecast = () => {
-    const suggestion = calculos.revenuePrevMonth;
-    setForecastInput(formatToBR(suggestion));
-    setMonthlyRevenueForecast(suggestion);
+    toast.success("Previsão salva!");
   };
 
-  const monthLabel = format(currentDate, 'MMMM', { locale: ptBR });
+  const monthLabel = format(currentDate, 'MMM', { locale: ptBR });
 
   return (
-    <div className="space-y-4">
-      {/* HEADER TÍTULO */}
-      <div className="flex items-center gap-2 px-1 mb-2">
-        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-          <Wallet className="w-4 h-4" />
-        </div>
-        <h3 className="cq-text-sm font-bold tracking-tight text-foreground uppercase">Projeção de Fluxo</h3>
+    <div className="flex flex-col h-full space-y-2.5">
+      {/* HEADER COMPACTO */}
+      <div className="flex items-center gap-2 px-1 mb-1">
+        <Wallet className="w-3.5 h-3.5 text-primary" />
+        <h3 className="cq-text-xs font-bold uppercase tracking-tight text-muted-foreground">Projeção {monthLabel}</h3>
       </div>
 
-      {/* SALDO INICIAL */}
-      <div className="glass-card p-4 space-y-1">
-        <Label className="cq-text-xs text-muted-foreground font-medium">Disponibilidade Inicial (Caixa)</Label>
-        <p className="cq-text-lg font-bold text-foreground">
-          {formatCurrency(calculos.initialBalance)}
-        </p>
+      {/* DISPONIBILIDADE */}
+      <div className="glass-card p-3 flex justify-between items-center">
+        <span className="cq-text-xs text-muted-foreground font-medium">Caixa Inicial</span>
+        <span className="cq-text-sm font-bold text-foreground">{formatCurrency(calculos.initialBalance)}</span>
       </div>
 
-      {/* PREVISÃO DE RECEITA */}
-      <div className="glass-card p-4 space-y-3">
+      {/* PREVISÃO RECEITA */}
+      <div className="glass-card p-3 space-y-2">
         <div className="flex justify-between items-center">
-          <Label className="cq-text-xs text-muted-foreground font-medium">Previsão de Entradas</Label>
+          <Label className="cq-text-xs text-muted-foreground font-medium">Prev. Entradas</Label>
           <button 
-            onClick={handleSuggestForecast}
+            onClick={() => {
+              const sugg = getRevenueForPreviousMonth(currentDate);
+              setForecastInput(formatToBR(sugg));
+              setMonthlyRevenueForecast(sugg);
+            }}
             className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1"
           >
             <RefreshCw className="w-2.5 h-2.5" /> SUGERIR
           </button>
         </div>
-        
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <div className="relative flex-1">
-            <TrendingUp className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-success" />
+            <TrendingUp className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-success/70" />
             <Input 
               type="text"
-              inputMode="decimal"
               value={forecastInput}
               onChange={(e) => setForecastInput(e.target.value)}
-              className="h-9 pl-8 cq-text-sm bg-background border-border/50 rounded-lg"
+              className="h-8 pl-6 cq-text-xs bg-background/50 border-border/40 rounded-lg"
             />
           </div>
-          <Button 
-            size="icon"
-            variant="secondary"
-            onClick={handleUpdateForecast}
-            className="h-9 w-9 shrink-0"
-          >
-            <Save className="w-4 h-4" />
+          <Button size="icon" variant="secondary" onClick={handleUpdateForecast} className="h-8 w-8 shrink-0">
+            <Save className="w-3.5 h-3.5" />
           </Button>
         </div>
-        
-        {calculos.revenuePrevMonth > 0 && (
-          <p className="cq-text-xs text-muted-foreground italic">
-            Ref. mês anterior: {formatCurrency(calculos.revenuePrevMonth)}
-          </p>
-        )}
       </div>
 
-      {/* BLOCO DE DESPESAS */}
-      <div className="glass-card stat-card-negative p-4 space-y-4">
-        <div className="flex justify-between items-start">
-          <div className="space-y-0.5">
-            <Label className="cq-text-xs text-muted-foreground font-medium uppercase tracking-wider">Compromissos</Label>
-            <p className="cq-text-lg font-black text-destructive">
-              {formatCurrency(calculos.totalExpensesForMonth)}
-            </p>
-          </div>
-          <div className="p-2 rounded-lg bg-destructive/10 text-destructive">
-            <TrendingDown className="w-4 h-4" />
-          </div>
+      {/* COMPROMISSOS (Box Vermelho Compacto) */}
+      <div className="glass-card stat-card-negative p-3 bg-destructive/5 border-destructive/20">
+        <div className="flex justify-between items-center mb-2">
+          <span className="cq-text-xs font-bold text-destructive uppercase tracking-tighter">Compromissos</span>
+          <span className="cq-text-base font-black text-destructive">{formatCurrency(calculos.totalExpensesForMonth)}</span>
         </div>
-
-        <Separator className="opacity-50" />
-
-        <div className="space-y-2">
-          <div className="flex justify-between cq-text-xs">
-            <span className="text-muted-foreground">A Pagar + Cartão</span>
-            <span className="font-semibold">{formatCurrency(totalPendingBills)}</span>
+        <div className="space-y-1 pt-1 border-t border-destructive/10">
+          <div className="flex justify-between text-[10px] md:cq-text-xs">
+            <span className="text-muted-foreground">Pendentes + Cartão</span>
+            <span className="font-semibold text-destructive">{formatCurrency(totalPendingBills)}</span>
           </div>
-          <div className="flex justify-between cq-text-xs">
+          <div className="flex justify-between text-[10px] md:cq-text-xs">
             <span className="text-muted-foreground">Já Pago (Débito)</span>
             <span className="text-success font-semibold">{formatCurrency(totalPaidBills)}</span>
           </div>
         </div>
       </div>
 
-      {/* RESULTADO FINAL */}
+      {/* RESULTADO E SALDO FINAL (A parte mais importante, compactada) */}
       <div className={cn(
-        "glass-card p-5 border-l-4 transition-all duration-300",
+        "glass-card p-3 space-y-2 border-l-4 transition-all duration-300",
         calculos.projectedBalance >= 0 ? "stat-card-positive" : "stat-card-negative"
       )}>
-        <div className="flex items-center gap-2 mb-3">
-          <Calculator className="w-4 h-4 text-muted-foreground" />
-          <span className="cq-text-xs font-bold text-muted-foreground uppercase tracking-widest">Saldo Projetado</span>
+        <div className="flex justify-between items-center cq-text-xs">
+          <span className="text-muted-foreground font-medium">Fluxo Líquido</span>
+          <span className={cn("font-bold", calculos.netFlowProjected >= 0 ? "text-success" : "text-destructive")}>
+            {calculos.netFlowProjected > 0 ? '+' : ''}{formatCurrency(calculos.netFlowProjected)}
+          </span>
         </div>
         
-        <div className="space-y-0.5">
-          <p className={cn(
-            "cq-text-xl font-black leading-none",
+        <Separator className="opacity-30" />
+        
+        <div className="flex justify-between items-center">
+          <div className="flex flex-col">
+            <span className="cq-text-xs font-bold text-muted-foreground uppercase leading-none tracking-tighter">Saldo Final</span>
+            <span className="text-[9px] text-muted-foreground opacity-70">Projetado</span>
+          </div>
+          <span className={cn(
+            "cq-text-lg font-black tracking-tight",
             calculos.projectedBalance >= 0 ? "text-success" : "text-destructive"
           )}>
             {formatCurrency(calculos.projectedBalance)}
-          </p>
-          <div className="flex items-center gap-1.5 pt-1">
-            <Badge variant="outline" className={cn(
-              "cq-text-xs py-0 px-1.5 border-0",
-              calculos.netFlowProjected >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
-            )}>
-              {calculos.netFlowProjected >= 0 ? '+' : ''}{formatCurrency(calculos.netFlowProjected)} de fluxo
-            </Badge>
-          </div>
+          </span>
         </div>
       </div>
 
-      {/* ALERTA DE ATENÇÃO */}
+      {/* ALERTA DE ATENÇÃO (Apenas se negativo e bem pequeno) */}
       {calculos.projectedBalance < 0 && (
-        <div className="p-3 rounded-xl bg-warning/10 border border-warning/20 flex gap-3 animate-pulse">
-          <AlertCircle className="w-4 h-4 text-warning shrink-0" />
-          <p className="text-[10px] leading-tight text-warning-foreground font-medium">
-            Sua projeção indica que o caixa não cobrirá as despesas. Considere reduzir custos ou antecipar receitas.
+        <div className="p-2 rounded-lg bg-warning/10 border border-warning/20 flex gap-2">
+          <AlertCircle className="w-3.5 h-3.5 text-warning shrink-0" />
+          <p className="text-[9px] leading-tight text-warning-foreground font-medium">
+            Saldo projetado negativo. Revise seus custos.
           </p>
         </div>
       )}
