@@ -353,9 +353,9 @@ interface FinanceContextType {
   alertStartDate: string; // YYYY-MM-DD string
   setAlertStartDate: Dispatch<SetStateAction<string>>;
   
-  // NEW: Revenue Forecast
-  monthlyRevenueForecast: number;
-  setMonthlyRevenueForecast: Dispatch<SetStateAction<number>>;
+  // NEW: Revenue Forecast (Month-Specific)
+  revenueForecasts: Record<string, number>;
+  setMonthlyRevenueForecast: (monthKey: string, value: number) => void;
   getRevenueForPreviousMonth: (date: Date) => number;
   
   // Cálculos principais
@@ -421,8 +421,8 @@ const STORAGE_KEYS = {
   // Alert Filtering
   ALERT_START_DATE: "fin_alert_start_date_v1",
   
-  // Revenue Forecast
-  MONTHLY_REVENUE_FORECAST: "fin_monthly_revenue_forecast_v1",
+  // Revenue Forecast (Multi-month supported)
+  REVENUE_FORECASTS: "fin_revenue_forecasts_v1",
 };
 
 // ============================================
@@ -542,9 +542,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     loadFromStorage(STORAGE_KEYS.ALERT_START_DATE, defaultAlertStartDate)
   );
   
-  // Revenue Forecast State
-  const [monthlyRevenueForecast, setMonthlyRevenueForecast] = useState<number>(() => 
-    loadFromStorage(STORAGE_KEYS.MONTHLY_REVENUE_FORECAST, 0)
+  // Revenue Forecast State (MONTH-AWARE)
+  const [revenueForecasts, setRevenueForecasts] = useState<Record<string, number>>(() => 
+    loadFromStorage(STORAGE_KEYS.REVENUE_FORECASTS, {})
   );
 
   // ============================================
@@ -560,7 +560,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, importedStatements); }, [importedStatements]); // NEW EFFECT
   useEffect(() => { saveToStorage(STORAGE_KEYS.DATE_RANGES, dateRanges); }, [dateRanges]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.ALERT_START_DATE, alertStartDate); }, [alertStartDate]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.MONTHLY_REVENUE_FORECAST, monthlyRevenueForecast); }, [monthlyRevenueForecast]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.REVENUE_FORECASTS, revenueForecasts); }, [revenueForecasts]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); }, [categoriasV2]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); }, [transacoesV2]);
@@ -1369,7 +1369,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteEmprestimo = (id: number) => {
-    setEmprestimos(emprestimos.filter(e => e.id !== id));
+    setEmprestimos(emprestimos.filter(e => id !== id));
   };
 
   const getPendingLoans = useCallback(() => {
@@ -1629,7 +1629,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         billsTracker,
         standardizationRules,
         importedStatements,
-        monthlyRevenueForecast,
+        monthlyRevenueForecast: 0, // Fallback for schema
+        revenueForecasts,
         alertStartDate,
       }
     };
@@ -1657,7 +1658,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (data.data.billsTracker) setBillsTracker(data.data.billsTracker);
         if (data.data.standardizationRules) setStandardizationRules(data.data.standardizationRules);
         if (data.data.importedStatements) setImportedStatements(data.data.importedStatements);
-        if (data.data.monthlyRevenueForecast !== undefined) setMonthlyRevenueForecast(data.data.monthlyRevenueForecast);
+        if (data.data.revenueForecasts) setRevenueForecasts(data.data.revenueForecasts);
         if (data.data.alertStartDate) setAlertStartDate(data.data.alertStartDate);
         return { success: true, message: "Dados V2 importados com sucesso!" };
       } else {
@@ -1667,6 +1668,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return { success: false, message: "Erro ao importar dados. Verifique o formato do arquivo." };
     }
   };
+
+  const setMonthlyRevenueForecast = useCallback((monthKey: string, value: number) => {
+    setRevenueForecasts(prev => ({
+        ...prev,
+        [monthKey]: value
+    }));
+  }, []);
 
   const value: FinanceContextType = {
     emprestimos,
@@ -1724,7 +1732,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setDateRanges,
     alertStartDate,
     setAlertStartDate,
-    monthlyRevenueForecast,
+    revenueForecasts,
     setMonthlyRevenueForecast,
     getRevenueForPreviousMonth,
     getTotalReceitas,

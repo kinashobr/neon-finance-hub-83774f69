@@ -27,7 +27,7 @@ const parseFromBR = (value: string): number => {
 
 export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBills = 0 }: BillsSidebarKPIsProps) {
   const { 
-    monthlyRevenueForecast, 
+    revenueForecasts, 
     setMonthlyRevenueForecast, 
     getRevenueForPreviousMonth,
     calculateBalanceUpToDate,
@@ -35,11 +35,15 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
     transacoesV2,
   } = useFinance();
   
-  const [forecastInput, setForecastInput] = useState(() => formatToBR(monthlyRevenueForecast));
+  const monthKey = useMemo(() => format(currentDate, 'yyyy-MM'), [currentDate]);
+  const currentForecast = revenueForecasts[monthKey] || 0;
   
+  const [forecastInput, setForecastInput] = useState(() => formatToBR(currentForecast));
+  
+  // Atualiza o input local quando o mês ou o valor no contexto muda
   useEffect(() => {
-      setForecastInput(formatToBR(monthlyRevenueForecast));
-  }, [monthlyRevenueForecast]);
+      setForecastInput(formatToBR(currentForecast));
+  }, [currentForecast, monthKey]);
 
   const highLiquidityAccountIds = useMemo(() => 
     contasMovimento
@@ -57,16 +61,28 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
     }, 0);
 
     const totalExpensesForMonth = totalPendingBills + totalPaidBills;
-    const netFlowProjected = monthlyRevenueForecast - totalExpensesForMonth;
+    const netFlowProjected = currentForecast - totalExpensesForMonth;
     const projectedBalance = initialBalance + netFlowProjected;
     
     return { initialBalance, projectedBalance, netFlowProjected, totalExpensesForMonth };
-  }, [currentDate, highLiquidityAccountIds, calculateBalanceUpToDate, transacoesV2, contasMovimento, monthlyRevenueForecast, totalPendingBills, totalPaidBills]);
+  }, [currentDate, highLiquidityAccountIds, calculateBalanceUpToDate, transacoesV2, contasMovimento, currentForecast, totalPendingBills, totalPaidBills]);
   
-  const handleUpdateForecast = () => {
+  const handleInputChange = (value: string) => {
+    setForecastInput(value);
+  };
+
+  const handleBlur = () => {
     const parsed = parseFromBR(forecastInput);
-    setMonthlyRevenueForecast(parsed);
-    toast.success("Previsão salva!");
+    if (parsed !== currentForecast) {
+        setMonthlyRevenueForecast(monthKey, parsed);
+    }
+  };
+
+  const handleSuggest = () => {
+    const sugg = getRevenueForPreviousMonth(currentDate);
+    setForecastInput(formatToBR(sugg));
+    setMonthlyRevenueForecast(monthKey, sugg);
+    toast.info(`Previsão sugerida com base no mês anterior.`);
   };
 
   const monthLabel = format(currentDate, 'MMM', { locale: ptBR });
@@ -90,29 +106,22 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
         <div className="flex justify-between items-center gap-2">
           <Label className="cq-text-xs text-muted-foreground font-medium truncate">Prev. Entradas</Label>
           <button 
-            onClick={() => {
-              const sugg = getRevenueForPreviousMonth(currentDate);
-              setForecastInput(formatToBR(sugg));
-              setMonthlyRevenueForecast(sugg);
-            }}
+            onClick={handleSuggest}
             className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1 shrink-0"
           >
             <RefreshCw className="w-2.5 h-2.5" /> SUGERIR
           </button>
         </div>
-        <div className="flex gap-1.5">
-          <div className="relative flex-1">
-            <TrendingUp className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-success/70" />
-            <Input 
-              type="text"
-              value={forecastInput}
-              onChange={(e) => setForecastInput(e.target.value)}
-              className="h-8 pl-6 cq-text-xs bg-background/50 border-border/40 rounded-lg w-full"
-            />
-          </div>
-          <Button size="icon" variant="secondary" onClick={handleUpdateForecast} className="h-8 w-8 shrink-0">
-            <Save className="w-3.5 h-3.5" />
-          </Button>
+        <div className="relative">
+          <TrendingUp className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-success/70" />
+          <Input 
+            type="text"
+            value={forecastInput}
+            onChange={(e) => handleInputChange(e.target.value)}
+            onBlur={handleBlur}
+            placeholder="0,00"
+            className="h-8 pl-6 cq-text-xs bg-background/50 border-border/40 rounded-lg w-full"
+          />
         </div>
       </div>
 
