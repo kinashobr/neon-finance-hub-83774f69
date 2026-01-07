@@ -176,7 +176,7 @@ export function LoanCharts({ emprestimos, className }: LoanChartsProps) {
         subtitle="Projeção dos próximos 12 meses"
         icon={<TrendingDown className="w-4 h-4" />}
       >
-        <div className="h-[280px]">
+        <div className="h-[min(280px,40vh)]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={evolucaoSaldo}>
               <defs>
@@ -220,7 +220,7 @@ export function LoanCharts({ emprestimos, className }: LoanChartsProps) {
         subtitle="Composição do pagamento"
         icon={<BarChart3 className="w-4 h-4" />}
       >
-        <div className="h-[280px]">
+        <div className="h-[min(280px,40vh)]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={jurosAmortizacao}>
               <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
@@ -253,7 +253,7 @@ export function LoanCharts({ emprestimos, className }: LoanChartsProps) {
         subtitle="Ranking por custo total"
         icon={<Scale className="w-4 h-4" />}
       >
-        <div className="h-[280px]">
+        <div className="h-[min(280px,40vh)]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={comparativo} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />

@@ -41,7 +41,7 @@ export function InvestmentEvolutionChart({ height = 300 }: InvestmentEvolutionCh
   }, [calculateTotalInvestmentBalanceAtDate]);
 
   return (
-    <div className="h-[300px]">
+    <div className="h-[min(300px,40vh)]">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={evolutionData}>
           <defs>

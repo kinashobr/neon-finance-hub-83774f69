@@ -37,7 +37,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           sidebarCollapsed ? "md:ml-16" : "md:ml-64"
         )}
       >
-        <div className="max-w-7xl mx-auto">{children}</div>
+        <div className="max-w-[min(1400px,95vw)] mx-auto">{children}</div>
       </main>
     </div>
   );

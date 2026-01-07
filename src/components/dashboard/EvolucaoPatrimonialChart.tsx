@@ -144,7 +144,7 @@ export function EvolucaoPatrimonialChart({}: EvolucaoPatrimonialChartProps) {
         </div>
       </div>
 
-      <div className="h-[320px]">
+      <div className="h-[min(320px,45vh)]">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={dataToShow}>
             <defs>

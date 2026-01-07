@@ -40,21 +40,29 @@ export function ResizableDialogContent({
   children,
   initialWidth = 900,
   initialHeight = 600,
-  minWidth = 700,
-  minHeight = 500,
-  maxWidth = 1600, // AUMENTADO de 1400
-  maxHeight = 1000, // AUMENTADO de 900
+  minWidth = 600, // Reduzido para monitores menores
+  minHeight = 400, // Reduzido para monitores menores
+  maxWidth = 1600,
+  maxHeight = 1000,
   storageKey,
   className,
   hideCloseButton,
   ...props
 }: ResizableDialogContentProps) {
+  // Ajustar limites baseado no viewport
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+  
+  const effectiveMinWidth = Math.min(minWidth, viewportWidth * 0.9);
+  const effectiveMinHeight = Math.min(minHeight, viewportHeight * 0.8);
+  const effectiveMaxWidth = Math.min(maxWidth, viewportWidth * 0.95);
+  const effectiveMaxHeight = Math.min(maxHeight, viewportHeight * 0.9);
   
   const [width, setWidth] = useState(() => 
-    loadDimensions(`${storageKey}_width`, initialWidth, minWidth, maxWidth)
+    loadDimensions(`${storageKey}_width`, Math.min(initialWidth, effectiveMaxWidth), effectiveMinWidth, effectiveMaxWidth)
   );
   const [height, setHeight] = useState(() => 
-    loadDimensions(`${storageKey}_height`, initialHeight, minHeight, maxHeight)
+    loadDimensions(`${storageKey}_height`, Math.min(initialHeight, effectiveMaxHeight), effectiveMinHeight, effectiveMaxHeight)
   );
   const [isResizing, setIsResizing] = useState(false);
   const startX = useRef(0);
@@ -83,12 +91,12 @@ export function ResizableDialogContent({
     const deltaX = e.clientX - startX.current;
     const deltaY = e.clientY - startY.current;
 
-    const newWidth = Math.min(maxWidth, Math.max(minWidth, startWidth.current + deltaX));
-    const newHeight = Math.min(maxHeight, Math.max(minHeight, startHeight.current + deltaY));
+    const newWidth = Math.min(effectiveMaxWidth, Math.max(effectiveMinWidth, startWidth.current + deltaX));
+    const newHeight = Math.min(effectiveMaxHeight, Math.max(effectiveMinHeight, startHeight.current + deltaY));
 
     setWidth(newWidth);
     setHeight(newHeight);
-  }, [isResizing, minWidth, minHeight, maxWidth, maxHeight]);
+  }, [isResizing, effectiveMinWidth, effectiveMinHeight, effectiveMaxWidth, effectiveMaxHeight]);
 
   const handleMouseUp = useCallback(() => {
     setIsResizing(false);
