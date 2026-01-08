@@ -65,7 +65,7 @@ const ReceitasDespesas = () => {
   // UI state
   const [showMovimentarModal, setShowMovimentarModal] = useState(false);
   const [selectedAccountForModal, setSelectedAccountForModal] = useState<string>();
-  const [showReconciliation, setShowReconciliation] = useState(false);
+  // Removed: const [showReconciliation, setShowReconciliation] = useState(false);
   
   // New modals
   const [showAccountModal, setShowAccountModal] = useState(false);
@@ -836,9 +836,6 @@ const ReceitasDespesas = () => {
             <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)} className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3">
               <Tags className="w-4 h-4 mr-1 md:mr-2" /><span className="hidden sm:inline">Categorias</span><span className="sm:hidden">Cat.</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowReconciliation(!showReconciliation)} className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3">
-              <RefreshCw className="w-4 h-4 mr-1 md:mr-2" /><span className="hidden sm:inline">Conciliar</span><span className="sm:hidden">Conc.</span>
-            </Button>
           </div>
         </div>
 
@@ -853,15 +850,6 @@ const ReceitasDespesas = () => {
             onImportAccount={handleImportExtrato}
           />
         </div>
-
-        {/* Reconciliation Panel */}
-        {showReconciliation && (
-          <ReconciliationPanel
-            accounts={visibleAccounts}
-            transactions={transactions}
-            onReconcile={handleReconcile}
-          />
-        )}
 
         {/* KPI Sidebar - full width */}
         <div className="glass-card p-4">

@@ -1,8 +1,10 @@
 import { useState, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, Settings, ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, Settings, ShoppingCart, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, PotentialFixedBill, BillSourceType, formatCurrency, generateBillId, TransactionLinks, OperationType, BillDisplayItem, ExternalPaidBill } from "@/types/finance";
 import { BillsTrackerList } from "./BillsTrackerList";
@@ -15,6 +17,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { parseDateLocal } from "@/lib/utils";
 import { ResizableDialogContent } from "../ui/ResizableDialogContent";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 type PartialTransactionLinks = Partial<TransactionLinks>;
 
@@ -50,6 +53,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     unmarkLoanParcelPaid,
     transacoesV2, 
   } = useFinance();
+  
+  const isMobile = useMediaQuery("(max-width: 768px)");
   
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
   const [showFixedBillSelector, setShowFixedBillSelector] = useState(false);
@@ -184,92 +189,162 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     }
   }, [setBillsTracker, billsTracker, contasMovimento, categoriasV2, currentDate, addTransacaoV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2, transacoesV2]);
 
+  // Conteúdo compartilhado entre Desktop e Mobile
+  const renderContent = () => (
+    <>
+      {/* Header com navegação de mês */}
+      <div className="flex items-center justify-between mb-4 shrink-0 gap-2 flex-wrap">
+        <div className="flex items-center bg-muted/50 rounded-lg p-1 border border-border/50">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMonthChange('prev')}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <div className="px-2 sm:px-4 min-w-[100px] sm:min-w-[120px] text-center">
+            <span className="text-xs sm:text-sm font-bold text-foreground capitalize">
+              {format(currentDate, 'MMMM', { locale: ptBR })}
+            </span>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMonthChange('next')}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => setShowAddPurchaseDialog(true)} className="text-[10px] sm:text-xs h-8 px-2 sm:px-3">
+            <ShoppingCart className="w-3 h-3 mr-1" /> 
+            <span className="hidden sm:inline">Compra Parcelada</span>
+            <span className="sm:hidden">+ Parcela</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { setFixedBillSelectorMode('current'); setShowFixedBillSelector(true); }} className="text-[10px] sm:text-xs h-8 px-2 sm:px-3">
+            <Settings className="w-3 h-3 mr-1" /> 
+            <span className="hidden sm:inline">Gerenciar Fixas</span>
+            <span className="sm:hidden">Fixas</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { setFixedBillSelectorMode('future'); setShowFixedBillSelector(true); }} className="text-[10px] sm:text-xs h-8 px-2 sm:px-3">
+            <Plus className="w-3 h-3 mr-1" /> 
+            <span className="hidden sm:inline">Adiantar</span>
+            <span className="sm:hidden">Adiant.</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Lista de contas */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        <BillsTrackerList
+          bills={combinedBills}
+          onUpdateBill={handleUpdateBill}
+          onDeleteBill={handleDeleteBill}
+          onAddBill={handleAddBill}
+          onTogglePaid={handleTogglePaid}
+          currentDate={currentDate}
+        />
+      </div>
+    </>
+  );
+
+  // Mobile: KPIs em cards horizontais
+  const renderMobileKPIs = () => (
+    <div className="flex gap-2 px-4 py-3 overflow-x-auto hide-scrollbar-mobile border-b border-border/50 bg-muted/30">
+      <div className="shrink-0 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20">
+        <p className="text-[10px] text-destructive/70 font-medium">Pendente</p>
+        <p className="text-sm font-bold text-destructive">{formatCurrency(totalUnpaidBills)}</p>
+      </div>
+      <div className="shrink-0 px-3 py-2 rounded-lg bg-success/10 border border-success/20">
+        <p className="text-[10px] text-success/70 font-medium">Pago</p>
+        <p className="text-sm font-bold text-success">{formatCurrency(totalPaidBills)}</p>
+      </div>
+      <div className="shrink-0 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+        <p className="text-[10px] text-primary/70 font-medium">Total</p>
+        <p className="text-sm font-bold text-primary">{formatCurrency(totalUnpaidBills + totalPaidBills)}</p>
+      </div>
+    </div>
+  );
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <ResizableDialogContent 
-          storageKey="bills_tracker_modal"
-          initialWidth={1300}
-          initialHeight={800}
-          minWidth={900}
-          minHeight={600}
-          hideCloseButton={true}
-          className="bg-card border-border overflow-hidden flex flex-col p-0"
-        >
-          <div className="modal-viewport">
-            <DialogHeader className="px-6 pt-3 pb-3 border-b shrink-0 bg-muted/20">
+      {/* Mobile: Sheet full-screen */}
+      {isMobile ? (
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetContent side="bottom" className="h-[95vh] p-0 flex flex-col">
+            <SheetHeader className="px-4 pt-3 pb-2 border-b shrink-0 bg-muted/20">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-primary/10 rounded-lg">
-                      <CalendarCheck className="w-5 h-5 text-primary" />
+                    <CalendarCheck className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <DialogTitle className="cq-text-lg font-bold">Contas a Pagar</DialogTitle>
-                    <p className="cq-text-xs text-muted-foreground">
-                      Gestão de despesas de {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+                    <SheetTitle className="text-base font-bold">Contas a Pagar</SheetTitle>
+                    <p className="text-[10px] text-muted-foreground">
+                      {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
                     </p>
                   </div>
                 </div>
+                <SheetClose asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <X className="w-4 h-4" />
+                  </Button>
+                </SheetClose>
               </div>
-            </DialogHeader>
+            </SheetHeader>
 
-            <div className="flex flex-1 overflow-hidden">
-              {/* Sidebar de KPIs com largura proporcional e contêiner próprio */}
-              <div className="w-[20%] min-w-[210px] max-w-[320px] shrink-0 border-r border-border bg-muted/10 sidebar-container">
-                <div className="p-4 overflow-y-auto h-full">
-                  <BillsSidebarKPIs 
-                    currentDate={currentDate}
-                    totalPendingBills={totalUnpaidBills}
-                    totalPaidBills={totalPaidBills}
-                  />
-                </div>
-              </div>
+            {/* KPIs Mobile */}
+            {renderMobileKPIs()}
 
-              {/* Conteúdo Principal Flexível */}
-              <div className="flex-1 flex flex-col cq-p-md overflow-hidden bg-background">
-                <div className="flex items-center justify-between mb-4 shrink-0 cq-gap-md flex-wrap">
-                  <div className="flex items-center bg-muted/50 rounded-lg p-1 border border-border/50">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMonthChange('prev')}>
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <div className="px-4 min-w-[120px] text-center">
-                      <span className="cq-text-sm font-bold text-foreground capitalize">
-                        {format(currentDate, 'MMMM', { locale: ptBR })}
-                      </span>
+            {/* Conteúdo Principal */}
+            <div className="flex-1 flex flex-col p-4 overflow-hidden bg-background">
+              {renderContent()}
+            </div>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        /* Desktop: Dialog com ResizableDialogContent */
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <ResizableDialogContent 
+            storageKey="bills_tracker_modal"
+            initialWidth={1300}
+            initialHeight={800}
+            minWidth={900}
+            minHeight={600}
+            hideCloseButton={true}
+            className="bg-card border-border overflow-hidden flex flex-col p-0"
+          >
+            <div className="modal-viewport">
+              <DialogHeader className="px-6 pt-3 pb-3 border-b shrink-0 bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                        <CalendarCheck className="w-5 h-5 text-primary" />
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMonthChange('next')}>
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
+                    <div>
+                      <DialogTitle className="cq-text-lg font-bold">Contas a Pagar</DialogTitle>
+                      <p className="cq-text-xs text-muted-foreground">
+                        Gestão de despesas de {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+                      </p>
+                    </div>
                   </div>
+                </div>
+              </DialogHeader>
 
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowAddPurchaseDialog(true)} className="cq-text-xs h-8">
-                      <ShoppingCart className="w-3 h-3 mr-1.5" /> Compra Parcelada
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => { setFixedBillSelectorMode('current'); setShowFixedBillSelector(true); }} className="cq-text-xs h-8">
-                      <Settings className="w-3 h-3 mr-1.5" /> Gerenciar Fixas
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => { setFixedBillSelectorMode('future'); setShowFixedBillSelector(true); }} className="cq-text-xs h-8">
-                      <Plus className="w-3 h-3 mr-1.5" /> Adiantar
-                    </Button>
+              <div className="flex flex-1 overflow-hidden">
+                {/* Sidebar de KPIs com largura proporcional e contêiner próprio */}
+                <div className="w-[20%] min-w-[210px] max-w-[320px] shrink-0 border-r border-border bg-muted/10 sidebar-container">
+                  <div className="p-4 overflow-y-auto h-full">
+                    <BillsSidebarKPIs 
+                      currentDate={currentDate}
+                      totalPendingBills={totalUnpaidBills}
+                      totalPaidBills={totalPaidBills}
+                    />
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-hidden flex flex-col">
-                  <BillsTrackerList
-                    bills={combinedBills}
-                    onUpdateBill={handleUpdateBill}
-                    onDeleteBill={handleDeleteBill}
-                    onAddBill={handleAddBill}
-                    onTogglePaid={handleTogglePaid}
-                    currentDate={currentDate}
-                  />
+                {/* Conteúdo Principal Flexível */}
+                <div className="flex-1 flex flex-col cq-p-md overflow-hidden bg-background">
+                  {renderContent()}
                 </div>
               </div>
             </div>
-          </div>
-        </ResizableDialogContent>
-      </Dialog>
+          </ResizableDialogContent>
+        </Dialog>
+      )}
 
       <FixedBillSelectorModal open={showFixedBillSelector} onOpenChange={setShowFixedBillSelector} mode={fixedBillSelectorMode} currentDate={currentDate} potentialFixedBills={fixedBillSelectorMode === 'current' ? potentialFixedBills : futureFixedBills} onToggleFixedBill={handleToggleFixedBill} />
       <AddPurchaseInstallmentDialog open={showAddPurchaseDialog} onOpenChange={setShowAddPurchaseDialog} currentDate={currentDate} />

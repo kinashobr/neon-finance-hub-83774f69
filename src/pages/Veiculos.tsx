@@ -543,10 +543,16 @@ const Veiculos = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="bg-muted/50">
-            <TabsTrigger value="veiculos">Veículos</TabsTrigger>
-            <TabsTrigger value="seguros">Controle de Seguros</TabsTrigger>
-            <TabsTrigger value="parcelas">Parcelas</TabsTrigger>
+          <TabsList className="bg-muted/50 h-auto flex flex-wrap gap-1 p-1">
+            <TabsTrigger value="veiculos" className="flex-1 min-w-[30%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+              Veículos
+            </TabsTrigger>
+            <TabsTrigger value="seguros" className="flex-1 min-w-[30%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+              Seguros
+            </TabsTrigger>
+            <TabsTrigger value="parcelas" className="flex-1 min-w-[30%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+              Parcelas
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab Veículos */}
