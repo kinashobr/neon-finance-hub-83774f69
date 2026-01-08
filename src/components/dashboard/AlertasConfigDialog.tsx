@@ -122,7 +122,7 @@ export function AlertasConfigDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[min(95vw,32rem)] max-h-[min(90vh,700px)] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-warning" />
@@ -133,7 +133,7 @@ export function AlertasConfigDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-y-auto flex-1 hide-scrollbar-mobile pr-1">
           {/* Configuração de Data de Início */}
           <div className="p-3 rounded-lg bg-muted/50 border border-border space-y-2">
             <div className="flex items-center gap-2">

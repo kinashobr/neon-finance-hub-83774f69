@@ -217,63 +217,63 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
           </div>
         ) : (
           <Tabs defaultValue="geral" className="flex-1 flex flex-col overflow-hidden">
-            <div className="px-6 bg-muted/20 border-b">
-              <TabsList className="h-12 bg-transparent p-0 gap-6">
-                <TabsTrigger value="geral" className="h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1">
+            <div className="px-4 sm:px-6 bg-muted/20 border-b overflow-x-auto hide-scrollbar-mobile">
+              <TabsList className="h-10 sm:h-12 bg-transparent p-0 gap-2 sm:gap-6 min-w-max">
+                <TabsTrigger value="geral" className="h-10 sm:h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1 text-xs sm:text-sm whitespace-nowrap">
                   Visão Geral
                 </TabsTrigger>
-                <TabsTrigger value="parcelas" className="h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1">
+                <TabsTrigger value="parcelas" className="h-10 sm:h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1 text-xs sm:text-sm whitespace-nowrap">
                   Cronograma
                 </TabsTrigger>
-                <TabsTrigger value="graficos" className="h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1">
-                  Análise Gráfica
+                <TabsTrigger value="graficos" className="h-10 sm:h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1 text-xs sm:text-sm whitespace-nowrap">
+                  Análise
                 </TabsTrigger>
-                <TabsTrigger value="observacoes" className="h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1">
+                <TabsTrigger value="observacoes" className="h-10 sm:h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1 text-xs sm:text-sm whitespace-nowrap">
                   Notas
                 </TabsTrigger>
               </TabsList>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
-              <TabsContent value="geral" className="mt-0 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+              <TabsContent value="geral" className="mt-0 space-y-4 sm:space-y-6">
                 {/* Grid de Indicadores Principais */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="p-4 rounded-xl bg-card border border-border shadow-sm">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Saldo Devedor</p>
-                    <p className={cn("text-2xl font-bold mt-1", isQuitado ? "text-success" : "text-destructive")}>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                  <div className="p-3 sm:p-4 rounded-xl bg-card border border-border shadow-sm">
+                    <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider">Saldo Devedor</p>
+                    <p className={cn("text-lg sm:text-2xl font-bold mt-1", isQuitado ? "text-success" : "text-destructive")}>
                       {isQuitado ? "R$ 0,00" : formatCurrency(calculos.saldoDevedor)}
                     </p>
-                    <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                    <div className="hidden sm:flex items-center gap-1 mt-2 text-xs text-muted-foreground">
                       <TrendingDown className="w-3 h-3" />
                       <span>Principal restante</span>
                     </div>
                   </div>
-                  <div className="p-4 rounded-xl bg-card border border-border shadow-sm">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Parcela Mensal</p>
-                    <p className="text-2xl font-bold mt-1 text-warning">
+                  <div className="p-3 sm:p-4 rounded-xl bg-card border border-border shadow-sm">
+                    <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider">Parcela</p>
+                    <p className="text-lg sm:text-2xl font-bold mt-1 text-warning">
                       {formatCurrency(emprestimo.parcela)}
                     </p>
-                    <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                    <div className="hidden sm:flex items-center gap-1 mt-2 text-xs text-muted-foreground">
                       <Calendar className="w-3 h-3" />
                       <span>Vence dia {parseDateLocal(emprestimo.dataInicio || "").getDate()}</span>
                     </div>
                   </div>
-                  <div className="p-4 rounded-xl bg-card border border-border shadow-sm">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Progresso</p>
-                    <p className="text-2xl font-bold mt-1 text-primary">
+                  <div className="p-3 sm:p-4 rounded-xl bg-card border border-border shadow-sm">
+                    <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider">Progresso</p>
+                    <p className="text-lg sm:text-2xl font-bold mt-1 text-primary">
                       {calculos.percentualQuitado.toFixed(0)}%
                     </p>
-                    <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                    <div className="hidden sm:flex items-center gap-1 mt-2 text-xs text-muted-foreground">
                       <Clock className="w-3 h-3" />
-                      <span>{calculos.parcelasPagas} de {emprestimo.meses} pagas</span>
+                      <span>{calculos.parcelasPagas}/{emprestimo.meses}</span>
                     </div>
                   </div>
-                  <div className="p-4 rounded-xl bg-card border border-border shadow-sm">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Custo Efetivo</p>
-                    <p className="text-2xl font-bold mt-1 text-info">
+                  <div className="p-3 sm:p-4 rounded-xl bg-card border border-border shadow-sm">
+                    <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider">CET</p>
+                    <p className="text-lg sm:text-2xl font-bold mt-1 text-info">
                       {calculos.cetEfetivo.toFixed(1)}%
                     </p>
-                    <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                    <div className="hidden sm:flex items-center gap-1 mt-2 text-xs text-muted-foreground">
                       <Percent className="w-3 h-3" />
                       <span>Taxa anualizada</span>
                     </div>

@@ -86,76 +86,77 @@ export function AccountStatementDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl h-[90vh] p-0 overflow-hidden flex flex-col">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
-          <div className="flex items-center justify-between">
+      <DialogContent className="max-w-[min(95vw,80rem)] h-[min(90vh,900px)] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-primary" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
               </div>
-              <div>
-                <DialogTitle className="text-xl">{account.name}</DialogTitle>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                  <Badge variant="outline">{ACCOUNT_TYPE_LABELS[account.accountType]}</Badge>
-                  {account.institution && <span>• {account.institution}</span>}
+              <div className="min-w-0">
+                <DialogTitle className="text-base sm:text-xl truncate">{account.name}</DialogTitle>
+                <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1 flex-wrap">
+                  <Badge variant="outline" className="text-[10px] sm:text-xs">{ACCOUNT_TYPE_LABELS[account.accountType]}</Badge>
+                  {account.institution && <span className="truncate">• {account.institution}</span>}
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={onReconcileAll}>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Conciliar Tudo
+              <Button variant="outline" size="sm" onClick={onReconcileAll} className="h-8 text-xs sm:text-sm">
+                <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Conciliar Tudo</span>
+                <span className="sm:hidden">Conciliar</span>
               </Button>
-              <Button variant="outline" size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                Exportar
+              <Button variant="outline" size="sm" className="h-8 text-xs sm:text-sm">
+                <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Exportar</span>
+                <span className="sm:hidden">Exp.</span>
               </Button>
             </div>
           </div>
         </DialogHeader>
 
         {/* Conteúdo rolável */}
-        <ScrollArea className="flex-1">
-          <div className="p-6 space-y-6">
+        <ScrollArea className="flex-1 hide-scrollbar-mobile">
+          <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             {/* Resumo de Saldos */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
               <Card className="glass-card">
-                <CardContent className="pt-4">
-                  <div className="text-sm text-muted-foreground mb-1">Saldo Inicial (Período)</div>
-                  {/* Exibe o saldo inicial do período, formatado */}
-                  <div className="text-lg font-bold">{formatCurrency(periodSummary.initialBalance)}</div>
+                <CardContent className="p-3 sm:pt-4">
+                  <div className="text-xs sm:text-sm text-muted-foreground mb-1">Saldo Inicial</div>
+                  <div className="text-sm sm:text-lg font-bold">{formatCurrency(periodSummary.initialBalance)}</div>
                 </CardContent>
               </Card>
               
               <Card className="glass-card">
-                <CardContent className="pt-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                    <TrendingUp className="w-4 h-4 text-success" />
-                    Entradas (Período)
+                <CardContent className="p-3 sm:pt-4">
+                  <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground mb-1">
+                    <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 text-success" />
+                    Entradas
                   </div>
-                  <div className="text-lg font-bold text-success">
+                  <div className="text-sm sm:text-lg font-bold text-success">
                     +{formatCurrency(periodSummary.totalIn)}
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="glass-card">
-                <CardContent className="pt-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                    <TrendingDown className="w-4 h-4 text-destructive" />
-                    Saídas (Período)
+                <CardContent className="p-3 sm:pt-4">
+                  <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground mb-1">
+                    <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4 text-destructive" />
+                    Saídas
                   </div>
-                  <div className="text-lg font-bold text-destructive">
+                  <div className="text-sm sm:text-lg font-bold text-destructive">
                     -{formatCurrency(periodSummary.totalOut)}
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="glass-card border-2 border-primary/20">
-                <CardContent className="pt-4">
-                  <div className="text-sm text-muted-foreground mb-1">Saldo Final (Período)</div>
+                <CardContent className="p-3 sm:pt-4">
+                  <div className="text-xs sm:text-sm text-muted-foreground mb-1">Saldo Final</div>
                   <div className={cn(
-                    "text-lg font-bold",
+                    "text-sm sm:text-lg font-bold",
                     periodSummary.finalBalance >= 0 ? "text-foreground" : "text-destructive"
                   )}>
                     {formatCurrency(periodSummary.finalBalance)}
@@ -196,62 +197,67 @@ export function AccountStatementDialog({
 
             {/* Filtro de Período */}
             <Card className="glass-card">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
+              <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-4">
+                <CardTitle className="text-xs sm:text-sm flex items-center gap-2">
+                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
                   Período do Extrato
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4 flex-wrap">
+              <CardContent className="px-3 sm:px-6 pb-3 sm:pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">De:</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground">De:</span>
                     <Input
                       type="date"
                       value={dateFrom}
                       onChange={(e) => setDateFrom(e.target.value)}
-                      className="w-[150px] h-9"
+                      className="flex-1 sm:w-[150px] h-8 sm:h-9 text-sm"
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Até:</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground">Até:</span>
                     <Input
                       type="date"
                       value={dateTo}
                       onChange={(e) => setDateTo(e.target.value)}
-                      className="w-[150px] h-9"
+                      className="flex-1 sm:w-[150px] h-8 sm:h-9 text-sm"
                     />
                   </div>
-                  {(dateFrom || dateTo) && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => { setDateFrom(""); setDateTo(""); }}
-                    >
-                      Limpar
-                    </Button>
-                  )}
-                  <span className="text-sm text-muted-foreground ml-auto">
-                    {filteredTransactions.length} transações
-                  </span>
+                  <div className="flex items-center justify-between sm:justify-start gap-2 sm:ml-auto">
+                    {(dateFrom || dateTo) && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="h-8 text-xs sm:text-sm"
+                        onClick={() => { setDateFrom(""); setDateTo(""); }}
+                      >
+                        Limpar
+                      </Button>
+                    )}
+                    <span className="text-xs sm:text-sm text-muted-foreground">
+                      {filteredTransactions.length} transações
+                    </span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Tabela de Transações */}
             <Card className="glass-card">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Movimentações</CardTitle>
+              <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-4">
+                <CardTitle className="text-xs sm:text-sm">Movimentações</CardTitle>
               </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <TransactionTable
-                  transactions={filteredTransactions}
-                  accounts={[account]}
-                  categories={categories}
-                  onEdit={onEditTransaction}
-                  onDelete={onDeleteTransaction}
-                  onToggleConciliated={onToggleConciliated}
-                />
+              <CardContent className="overflow-x-auto px-0 sm:px-6 pb-3 sm:pb-4 -mx-4 sm:mx-0">
+                <div className="min-w-[600px] px-4 sm:px-0">
+                  <TransactionTable
+                    transactions={filteredTransactions}
+                    accounts={[account]}
+                    categories={categories}
+                    onEdit={onEditTransaction}
+                    onDelete={onDeleteTransaction}
+                    onToggleConciliated={onToggleConciliated}
+                  />
+                </div>
               </CardContent>
             </Card>
           </div>

@@ -344,11 +344,19 @@ const Investimentos = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="bg-muted/50">
-            <TabsTrigger value="carteira">Carteira Geral</TabsTrigger>
-            <TabsTrigger value="rf">Renda Fixa & Poupança</TabsTrigger>
-            <TabsTrigger value="cripto">Criptoativos & Stables</TabsTrigger>
-            <TabsTrigger value="objetivos">Reserva & Objetivos</TabsTrigger>
+          <TabsList className="bg-muted/50 h-auto flex flex-wrap gap-1 p-1">
+            <TabsTrigger value="carteira" className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+              Carteira Geral
+            </TabsTrigger>
+            <TabsTrigger value="rf" className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+              Renda Fixa
+            </TabsTrigger>
+            <TabsTrigger value="cripto" className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+              Criptoativos
+            </TabsTrigger>
+            <TabsTrigger value="objetivos" className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+              Reserva
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab Carteira Geral */}
