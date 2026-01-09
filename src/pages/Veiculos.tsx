@@ -286,9 +286,9 @@ const Veiculos = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 md:space-y-8">
         {/* Header */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
+        <div className="glass-card md-elevated p-4 md:p-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
           <div>
             <h1 className="text-xl md:text-3xl font-bold text-foreground">Imobilizado - Veículos</h1>
             <p className="text-xs md:text-base text-muted-foreground mt-1">Controle seus veículos, seguros e custos associados</p>
@@ -467,7 +467,7 @@ const Veiculos = () => {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="glass-card stat-card-neutral animate-fade-in-up">
+          <Card className="glass-card md-elevated stat-card-neutral animate-fade-in-up">
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
                 <div>
@@ -483,7 +483,7 @@ const Veiculos = () => {
             </CardContent>
           </Card>
 
-          <Card className="glass-card stat-card-neutral animate-fade-in-up" style={{ animationDelay: "50ms" }}>
+          <Card className="glass-card md-elevated stat-card-neutral animate-fade-in-up" style={{ animationDelay: "50ms" }}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
                 <div>
@@ -499,7 +499,7 @@ const Veiculos = () => {
             </CardContent>
           </Card>
 
-          <Card className="glass-card stat-card-positive animate-fade-in-up" style={{ animationDelay: "100ms" }}>
+          <Card className="glass-card md-elevated stat-card-positive animate-fade-in-up" style={{ animationDelay: "100ms" }}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
                 <div>
@@ -515,10 +515,13 @@ const Veiculos = () => {
             </CardContent>
           </Card>
 
-          <Card className={cn(
-            "glass-card animate-fade-in-up",
-            veiculosComSeguroVencendo.length > 0 ? "stat-card-negative" : "stat-card-positive"
-          )} style={{ animationDelay: "150ms" }}>
+          <Card
+            className={cn(
+              "glass-card md-elevated animate-fade-in-up",
+              veiculosComSeguroVencendo.length > 0 ? "stat-card-negative" : "stat-card-positive"
+            )}
+            style={{ animationDelay: "150ms" }}
+          >
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
                 <div>
@@ -530,10 +533,12 @@ const Veiculos = () => {
                     <p className="text-xs text-destructive mt-1">{veiculosComSeguroVencendo.length} seguro(s) vencendo</p>
                   )}
                 </div>
-                <div className={cn(
-                  "p-3 rounded-xl",
-                  veiculosComSeguroVencendo.length > 0 ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"
-                )}>
+                <div
+                  className={cn(
+                    "p-3 rounded-xl",
+                    veiculosComSeguroVencendo.length > 0 ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"
+                  )}
+                >
                   {veiculosComSeguroVencendo.length > 0 ? <AlertTriangle className="w-6 h-6" /> : <Car className="w-6 h-6" />}
                 </div>
               </div>
@@ -543,14 +548,23 @@ const Veiculos = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="bg-muted/50 h-auto flex flex-wrap gap-1 p-1">
-            <TabsTrigger value="veiculos" className="flex-1 min-w-[30%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+          <TabsList className="bg-muted/40 rounded-full h-auto flex flex-wrap gap-1 p-1.5">
+            <TabsTrigger
+              value="veiculos"
+              className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10 rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
               Veículos
             </TabsTrigger>
-            <TabsTrigger value="seguros" className="flex-1 min-w-[30%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+            <TabsTrigger
+              value="seguros"
+              className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10 rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
               Seguros
             </TabsTrigger>
-            <TabsTrigger value="parcelas" className="flex-1 min-w-[30%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+            <TabsTrigger
+              value="parcelas"
+              className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10 rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
               Parcelas
             </TabsTrigger>
           </TabsList>
@@ -559,7 +573,7 @@ const Veiculos = () => {
           <TabsContent value="veiculos" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Chart */}
-              <Card className="lg:col-span-2 glass-card">
+              <Card className="lg:col-span-2 glass-card md-elevated">
                 <CardHeader>
                   <CardTitle>Comparativo de Valores</CardTitle>
                 </CardHeader>
@@ -588,7 +602,7 @@ const Veiculos = () => {
               </Card>
 
               {/* Quick Stats */}
-              <Card className="glass-card">
+              <Card className="glass-card md-elevated">
                 <CardHeader>
                   <CardTitle>Resumo</CardTitle>
                 </CardHeader>
@@ -614,7 +628,7 @@ const Veiculos = () => {
             </div>
 
             {/* Table */}
-            <Card className="glass-card">
+            <Card className="glass-card md-elevated">
               <CardHeader>
                 <CardTitle>Seus Veículos</CardTitle>
               </CardHeader>
@@ -716,7 +730,7 @@ const Veiculos = () => {
 
           {/* Tab Seguros */}
           <TabsContent value="seguros" className="space-y-6">
-            <Card className="glass-card">
+            <Card className="glass-card md-elevated">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-lg">Seguros Cadastrados</CardTitle>
                 <Badge variant="outline">{segurosVeiculo.length} seguros</Badge>
@@ -785,7 +799,7 @@ const Veiculos = () => {
 
           {/* Tab Parcelas (Todas) */}
           <TabsContent value="parcelas" className="space-y-6">
-            <Card className="glass-card">
+            <Card className="glass-card md-elevated">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-lg">Controle de Parcelas de Seguro</CardTitle>
                 <Badge variant="outline" className="border-primary text-primary">{allParcelas.length} parcelas</Badge>
