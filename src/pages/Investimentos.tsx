@@ -260,7 +260,7 @@ const Investimentos = () => {
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
+        <header className="glass-card md-elevated p-4 md:p-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
           <div>
             <h1 className="text-xl md:text-3xl font-bold text-foreground">
               Investimentos & Patrimônio
@@ -269,11 +269,11 @@ const Investimentos = () => {
               Visão consolidada da sua carteira de ativos
             </p>
           </div>
-          <PeriodSelector 
+          <PeriodSelector
             initialRanges={dateRanges}
-            onDateRangeChange={handlePeriodChange} 
+            onDateRangeChange={handlePeriodChange}
           />
-        </div>
+        </header>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -344,17 +344,29 @@ const Investimentos = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="bg-muted/50 h-auto flex flex-wrap gap-1 p-1">
-            <TabsTrigger value="carteira" className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+          <TabsList className="bg-muted/40 rounded-full h-auto flex flex-wrap gap-1 p-1.5">
+            <TabsTrigger
+              value="carteira"
+              className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10 rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
               Carteira Geral
             </TabsTrigger>
-            <TabsTrigger value="rf" className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+            <TabsTrigger
+              value="rf"
+              className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10 rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
               Renda Fixa
             </TabsTrigger>
-            <TabsTrigger value="cripto" className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+            <TabsTrigger
+              value="cripto"
+              className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10 rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
               Criptoativos
             </TabsTrigger>
-            <TabsTrigger value="objetivos" className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10">
+            <TabsTrigger
+              value="objetivos"
+              className="flex-1 min-w-[48%] sm:min-w-0 sm:flex-none text-xs sm:text-sm h-9 sm:h-10 rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
               Reserva
             </TabsTrigger>
           </TabsList>

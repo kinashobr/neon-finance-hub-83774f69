@@ -26,19 +26,21 @@ export function MainLayout({ children }: MainLayoutProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background transition-colors duration-300">
+    <div className="min-h-screen surface transition-colors duration-300">
       <Sidebar />
       <main
         className={cn(
           "min-h-screen p-3 md:p-6 transition-all duration-300",
           // Mobile: top padding for fixed header + bottom padding for bottom nav
           "pt-[calc(3.5rem+0.75rem)] pb-16 md:pt-6 md:pb-6",
-          // Desktop: left margin based on sidebar state
+          // Desktop: left margin baseada no estado da sidebar
           "ml-0",
           sidebarCollapsed ? "md:ml-16" : "md:ml-64",
         )}
       >
-        <div className="max-w-[min(1400px,95vw)] mx-auto">{children}</div>
+        <div className="max-w-[min(1400px,95vw)] mx-auto space-y-6 md:space-y-8">
+          {children}
+        </div>
       </main>
       <MobileBottomNav />
     </div>

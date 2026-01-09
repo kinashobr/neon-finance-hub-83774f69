@@ -308,8 +308,7 @@ const Index = () => {
   return (
     <MainLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <header className="flex flex-col gap-3 md:flex-row md:items-center animate-fade-in">
+        <header className="glass-card md-elevated p-4 md:p-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl surface-container-high hover-scale">
               <LayoutDashboard className="h-5 w-5 md:h-6 md:w-6 text-primary" />
@@ -332,7 +331,7 @@ const Index = () => {
         </header>
 
         {/* Bloco 1 - Cockpit */}
-        <section className="surface-container rounded-2xl p-4 md:p-6 shadow-sm animate-fade-in">
+        <section className="glass-card md-elevated p-4 md:p-6 animate-fade-in">
           <CockpitCards data={cockpitData} />
         </section>
 
@@ -342,7 +341,7 @@ const Index = () => {
           <div className="lg:col-span-2 space-y-4 md:space-y-6">
             {/* Bloco 3 - Movimentações Relevantes */}
             <section
-              className="surface-container rounded-2xl p-4 md:p-6 shadow-sm animate-fade-in"
+              className="glass-card md-elevated p-4 md:p-6 animate-fade-in"
               style={{ animationDelay: "100ms" }}
             >
               <MovimentacoesRelevantes
@@ -353,7 +352,7 @@ const Index = () => {
 
             {/* Fluxo de Caixa Heatmap */}
             <section
-              className="surface-container rounded-2xl p-4 md:p-6 shadow-sm animate-fade-in"
+              className="glass-card md-elevated p-4 md:p-6 animate-fade-in"
               style={{ animationDelay: "200ms" }}
             >
               <FluxoCaixaHeatmap
@@ -376,7 +375,7 @@ const Index = () => {
           <div className="space-y-4 md:space-y-6">
             {/* Bloco 4 - Acompanhamento de Ativos */}
             <section
-              className="surface-container rounded-2xl p-4 md:p-6 shadow-sm animate-fade-in"
+              className="glass-card md-elevated p-4 md:p-6 animate-fade-in"
               style={{ animationDelay: "150ms" }}
             >
               <AcompanhamentoAtivos
@@ -390,7 +389,7 @@ const Index = () => {
 
             {/* Bloco 6 - Saúde Financeira */}
             <section
-              className="surface-container rounded-2xl p-4 md:p-6 shadow-sm animate-fade-in"
+              className="glass-card md-elevated p-4 md:p-6 animate-fade-in"
               style={{ animationDelay: "250ms" }}
             >
               <SaudeFinanceira

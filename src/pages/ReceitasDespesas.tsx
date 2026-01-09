@@ -819,7 +819,7 @@ const ReceitasDespesas = () => {
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
+        <header className="glass-card md-elevated p-4 md:p-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
           <div>
             <h1 className="text-fluid-2xl font-bold text-foreground">Receitas e Despesas</h1>
             <p className="text-fluid-sm text-muted-foreground mt-1">
@@ -855,7 +855,7 @@ const ReceitasDespesas = () => {
         </header>
 
         {/* Accounts Carousel */}
-        <section className="surface-container rounded-2xl p-4 md:p-6 shadow-sm">
+        <section className="glass-card md-elevated p-4 md:p-6">
           <AccountsCarousel
             accounts={accountSummaries}
             onMovimentar={handleMovimentar}
@@ -870,7 +870,7 @@ const ReceitasDespesas = () => {
         </section>
 
         {/* KPI Sidebar - full width */}
-        <section className="surface-container rounded-2xl p-4 md:p-6 shadow-sm">
+        <section className="glass-card md-elevated p-4 md:p-6">
           <KPISidebar transactions={transacoesPeriodo1} categories={categories} />
         </section>
       </div>
