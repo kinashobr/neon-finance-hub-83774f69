@@ -213,7 +213,7 @@ const Emprestimos = () => {
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
+        <header className="glass-card md-elevated p-4 md:p-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
           <div>
             <h1 className="text-fluid-2xl font-bold text-foreground">
               Empréstimos &amp; Financiamentos
@@ -235,44 +235,46 @@ const Emprestimos = () => {
         </header>
 
         {/* Summary Cards */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <LoanCard
-            title="Saldo Devedor Principal"
-            value={formatCurrency(calculos.saldoDevedorTotal)}
-            icon={<TrendingDown className="w-5 h-5" />}
-            status="danger"
-            tooltip="Valor total que resta a pagar em todos os empréstimos e financiamentos (apenas principal restante)."
-            delay={0}
-          />
+        <section className="glass-card md-elevated p-4 md:p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <LoanCard
+              title="Saldo Devedor Principal"
+              value={formatCurrency(calculos.saldoDevedorTotal)}
+              icon={<TrendingDown className="w-5 h-5" />}
+              status="danger"
+              tooltip="Valor total que resta a pagar em todos os empréstimos e financiamentos (apenas principal restante)."
+              delay={0}
+            />
 
-          {/* Dívida Cartões de Crédito (Mantido para referência, mas com título ajustado) */}
-          <LoanCard
-            title="Dívida Cartões de Crédito"
-            value={formatCurrency(calculos.dividaCartoes)}
-            icon={<CreditCard className="w-5 h-5" />}
-            status={calculos.dividaCartoes > 0 ? "warning" : "success"}
-            tooltip="Saldo negativo total das contas de Cartão de Crédito (fatura pendente). Esta é uma dívida operacional."
-            delay={50}
-          />
+            {/* Dívida Cartões de Crédito (Mantido para referência, mas com título ajustado) */}
+            <LoanCard
+              title="Dívida Cartões de Crédito"
+              value={formatCurrency(calculos.dividaCartoes)}
+              icon={<CreditCard className="w-5 h-5" />}
+              status={calculos.dividaCartoes > 0 ? "warning" : "success"}
+              tooltip="Saldo negativo total das contas de Cartão de Crédito (fatura pendente). Esta é uma dívida operacional."
+              delay={50}
+            />
 
-          <LoanCard
-            title="Parcela Mensal Total"
-            value={formatCurrency(calculos.parcelaMensalTotal)}
-            icon={<Calendar className="w-5 h-5" />}
-            status="warning"
-            tooltip="Soma de todas as parcelas mensais de empréstimos."
-            delay={100}
-          />
+            <LoanCard
+              title="Parcela Mensal Total"
+              value={formatCurrency(calculos.parcelaMensalTotal)}
+              icon={<Calendar className="w-5 h-5" />}
+              status="warning"
+              tooltip="Soma de todas as parcelas mensais de empréstimos."
+              delay={100}
+            />
 
-          {/* Juros Totais (Contrato) */}
-          <LoanCard
-            title="Juros Totais (Contrato)"
-            value={formatCurrency(calculos.jurosTotais)}
-            icon={<Percent className="w-5 h-5" />}
-            status="warning"
-            tooltip="Custo total em juros se os empréstimos forem pagos até o final."
-            delay={150}
-          />
+            {/* Juros Totais (Contrato) */}
+            <LoanCard
+              title="Juros Totais (Contrato)"
+              value={formatCurrency(calculos.jurosTotais)}
+              icon={<Percent className="w-5 h-5" />}
+              status="warning"
+              tooltip="Custo total em juros se os empréstimos forem pagos até o final."
+              delay={150}
+            />
+          </div>
         </section>
 
         {/* Alerts and Simulator */}
@@ -290,7 +292,7 @@ const Emprestimos = () => {
         </section>
 
         {/* Loans Table */}
-        <section className="surface-container rounded-2xl p-5 shadow-sm">
+        <section className="glass-card md-elevated p-4 md:p-5">
           <h3 className="text-lg font-semibold text-foreground mb-4">
             Contratos Detalhados
           </h3>

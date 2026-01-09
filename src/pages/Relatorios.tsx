@@ -33,7 +33,7 @@ const Relatorios = () => {
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between animate-fade-in">
+        <header className="glass-card md-elevated p-4 md:p-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between animate-fade-in">
           <div>
             <h1 className="text-xl md:text-3xl font-bold text-foreground">
               Relatórios Financeiros
@@ -42,28 +42,34 @@ const Relatorios = () => {
               Análise contábil profissional • Balanço, DRE e Indicadores
             </p>
             <p className="text-xs md:text-sm text-muted-foreground mt-2">
-              Período Principal: <span className="font-medium text-foreground">{formatRange(dateRanges.range1)}</span>
+              Período Principal: {" "}
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 font-medium">
+                {formatRange(dateRanges.range1)}
+              </span>
               {dateRanges.range2.from && (
                 <>
                   <span className="mx-2 hidden md:inline">|</span>
                   <br className="md:hidden" />
-                  Período Comparativo: <span className="font-medium text-foreground">{formatRange(dateRanges.range2)}</span>
+                  Período Comparativo: {" "}
+                  <span className="inline-flex items-center gap-1 rounded-full bg-secondary/10 text-secondary px-2 py-0.5 font-medium">
+                    {formatRange(dateRanges.range2)}
+                  </span>
                 </>
               )}
             </p>
           </div>
-          <PeriodSelector 
+          <PeriodSelector
             initialRanges={dateRanges}
-            onDateRangeChange={handlePeriodChange} 
+            onDateRangeChange={handlePeriodChange}
           />
-        </div>
+        </header>
 
         {/* Navigation Tabs */}
         <Tabs defaultValue="balanco" className="space-y-6">
-          <TabsList className="bg-muted/50 p-1 h-auto flex-wrap">
+          <TabsList className="bg-muted/40 rounded-full p-1.5 h-auto flex-wrap">
             <TabsTrigger
               value="balanco"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2 py-2.5 px-4"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full gap-2 py-2.5 px-4 text-xs sm:text-sm"
             >
               <Scale className="w-4 h-4" />
               <span className="hidden sm:inline">Balanço Patrimonial</span>
@@ -71,7 +77,7 @@ const Relatorios = () => {
             </TabsTrigger>
             <TabsTrigger
               value="dre"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2 py-2.5 px-4"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full gap-2 py-2.5 px-4 text-xs sm:text-sm"
             >
               <Receipt className="w-4 h-4" />
               <span className="hidden sm:inline">Demonstração do Resultado</span>
@@ -79,7 +85,7 @@ const Relatorios = () => {
             </TabsTrigger>
             <TabsTrigger
               value="indicadores"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2 py-2.5 px-4"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full gap-2 py-2.5 px-4 text-xs sm:text-sm"
             >
               <Activity className="w-4 h-4" />
               <span className="hidden sm:inline">Indicadores Avançados</span>
