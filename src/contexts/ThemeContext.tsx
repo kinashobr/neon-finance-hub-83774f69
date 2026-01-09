@@ -18,15 +18,30 @@ const THEMES: { id: ThemeType; name: string; icon: string }[] = [
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [isManualTheme, setIsManualTheme] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("app-theme-manual") === "true";
+  });
+
   const [theme, setThemeState] = useState<ThemeType>(() => {
+    if (typeof window === "undefined") {
+      return "brown-light";
+    }
+
     const saved = localStorage.getItem("app-theme");
-    // Default to brown-light
-    return (saved as ThemeType) || "brown-light";
+    if (saved === "brown-light" || saved === "dark-neon") {
+      return saved as ThemeType;
+    }
+
+    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+    return prefersDark ? "dark-neon" : "brown-light";
   });
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     localStorage.setItem("app-theme", theme);
-    
+
     // Remove all previous theme classes
     document.documentElement.classList.remove(
       "theme-brown-light",
@@ -36,7 +51,26 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.add(`theme-${theme}`);
   }, [theme]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return;
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      if (isManualTheme) return;
+      setThemeState(event.matches ? "dark-neon" : "brown-light");
+    };
+
+    media.addEventListener("change", handleChange);
+    return () => media.removeEventListener("change", handleChange);
+  }, [isManualTheme]);
+
   const setTheme = (newTheme: ThemeType) => {
+    setIsManualTheme(true);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("app-theme-manual", "true");
+    }
     setThemeState(newTheme);
   };
 
