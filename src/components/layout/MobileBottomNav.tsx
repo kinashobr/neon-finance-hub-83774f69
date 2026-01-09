@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Palette,
   MoreHorizontal,
+  ArrowLeftCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -156,7 +157,7 @@ export function MobileBottomNav() {
       <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden surface-container-high border-t border-border/60 backdrop-blur-md">
         <div className="flex h-14 items-stretch px-1 gap-1">
           {navLevel === "root" ? (
-            <div className="flex flex-1 items-stretch gap-1">
+            <div className="flex flex-1 items-stretch gap-1 animate-fade-in">
               {GROUPS.map((group) => {
                 const Icon = group.icon;
                 const isActive = currentGroupId === group.id;
@@ -166,27 +167,27 @@ export function MobileBottomNav() {
                     type="button"
                     onClick={() => handleGroupTap(group)}
                     className={cn(
-                      "flex-1 flex flex-col items-center justify-center gap-0.5 rounded-full transition-colors text-[10px] font-medium",
+                      "flex-1 flex flex-col items-center justify-center gap-0.5 rounded-full transition-colors text-[11px] font-medium hover-scale",
                       isActive
                         ? "md-primary shadow-sm"
                         : "text-muted-foreground hover:bg-muted/40",
                     )}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-5 w-5" />
                     <span className={cn(isActive && "text-[hsl(var(--md-sys-color-on-primary))]")}>{group.label}</span>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <div className="flex flex-1 items-stretch gap-1">
+            <div className="flex flex-1 items-stretch gap-1 animate-fade-in">
               <button
                 type="button"
                 onClick={handleBackToRoot}
-                className="flex items-center justify-center px-3 rounded-full text-[11px] font-medium text-muted-foreground hover:bg-muted/40"
+                className="flex items-center justify-center px-2 rounded-full text-[11px] font-medium text-muted-foreground hover:bg-muted/40 hover-scale"
+                aria-label="Voltar ao nível principal"
               >
-                <span className="mr-1">⟵</span>
-                Principal
+                <ArrowLeftCircle className="h-5 w-5" />
               </button>
               {activeItems.map((item) => {
                 const isActive = location.pathname === item.path;
@@ -197,13 +198,13 @@ export function MobileBottomNav() {
                     type="button"
                     onClick={() => navigate(item.path)}
                     className={cn(
-                      "flex-1 flex items-center justify-center gap-1 rounded-full px-2 text-[10px] font-medium",
+                      "flex-1 flex items-center justify-center gap-1 rounded-full px-2 text-[11px] font-medium hover-scale",
                       isActive
                         ? "md-primary shadow-sm"
                         : "text-muted-foreground hover:bg-muted/40",
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5" />
+                    <Icon className="h-4 w-4" />
                     <span className={cn(isActive && "text-[hsl(var(--md-sys-color-on-primary))]")}>{item.title}</span>
                   </button>
                 );
@@ -215,7 +216,7 @@ export function MobileBottomNav() {
           <button
             type="button"
             onClick={() => setUtilitiesOpen(true)}
-            className="flex items-center justify-center w-10 rounded-full text-muted-foreground hover:bg-muted/40"
+            className="flex items-center justify-center w-10 rounded-full text-muted-foreground hover:bg-muted/40 hover-scale"
             aria-label="Mais opções"
           >
             <MoreHorizontal className="h-5 w-5" />
@@ -227,7 +228,7 @@ export function MobileBottomNav() {
       <Sheet open={utilitiesOpen} onOpenChange={setUtilitiesOpen}>
         <SheetContent
           side="bottom"
-          className="surface-container-high border-t border-border/60 rounded-t-3xl px-4 pt-3 pb-4 flex flex-col gap-3 max-h-[85vh]"
+          className="surface-container-high border-t border-border/60 rounded-t-3xl px-4 pt-3 pb-4 flex flex-col gap-3 max-h-[85vh] animate-fade-in"
         >
           <SheetHeader className="text-left">
             <div className="flex items-center gap-2">
