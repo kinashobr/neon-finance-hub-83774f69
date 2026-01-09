@@ -12,7 +12,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-start gap-1 rounded-full bg-[hsl(var(--md-sys-color-surface-container))] p-1 text-muted-foreground flex-wrap",
+      "inline-flex items-center justify-start gap-1 rounded-full bg-[hsl(var(--md-sys-color-surface-container-low))] p-1.5 text-[hsl(var(--md-sys-color-on-surface-variant))] flex-wrap shadow-sm",
       className,
     )}
     {...props}
@@ -27,7 +27,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium ring-offset-background transition-all data-[state=active]:bg-[hsl(var(--md-sys-color-primary))] data-[state=active]:text-[hsl(var(--md-sys-color-on-primary))] data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      "inline-flex items-center justify-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 text-[hsl(var(--md-sys-color-on-surface-variant))] hover:bg-[hsl(var(--md-sys-color-on-surface))]/5 data-[state=active]:bg-[hsl(var(--md-sys-color-primary))] data-[state=active]:text-[hsl(var(--md-sys-color-on-primary))] data-[state=active]:shadow-sm",
       className,
     )}
     {...props}
