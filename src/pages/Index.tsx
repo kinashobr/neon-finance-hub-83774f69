@@ -10,7 +10,7 @@ import { SaudeFinanceira } from "@/components/dashboard/SaudeFinanceira";
 import { FluxoCaixaHeatmap } from "@/components/dashboard/FluxoCaixaHeatmap";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { DateRange, ComparisonDateRanges } from "@/types/finance";
-import { Activity, LayoutDashboard } from "lucide-react";
+import { Activity, LayoutDashboard, TrendingUp, TrendingDown } from "lucide-react";
 import {
   startOfMonth,
   endOfMonth,
@@ -305,33 +305,66 @@ const Index = () => {
   const dependenciaRenda =
     receitasPeriodo1 > 0 ? (despesasFixasPeriodo / receitasPeriodo1) * 100 : 0;
 
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+    }).format(value);
+
+  const variacaoEhPositiva = variacaoPatrimonio >= 0;
+
   return (
     <MainLayout>
       <div className="space-y-6">
-        <header className="glass-card md-elevated p-4 md:p-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl surface-container-high hover-scale">
-              <LayoutDashboard className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+        {/* HEADER EXPRESSIVO MATERIAL 3 */}
+        <header className="md-surface-1 md-elev-3 md-shape-lg p-4 md:p-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-fade-in">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="rounded-2xl p-2.5 md:p-3 bg-[hsl(var(--md-sys-color-primary))]/10 text-[hsl(var(--md-sys-color-primary))]">
+              <LayoutDashboard className="h-5 w-5 md:h-6 md:w-6" />
             </div>
             <div>
-              <h1 className="text-fluid-2xl font-bold text-foreground">
+              <h1 className="text-fluid-2xl font-bold text-[hsl(var(--md-sys-color-on-surface))]">
                 Central Financeira
               </h1>
-              <p className="text-fluid-sm text-muted-foreground">
-                Visão rápida da sua situação financeira
+              <p className="text-fluid-sm text-[hsl(var(--md-sys-color-on-surface-variant))]">
+                Resumo rápido da sua situação financeira neste período
               </p>
             </div>
           </div>
-          <div className="md:ml-auto">
-            <PeriodSelector
-              initialRanges={dateRanges}
-              onDateRangeChange={handlePeriodChange}
-            />
+
+          {/* Painel de saldo resumido no header, inspirado no modelo */}
+          <div className="flex flex-col md:items-end gap-3 md:gap-2 w-full md:w-auto">
+            <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
+              <div className="flex flex-col items-start md:items-end">
+                <span className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--md-sys-color-on-surface-variant))]">
+                  Saldo Total
+                </span>
+                <span className="text-lg md:text-xl font-semibold text-[hsl(var(--md-sys-color-on-surface))]">
+                  {formatCurrency(patrimonioTotal)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 rounded-full px-2.5 py-1 bg-[hsl(var(--md-sys-color-primary-container))] text-[hsl(var(--md-sys-color-on-primary-container))] text-xs font-medium">
+                {variacaoEhPositiva ? (
+                  <TrendingUp className="h-3.5 w-3.5" />
+                ) : (
+                  <TrendingDown className="h-3.5 w-3.5" />
+                )}
+                <span>
+                  {variacaoEhPositiva ? "+" : "-"}
+                  {formatCurrency(Math.abs(variacaoPatrimonio))} ({variacaoPercentual.toFixed(1)}%)
+                </span>
+              </div>
+            </div>
+
+            <div className="md:ml-auto">
+              <PeriodSelector initialRanges={dateRanges} onDateRangeChange={handlePeriodChange} />
+            </div>
           </div>
         </header>
 
         {/* Bloco 1 - Cockpit */}
-        <section className="glass-card md-elevated p-4 md:p-6 animate-fade-in">
+        <section className="glass-card md-elev-2 p-4 md:p-6 animate-fade-in">
           <CockpitCards data={cockpitData} />
         </section>
 
@@ -341,18 +374,15 @@ const Index = () => {
           <div className="lg:col-span-2 space-y-4 md:space-y-6">
             {/* Bloco 3 - Movimentações Relevantes */}
             <section
-              className="glass-card md-elevated p-4 md:p-6 animate-fade-in"
+              className="glass-card md-elev-2 p-4 md:p-6 animate-fade-in"
               style={{ animationDelay: "100ms" }}
             >
-              <MovimentacoesRelevantes
-                transacoes={transacoesPeriodo1}
-                limit={6}
-              />
+              <MovimentacoesRelevantes transacoes={transacoesPeriodo1} limit={6} />
             </section>
 
             {/* Fluxo de Caixa Heatmap */}
             <section
-              className="glass-card md-elevated p-4 md:p-6 animate-fade-in"
+              className="glass-card md-elev-2 p-4 md:p-6 animate-fade-in"
               style={{ animationDelay: "200ms" }}
             >
               <FluxoCaixaHeatmap
@@ -375,7 +405,7 @@ const Index = () => {
           <div className="space-y-4 md:space-y-6">
             {/* Bloco 4 - Acompanhamento de Ativos */}
             <section
-              className="glass-card md-elevated p-4 md:p-6 animate-fade-in"
+              className="glass-card md-elev-2 p-4 md:p-6 animate-fade-in"
               style={{ animationDelay: "150ms" }}
             >
               <AcompanhamentoAtivos
@@ -389,7 +419,7 @@ const Index = () => {
 
             {/* Bloco 6 - Saúde Financeira */}
             <section
-              className="glass-card md-elevated p-4 md:p-6 animate-fade-in"
+              className="glass-card md-elev-2 p-4 md:p-6 animate-fade-in"
               style={{ animationDelay: "250ms" }}
             >
               <SaudeFinanceira
