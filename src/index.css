@@ -27,49 +27,50 @@
 
   /* ... Temas ... */
   :root, .theme-brown-light {
-    --background: 30 20% 94%;
-    --foreground: 25 30% 20%;
-    --card: 30 25% 96%;
-    --card-foreground: 25 30% 20%;
-    --popover: 30 25% 97%;
-    --popover-foreground: 25 30% 20%;
-    --primary: 25 60% 45%;
-    --primary-foreground: 30 20% 98%;
-    --secondary: 30 15% 88%;
-    --secondary-foreground: 25 30% 25%;
-    --muted: 30 15% 90%;
-    --muted-foreground: 25 20% 45%;
-    --accent: 25 50% 55%;
-    --accent-foreground: 30 20% 98%;
-    --destructive: 0 65% 50%;
-    --destructive-foreground: 30 20% 98%;
-    --success: 145 60% 35%;
-    --success-foreground: 30 20% 98%;
-    --warning: 38 80% 50%;
-    --warning-foreground: 25 30% 15%;
-    --info: 199 89% 48%;
-    --border: 30 20% 82%;
-    --input: 30 15% 88%;
-    --ring: 25 60% 45%;
+    /* Brown Light – mais expressivo, maior contraste */
+    --background: 32 35% 94%;
+    --foreground: 24 40% 18%;
+    --card: 32 40% 97%;
+    --card-foreground: 24 40% 20%;
+    --popover: 32 45% 98%;
+    --popover-foreground: 24 40% 18%;
+    --primary: 28 70% 42%;
+    --primary-foreground: 32 40% 98%;
+    --secondary: 30 25% 86%;
+    --secondary-foreground: 26 35% 20%;
+    --muted: 30 18% 88%;
+    --muted-foreground: 27 25% 42%;
+    --accent: 32 65% 50%;
+    --accent-foreground: 32 45% 98%;
+    --destructive: 2 75% 48%;
+    --destructive-foreground: 32 40% 98%;
+    --success: 145 65% 34%;
+    --success-foreground: 32 40% 98%;
+    --warning: 40 90% 52%;
+    --warning-foreground: 26 40% 14%;
+    --info: 204 90% 50%;
+    --border: 30 25% 80%;
+    --input: 30 22% 86%;
+    --ring: 28 70% 42%;
     --radius: 0.75rem;
-    --neon-cyan: 25 60% 45%;
-    --neon-purple: 25 50% 55%;
-    --neon-blue: 25 45% 50%;
-    --neon-pink: 15 55% 50%;
-    --neon-green: 145 50% 40%;
-    --glass-bg: 30 25% 95% / 0.8;
-    --glass-border: 30 20% 75% / 0.5;
-    --sidebar-background: 30 22% 91%;
-    --sidebar-foreground: 25 30% 22%;
-    --sidebar-primary: 25 60% 45%;
-    --sidebar-primary-foreground: 30 20% 98%;
-    --sidebar-accent: 30 18% 86%;
-    --sidebar-accent-foreground: 25 30% 22%;
-    --sidebar-border: 30 18% 84%;
-    --sidebar-ring: 25 60% 45%;
-    --sidebar-muted: 25 15% 50%;
-    --sidebar-highlight: 25 50% 55%;
-    --sidebar-divider: 30 18% 80%;
+    --neon-cyan: 188 80% 48%;
+    --neon-purple: 276 70% 52%;
+    --neon-blue: 210 80% 52%;
+    --neon-pink: 338 72% 54%;
+    --neon-green: 150 70% 42%;
+    --glass-bg: 32 40% 96% / 0.85;
+    --glass-border: 30 25% 78% / 0.55;
+    --sidebar-background: 30 28% 92%;
+    --sidebar-foreground: 24 40% 20%;
+    --sidebar-primary: 28 70% 42%;
+    --sidebar-primary-foreground: 32 40% 98%;
+    --sidebar-accent: 30 26% 88%;
+    --sidebar-accent-foreground: 24 40% 20%;
+    --sidebar-border: 30 24% 82%;
+    --sidebar-ring: 28 70% 42%;
+    --sidebar-muted: 26 22% 46%;
+    --sidebar-highlight: 32 65% 50%;
+    --sidebar-divider: 30 22% 82%;
 
     /* Material Expressive 3 semantic tokens (aliases over existing theme vars) */
     --md-sys-color-surface: var(--background);
@@ -91,69 +92,70 @@
     --md-sys-color-info: var(--info);
   }
 
-  .theme-dark-neon {
-    --background: 220 20% 4%;
-    --foreground: 210 40% 98%;
-    --card: 220 20% 8%;
-    --card-foreground: 210 40% 98%;
-    --popover: 220 20% 6%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 199 89% 48%;
-    --primary-foreground: 220 20% 4%;
-    --secondary: 220 20% 14%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 220 20% 12%;
-    --muted-foreground: 215 20% 55%;
-    --accent: 270 80% 60%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --success: 142 76% 36%;
-    --success-foreground: 210 40% 98%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 220 20% 4%;
-    --info: 185 100% 50%;
-    --border: 220 20% 18%;
-    --input: 220 20% 14%;
-    --ring: 199 89% 48%;
-    --neon-cyan: 185 100% 50%;
-    --neon-purple: 270 100% 65%;
-    --neon-blue: 210 100% 60%;
-    --neon-pink: 330 100% 65%;
-    --neon-green: 160 100% 45%;
-    --glass-bg: 220 20% 10% / 0.6;
-    --glass-border: 220 20% 30% / 0.3;
-    --sidebar-background: 220 20% 5%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 199 89% 48%;
-    --sidebar-primary-foreground: 220 20% 4%;
-    --sidebar-accent: 220 20% 12%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 220 20% 12%;
-    --sidebar-ring: 199 89% 48%;
-    --sidebar-muted: 215 20% 50%;
-    --sidebar-highlight: 270 100% 65%;
-    --sidebar-divider: 220 20% 15%;
+.theme-dark-neon {
+  /* Dark Neon – fundo mais profundo e acentos ainda mais vibrantes */
+  --background: 222 28% 4%;
+  --foreground: 210 40% 96%;
+  --card: 222 30% 8%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 32% 10%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 200 95% 52%;
+  --primary-foreground: 220 25% 6%;
+  --secondary: 222 25% 16%;
+  --secondary-foreground: 210 40% 96%;
+  --muted: 222 20% 14%;
+  --muted-foreground: 215 20% 60%;
+  --accent: 275 95% 64%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 80% 52%;
+  --destructive-foreground: 210 40% 98%;
+  --success: 145 80% 40%;
+  --success-foreground: 210 40% 98%;
+  --warning: 40 96% 54%;
+  --warning-foreground: 222 25% 6%;
+  --info: 190 100% 54%;
+  --border: 222 26% 20%;
+  --input: 222 22% 18%;
+  --ring: 200 95% 52%;
+  --neon-cyan: 190 100% 54%;
+  --neon-purple: 278 100% 68%;
+  --neon-blue: 212 100% 62%;
+  --neon-pink: 330 100% 68%;
+  --neon-green: 155 100% 46%;
+  --glass-bg: 222 30% 10% / 0.65;
+  --glass-border: 222 30% 30% / 0.35;
+  --sidebar-background: 222 28% 5%;
+  --sidebar-foreground: 210 40% 96%;
+  --sidebar-primary: 200 95% 52%;
+  --sidebar-primary-foreground: 220 25% 6%;
+  --sidebar-accent: 222 26% 14%;
+  --sidebar-accent-foreground: 210 40% 96%;
+  --sidebar-border: 222 26% 16%;
+  --sidebar-ring: 200 95% 52%;
+  --sidebar-muted: 215 22% 58%;
+  --sidebar-highlight: 278 100% 68%;
+  --sidebar-divider: 222 24% 18%;
 
-    /* Material Expressive 3 semantic tokens (aliases over existing theme vars) */
-    --md-sys-color-surface: var(--background);
-    --md-sys-color-surface-container: var(--card);
-    --md-sys-color-surface-container-low: var(--background);
-    --md-sys-color-surface-container-high: var(--popover);
+  /* Material Expressive 3 semantic tokens (aliases over existing theme vars) */
+  --md-sys-color-surface: var(--background);
+  --md-sys-color-surface-container: var(--card);
+  --md-sys-color-surface-container-low: var(--background);
+  --md-sys-color-surface-container-high: var(--popover);
 
-    --md-sys-color-primary: var(--primary);
-    --md-sys-color-on-primary: var(--primary-foreground);
-    --md-sys-color-secondary: var(--secondary);
-    --md-sys-color-on-secondary: var(--secondary-foreground);
-    --md-sys-color-tertiary: var(--accent);
-    --md-sys-color-on-tertiary: var(--accent-foreground);
+  --md-sys-color-primary: var(--primary);
+  --md-sys-color-on-primary: var(--primary-foreground);
+  --md-sys-color-secondary: var(--secondary);
+  --md-sys-color-on-secondary: var(--secondary-foreground);
+  --md-sys-color-tertiary: var(--accent);
+  --md-sys-color-on-tertiary: var(--accent-foreground);
 
-    --md-sys-color-error: var(--destructive);
-    --md-sys-color-on-error: var(--destructive-foreground);
-    --md-sys-color-success: var(--success);
-    --md-sys-color-warning: var(--warning);
-    --md-sys-color-info: var(--info);
-  }
+  --md-sys-color-error: var(--destructive);
+  --md-sys-color-on-error: var(--destructive-foreground);
+  --md-sys-color-success: var(--success);
+  --md-sys-color-warning: var(--warning);
+  --md-sys-color-info: var(--info);
+}
 
   * { @apply border-border; }
   body { @apply bg-background text-foreground font-sans antialiased; font-family: 'Inter', sans-serif; }
