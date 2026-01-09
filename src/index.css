@@ -27,67 +27,67 @@
 
   /* ... Temas ... */
   :root, .theme-brown-light {
-    /* Brown Light – ultra claro, forte contraste, accents intensos */
-    --background: 32 42% 98%;
-    --foreground: 24 55% 12%;
-    --card: 32 60% 100%;
-    --card-foreground: 24 55% 14%;
-    --popover: 32 55% 99%;
-    --popover-foreground: 24 55% 12%;
+    /* Brown Light – marrom forte + branco, alto contraste, menos alaranjado */
+    --background: 32 30% 98%;
+    --foreground: 24 40% 12%;
+    --card: 32 32% 100%;
+    --card-foreground: 24 40% 14%;
+    --popover: 32 30% 99%;
+    --popover-foreground: 24 40% 12%;
 
-    /* Primária bem saturada, inspirada em bancos premium, mas mais viva */
-    --primary: 26 92% 44%;
-    --primary-foreground: 32 60% 99%;
+    /* Marrom primário mais escuro e menos saturado (menos laranja) */
+    --primary: 28 40% 34%;   /* marrom café */
+    --primary-foreground: 32 40% 98%;
 
-    /* Secundárias e neutros com mais contraste (menos “lavado”) */
-    --secondary: 30 32% 88%;
-    --secondary-foreground: 26 46% 18%;
-    --muted: 30 20% 82%;
-    --muted-foreground: 27 32% 32%;
+    /* Secundárias e neutros em marrom/bege, sem puxar para laranja vivo */
+    --secondary: 32 24% 88%;
+    --secondary-foreground: 26 32% 18%;
+    --muted: 32 16% 82%;
+    --muted-foreground: 27 22% 32%;
 
-    /* Acentos fortes e bem saturados */
-    --accent: 32 86% 50%;
-    --accent-foreground: 32 60% 99%;
+    /* Acento: marrom mais quente mas ainda marrom, não laranja neon */
+    --accent: 30 46% 40%;
+    --accent-foreground: 32 40% 98%;
 
-    /* Estados com contraste máximo dentro do light theme */
+    /* Estados com contraste forte, preservando legibilidade no tema claro */
     --destructive: 4 84% 46%;
-    --destructive-foreground: 32 60% 99%;
-    --success: 146 78% 32%;
-    --success-foreground: 32 60% 99%;
-    --warning: 42 98% 52%;
-    --warning-foreground: 26 52% 10%;
+    --destructive-foreground: 32 40% 98%;
+    --success: 146 72% 32%;
+    --success-foreground: 32 40% 98%;
+    --warning: 42 96% 52%;
+    --warning-foreground: 26 46% 10%;
     --info: 205 98% 48%;
 
-    /* Bordas e inputs mais definidos para alto contraste */
-    --border: 30 24% 74%;
-    --input: 30 20% 90%;
-    --ring: 26 92% 44%;
+    /* Bordas e inputs bem definidos para o esquema marrom + branco */
+    --border: 30 18% 72%;
+    --input: 30 16% 90%;
+    --ring: 28 40% 34%;
 
     --radius: 0.75rem;
 
-    /* Paleta neon para detalhes e gradientes, ainda mais intensa */
+    /* Paleta neon para detalhes, mantida intensa mas usada só em accents */
     --neon-cyan: 190 98% 50%;
     --neon-purple: 278 96% 54%;
     --neon-blue: 210 96% 54%;
     --neon-pink: 338 96% 56%;
     --neon-green: 150 90% 40%;
 
-    /* Glassmorphism com contraste maior contra o background claro */
-    --glass-bg: 32 60% 100% / 0.92;
-    --glass-border: 30 28% 76% / 0.7;
+    /* Glassmorphism: fundo quase branco com borda marrom suave */
+    --glass-bg: 32 32% 100% / 0.96;
+    --glass-border: 30 20% 76% / 0.8;
 
-    /* Sidebar mais definida, com contraste mais forte */
-    --sidebar-background: 30 30% 94%;
-    --sidebar-foreground: 24 55% 16%;
-    --sidebar-primary: 26 92% 44%;
-    --sidebar-primary-foreground: 32 60% 99%;
-    --sidebar-accent: 30 26% 90%;
-    --sidebar-accent-foreground: 24 55% 16%;
-    --sidebar-border: 30 26% 82%;
-    --sidebar-ring: 26 92% 44%;
-    --sidebar-muted: 26 28% 40%;
-    --sidebar-highlight: 32 86% 50%;
-    --sidebar-divider: 30 22% 80%;
+    /* Sidebar em marrom forte, contrastando com o canvas branco */
+    --sidebar-background: 30 22% 94%;
+    --sidebar-foreground: 24 40% 16%;
+    --sidebar-primary: 28 40% 34%;
+    --sidebar-primary-foreground: 32 40% 98%;
+    --sidebar-accent: 30 20% 90%;
+    --sidebar-accent-foreground: 24 40% 16%;
+    --sidebar-border: 30 20% 82%;
+    --sidebar-ring: 28 40% 34%;
+    --sidebar-muted: 26 22% 38%;
+    --sidebar-highlight: 30 46% 40%;
+    --sidebar-divider: 30 18% 80%;
 
     /* Material Expressive 3 semantic tokens (aliases sobre vars do tema) */
     --md-sys-color-surface: var(--background);
