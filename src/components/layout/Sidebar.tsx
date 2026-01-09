@@ -257,26 +257,27 @@ export function Sidebar() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 z-50 sidebar-bg border-r sidebar-border transition-all duration-300 ease-in-out flex flex-col",
-          // Desktop floating card styles
-          "hidden md:flex md:top-4 md:bottom-4 md:ml-4 md:rounded-2xl md:shadow-xl md:h-auto md:border",
-          collapsed ? "md:w-16" : "md:w-64",
-          // Mobile styles - slide in from left, below mobile header
+          // Container principal estilo card flutuante Material 3
+          "fixed left-0 z-50 sidebar-bg border-r sidebar-border transition-all duration-300 ease-in-out flex flex-col md-elev-3 md:rounded-2xl",
+          // Desktop: card suspenso com margem
+          "hidden md:flex md:top-4 md:bottom-4 md:ml-4 md:h-auto md:border",
+          collapsed ? "md:w-16" : "md:w-72",
+          // Mobile: slide-in ocupando altura abaixo do header
           mobileOpen && "flex top-14 h-[calc(100vh-3.5rem)] w-[280px]"
         )}
       >
-      {/* Header - Logo & App Name (Desktop only, mobile has separate header) */}
-      <div className="hidden md:flex h-16 items-center justify-between px-4 border-b sidebar-border shrink-0">
+      {/* Header - Logo & App Name (Desktop only, mobile tem header próprio) */}
+      <div className="hidden md:flex h-18 items-center justify-between px-4 border-b sidebar-border shrink-0">
         {!collapsed ? (
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-9 h-9 rounded-xl sidebar-logo-bg flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-2xl sidebar-logo-bg flex items-center justify-center shrink-0">
               <CircleDollarSign className="w-5 h-5 sidebar-logo-icon" />
             </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-bold text-sm sidebar-brand-text truncate">
+            <div className="flex flex-col min-w-0 leading-tight">
+              <span className="font-semibold text-sm sidebar-brand-text truncate">
                 Orbium
               </span>
-              <span className="text-xs sidebar-brand-subtitle truncate">
+              <span className="text-[11px] sidebar-brand-subtitle truncate">
                 Finance
               </span>
             </div>
@@ -284,7 +285,7 @@ export function Sidebar() {
         ) : (
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="w-9 h-9 rounded-xl sidebar-logo-bg flex items-center justify-center mx-auto cursor-pointer">
+              <div className="w-9 h-9 rounded-2xl sidebar-logo-bg flex items-center justify-center mx-auto cursor-pointer">
                 <CircleDollarSign className="w-5 h-5 sidebar-logo-icon" />
               </div>
             </TooltipTrigger>
