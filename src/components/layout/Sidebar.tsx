@@ -257,12 +257,12 @@ export function Sidebar() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen sidebar-bg border-r sidebar-border transition-all duration-300 ease-in-out flex flex-col",
-          // Desktop styles
-          "hidden md:flex",
+          "fixed left-0 z-50 sidebar-bg border-r sidebar-border transition-all duration-300 ease-in-out flex flex-col",
+          // Desktop floating card styles
+          "hidden md:flex md:top-4 md:bottom-4 md:ml-4 md:rounded-2xl md:shadow-xl md:h-auto md:border",
           collapsed ? "md:w-16" : "md:w-64",
-          // Mobile styles - slide in from left
-          mobileOpen && "flex w-[280px] top-14 h-[calc(100vh-3.5rem)]"
+          // Mobile styles - slide in from left, below mobile header
+          mobileOpen && "flex top-14 h-[calc(100vh-3.5rem)] w-[280px]"
         )}
       >
       {/* Header - Logo & App Name (Desktop only, mobile has separate header) */}
