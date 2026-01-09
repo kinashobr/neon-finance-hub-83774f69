@@ -4,7 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Trash2, CreditCard, Calculator, TrendingDown, Percent, Calendar, DollarSign, Eye, Clock, Award, PiggyBank, Target, ChevronRight, AlertTriangle, Building2 } from "lucide-react";
+import {
+  Trash2,
+  CreditCard,
+  Calculator,
+  TrendingDown,
+  Percent,
+  Calendar,
+  DollarSign,
+  Eye,
+  Clock,
+  Award,
+  PiggyBank,
+  Target,
+  ChevronRight,
+  AlertTriangle,
+  Building2,
+} from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { Emprestimo } from "@/types/finance";
 import { EditableCell } from "@/components/EditableCell";
@@ -21,11 +37,11 @@ import { startOfMonth, endOfMonth, isWithinInterval, format, subDays } from "dat
 import { useLocation } from "react-router-dom"; // <-- IMPORTADO
 
 const Emprestimos = () => {
-  const { 
-    emprestimos, 
-    addEmprestimo, 
-    updateEmprestimo, 
-    deleteEmprestimo, 
+  const {
+    emprestimos,
+    addEmprestimo,
+    updateEmprestimo,
+    deleteEmprestimo,
     getTotalDividas,
     getPendingLoans,
     getContasCorrentesTipo,
@@ -37,21 +53,24 @@ const Emprestimos = () => {
     getCreditCardDebt, // <-- NEW
     calculatePaidInstallmentsUpToDate, // <-- ADDED
   } = useFinance();
-  
+
   const location = useLocation(); // <-- USANDO useLocation
-  
+
   const [selectedLoan, setSelectedLoan] = useState<Emprestimo | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-  
+
   // NOVO: Ref para rastrear se a abertura automática já foi tratada
   const autoOpenHandledRef = useRef(false);
-  
-  const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
-    setDateRanges(ranges);
-  }, [setDateRanges]);
+
+  const handlePeriodChange = useCallback(
+    (ranges: ComparisonDateRanges) => {
+      setDateRanges(ranges);
+    },
+    [setDateRanges],
+  );
 
   // Get pending loans list
-  const pendingLoans = getPendingLoans(); 
+  const pendingLoans = getPendingLoans();
 
   // Handler para abrir o modal de configuração a partir do alerta local
   const handleOpenPendingConfigFromAlert = useCallback(() => {
@@ -64,86 +83,110 @@ const Emprestimos = () => {
   // Effect para abrir o modal se a navegação veio do alerta (Sidebar)
   useEffect(() => {
     const state = location.state as { openLoanConfig?: boolean } | null;
-    
+
     // Verifica se o estado de navegação indica abertura E se ainda não foi tratado
     if (state?.openLoanConfig && pendingLoans.length > 0 && !autoOpenHandledRef.current) {
-      
       // Marca como tratado
       autoOpenHandledRef.current = true;
-      
+
       // Abre o modal para o primeiro empréstimo pendente
       setSelectedLoan(pendingLoans[0]);
       setDetailDialogOpen(true);
-      
+
       // Limpa o estado de navegação para evitar reabertura ao voltar
       // Nota: Substituir o estado atual na história do navegador
       window.history.replaceState({}, document.title, location.pathname);
     }
-    
+
     // Se o modal for fechado, resetamos o ref para permitir que uma nova navegação o abra novamente.
     // No entanto, o ref deve ser resetado apenas se o modal for fechado E o estado de navegação não estiver mais presente.
     // A maneira mais simples de garantir que o ref não cause problemas é deixá-lo ser reavaliado apenas na montagem/navegação.
     // A limpeza do location.state já garante que o useEffect não será re-executado com a flag 'openLoanConfig'.
-    
   }, [location.state, pendingLoans]);
 
   // Helper function to calculate the next due date for a loan
-  const getNextDueDate = useCallback((loan: Emprestimo, targetDate: Date | undefined): Date | null => {
-    if (!loan.dataInicio || loan.meses === 0) return null;
-    
-    // Use the dynamically calculated paid installments up to the target date
-    const paidUpToDate = calculatePaidInstallmentsUpToDate(loan.id, targetDate || new Date());
-    
-    const nextParcela = paidUpToDate + 1;
-    if (nextParcela > loan.meses) return null;
+  const getNextDueDate = useCallback(
+    (loan: Emprestimo, targetDate: Date | undefined): Date | null => {
+      if (!loan.dataInicio || loan.meses === 0) return null;
 
-    // Usa parseDateLocal para garantir que a data de início seja interpretada localmente
-    const startDate = parseDateLocal(loan.dataInicio);
-    const dueDate = new Date(startDate);
-    
-    // Ajuste: Se nextParcela = 1, offset é 0 meses.
-    dueDate.setMonth(dueDate.getMonth() + nextParcela - 1);
-    
-    return dueDate;
-  }, [calculatePaidInstallmentsUpToDate]); // Removido dateRanges.range1.to da dependência, pois é passado como argumento
+      // Use the dynamically calculated paid installments up to the target date
+      const paidUpToDate = calculatePaidInstallmentsUpToDate(
+        loan.id,
+        targetDate || new Date(),
+      );
+
+      const nextParcela = paidUpToDate + 1;
+      if (nextParcela > loan.meses) return null;
+
+      // Usa parseDateLocal para garantir que a data de início seja interpretada localmente
+      const startDate = parseDateLocal(loan.dataInicio);
+      const dueDate = new Date(startDate);
+
+      // Ajuste: Se nextParcela = 1, offset é 0 meses.
+      dueDate.setMonth(dueDate.getMonth() + nextParcela - 1);
+
+      return dueDate;
+    },
+    [calculatePaidInstallmentsUpToDate], // Removido dateRanges.range1.to da dependência, pois é passado como argumento
+  );
 
   // Cálculos principais
   const calculos = useMemo(() => {
     const targetDate = dateRanges.range1.to;
-    
+
     // Saldo Devedor Total (Apenas Empréstimos)
     const principalEmprestimos = getLoanPrincipalRemaining(targetDate);
-    
+
     // Dívida Cartões (Mantida para referência, mas não exibida no card principal)
     const dividaCartoes = getCreditCardDebt(targetDate);
-    
-    const totalContratado = emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
-    
+
+    const totalContratado = emprestimos.reduce(
+      (acc, e) => acc + e.valorTotal,
+      0,
+    );
+
     // Calculate total paid based on transactions up to the period end date
     const totalPaid = emprestimos.reduce((acc, e) => {
-        if (e.status === 'quitado' || e.status === 'pendente_config') return acc;
-        
-        const paidCount = calculatePaidInstallmentsUpToDate(e.id, targetDate || new Date());
-        // Simplificação: Multiplica o número de parcelas pagas pelo valor da parcela fixa
-        return acc + (paidCount * e.parcela);
+      if (e.status === "quitado" || e.status === "pendente_config") return acc;
+
+      const paidCount = calculatePaidInstallmentsUpToDate(
+        e.id,
+        targetDate || new Date(),
+      );
+      // Simplificação: Multiplica o número de parcelas pagas pelo valor da parcela fixa
+      return acc + paidCount * e.parcela;
     }, 0);
-    
-    const parcelaMensalTotal = emprestimos.reduce((acc, e) => acc + e.parcela, 0);
-    const jurosTotais = emprestimos.reduce((acc, e) => acc + (e.parcela * e.meses - e.valorTotal), 0);
-    
+
+    const parcelaMensalTotal = emprestimos.reduce(
+      (acc, e) => acc + e.parcela,
+      0,
+    );
+    const jurosTotais = emprestimos.reduce(
+      (acc, e) => acc + (e.parcela * e.meses - e.valorTotal),
+      0,
+    );
+
     return {
       totalContratado,
       totalPago: totalPaid, // Use calculated total paid
       saldoDevedorTotal: principalEmprestimos, // FIXED: Only show loan principal here
-      dividaCartoes, 
+      dividaCartoes,
       parcelaMensalTotal,
       jurosTotais,
     };
-  }, [emprestimos, getLoanPrincipalRemaining, getCreditCardDebt, dateRanges.range1.to, calculatePaidInstallmentsUpToDate]);
+  }, [
+    emprestimos,
+    getLoanPrincipalRemaining,
+    getCreditCardDebt,
+    dateRanges.range1.to,
+    calculatePaidInstallmentsUpToDate,
+  ]);
 
   // Filtra empréstimos ativos
   const emprestimosAtivos = useMemo(() => {
-    return emprestimos.filter(e => e.status === 'ativo' || e.status === 'pendente_config');
+    return emprestimos.filter(
+      (e) => e.status === "ativo" || e.status === "pendente_config",
+    );
   }, [emprestimos]);
 
   const contasCorrentes = getContasCorrentesTipo();
@@ -163,32 +206,36 @@ const Emprestimos = () => {
     }
   };
 
-  const formatCurrency = (value: number) => 
+  const formatCurrency = (value: number) =>
     `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
   return (
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
+        <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
           <div>
-            <h1 className="text-xl md:text-3xl font-bold text-foreground">Empréstimos & Financiamentos</h1>
-            <p className="text-xs md:text-base text-muted-foreground mt-1">Gerencie seus passivos de longo prazo e simule cenários de quitação</p>
+            <h1 className="text-fluid-2xl font-bold text-foreground">
+              Empréstimos &amp; Financiamentos
+            </h1>
+            <p className="text-fluid-sm text-muted-foreground mt-1">
+              Gerencie seus passivos de longo prazo e simule cenários de quitação
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <PeriodSelector 
+            <PeriodSelector
               initialRanges={dateRanges}
-              onDateRangeChange={handlePeriodChange} 
+              onDateRangeChange={handlePeriodChange}
             />
             {/* Ocultando o botão Novo Empréstimo, mas mantendo a funcionalidade */}
             <div className="hidden">
               <LoanForm onSubmit={handleAddLoan} contasCorrentes={contasCorrentes} />
             </div>
           </div>
-        </div>
+        </header>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <LoanCard
             title="Saldo Devedor Principal"
             value={formatCurrency(calculos.saldoDevedorTotal)}
@@ -197,7 +244,7 @@ const Emprestimos = () => {
             tooltip="Valor total que resta a pagar em todos os empréstimos e financiamentos (apenas principal restante)."
             delay={0}
           />
-          
+
           {/* Dívida Cartões de Crédito (Mantido para referência, mas com título ajustado) */}
           <LoanCard
             title="Dívida Cartões de Crédito"
@@ -207,7 +254,7 @@ const Emprestimos = () => {
             tooltip="Saldo negativo total das contas de Cartão de Crédito (fatura pendente). Esta é uma dívida operacional."
             delay={50}
           />
-          
+
           <LoanCard
             title="Parcela Mensal Total"
             value={formatCurrency(calculos.parcelaMensalTotal)}
@@ -216,7 +263,7 @@ const Emprestimos = () => {
             tooltip="Soma de todas as parcelas mensais de empréstimos."
             delay={100}
           />
-          
+
           {/* Juros Totais (Contrato) */}
           <LoanCard
             title="Juros Totais (Contrato)"
@@ -226,13 +273,13 @@ const Emprestimos = () => {
             tooltip="Custo total em juros se os empréstimos forem pagos até o final."
             delay={150}
           />
-        </div>
+        </section>
 
         {/* Alerts and Simulator */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <LoanAlerts 
-              emprestimos={emprestimosAtivos} 
+            <LoanAlerts
+              emprestimos={emprestimosAtivos}
               onOpenPendingConfig={handleOpenPendingConfigFromAlert}
             />
             <LoanCharts emprestimos={emprestimosAtivos} />
@@ -240,11 +287,13 @@ const Emprestimos = () => {
           <div className="space-y-6">
             <LoanSimulator emprestimos={emprestimosAtivos} />
           </div>
-        </div>
+        </section>
 
         {/* Loans Table */}
-        <div className="glass-card p-5">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Contratos Detalhados</h3>
+        <section className="surface-container rounded-2xl p-5 shadow-sm">
+          <h3 className="text-lg font-semibold text-foreground mb-4">
+            Contratos Detalhados
+          </h3>
           <Table>
             <TableHeader>
               <TableRow>
@@ -261,13 +310,16 @@ const Emprestimos = () => {
             <TableBody>
               {emprestimos.map((loan) => {
                 // Calculate paid installments dynamically based on transactions
-                const paidCount = calculatePaidInstallmentsUpToDate(loan.id, dateRanges.range1.to || new Date());
+                const paidCount = calculatePaidInstallmentsUpToDate(
+                  loan.id,
+                  dateRanges.range1.to || new Date(),
+                );
                 const percentual = loan.meses > 0 ? (paidCount / loan.meses) * 100 : 0;
-                
+
                 // Use paidCount for next due date calculation
                 const nextDueDate = getNextDueDate(loan, dateRanges.range1.to);
-                const isPending = loan.status === 'pendente_config';
-                
+                const isPending = loan.status === "pendente_config";
+
                 return (
                   <TableRow key={loan.id} className="hover:bg-muted/30">
                     <TableCell className="font-medium">
@@ -280,37 +332,69 @@ const Emprestimos = () => {
                     <TableCell>{formatCurrency(loan.parcela)}</TableCell>
                     <TableCell>{loan.taxaMensal.toFixed(2)}%</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={cn(percentual >= 100 && "border-success text-success")}>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          percentual >= 100 && "border-success text-success",
+                        )}
+                      >
                         {percentual.toFixed(0)}% ({paidCount}/{loan.meses})
                       </Badge>
                     </TableCell>
                     <TableCell>
                       {isPending ? (
-                        <Badge variant="outline" className="border-warning text-warning">Configurar</Badge>
+                        <Badge
+                          variant="outline"
+                          className="border-warning text-warning"
+                        >
+                          Configurar
+                        </Badge>
                       ) : nextDueDate ? (
                         nextDueDate.toLocaleDateString("pt-BR")
                       ) : (
-                        <Badge variant="outline" className="border-success text-success">Quitado</Badge>
+                        <Badge
+                          variant="outline"
+                          className="border-success text-success"
+                        >
+                          Quitado
+                        </Badge>
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={cn(
-                          loan.status === 'ativo' && "border-primary text-primary",
-                          loan.status === 'quitado' && "border-success text-success",
-                          loan.status === 'pendente_config' && "border-warning text-warning"
+                          loan.status === "ativo" &&
+                            "border-primary text-primary",
+                          loan.status === "quitado" &&
+                            "border-success text-success",
+                          loan.status === "pendente_config" &&
+                            "border-warning text-warning",
                         )}
                       >
-                        {loan.status === 'ativo' ? 'Ativo' : loan.status === 'quitado' ? 'Quitado' : 'Pendente'}
+                        {loan.status === "ativo"
+                          ? "Ativo"
+                          : loan.status === "quitado"
+                            ? "Quitado"
+                            : "Pendente"}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditLoan(loan)} className="h-8 w-8">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditLoan(loan)}
+                          className="h-8 w-8"
+                        >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteLoan(loan.id)} className="h-8 w-8 text-destructive hover:text-destructive">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteLoan(loan.id)}
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -320,7 +404,7 @@ const Emprestimos = () => {
               })}
             </TableBody>
           </Table>
-        </div>
+        </section>
       </div>
 
       <LoanDetailDialog
