@@ -24,8 +24,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-        display: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -36,7 +35,6 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
-          light: "hsl(var(--primary-light))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -77,10 +75,6 @@ export default {
           pink: "hsl(var(--neon-pink))",
           green: "hsl(var(--neon-green))",
         },
-        surface: {
-          DEFAULT: "hsl(var(--surface))",
-          variant: "hsl(var(--surface-variant))",
-        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -93,23 +87,9 @@ export default {
         },
       },
       borderRadius: {
-        'none': '0',
-        'sm': '0.5rem',
-        DEFAULT: '1rem',
-        'md': '1rem',
-        'lg': '1.5rem',
-        'xl': '2rem',
-        '2xl': '2.5rem',
-        '3xl': '3rem',
-        'full': '9999px',
-      },
-      boxShadow: {
-        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-        'glow': '0 0 15px rgba(137, 248, 199, 0.3)',
-        'glow-primary': '0 0 20px hsl(var(--primary) / 0.25)',
-        'elevation-1': '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06)',
-        'elevation-2': '0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06)',
-        'elevation-3': '0 8px 24px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.08)',
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
       },
       keyframes: {
         "accordion-down": {
@@ -175,8 +155,6 @@ export default {
         "neon-gradient": "linear-gradient(135deg, hsl(var(--neon-cyan)), hsl(var(--neon-purple)))",
         "neon-gradient-reverse": "linear-gradient(135deg, hsl(var(--neon-purple)), hsl(var(--neon-cyan)))",
         "dark-gradient": "linear-gradient(180deg, hsl(var(--background)), hsl(220 20% 2%))",
-        "mesh-primary": "linear-gradient(135deg, hsl(var(--primary-light)), hsl(var(--primary)))",
-        "mesh-secondary": "linear-gradient(135deg, hsl(var(--secondary)), hsl(var(--accent)))",
       },
     },
   },
