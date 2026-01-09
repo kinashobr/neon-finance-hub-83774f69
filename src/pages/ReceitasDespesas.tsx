@@ -819,42 +819,60 @@ const ReceitasDespesas = () => {
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
+        <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between animate-fade-in">
           <div>
-            <h1 className="text-xl md:text-3xl font-bold text-foreground">Receitas e Despesas</h1>
-            <p className="text-xs md:text-base text-muted-foreground mt-1">Contas Movimento e conciliação bancária</p>
+            <h1 className="text-fluid-2xl font-bold text-foreground">Receitas e Despesas</h1>
+            <p className="text-fluid-sm text-muted-foreground mt-1">
+              Contas movimento, fluxo de caixa e conciliação bancária
+            </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <PeriodSelector 
+            <PeriodSelector
               initialRanges={dateRanges}
-              onDateRangeChange={handlePeriodChange} 
+              onDateRangeChange={handlePeriodChange}
             />
-            <Button variant="outline" size="sm" onClick={() => setShowBillsTrackerModal(true)} className="gap-2 text-xs md:text-sm h-8 md:h-9 px-2 md:px-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBillsTrackerModal(true)}
+              className="gap-2 text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
+            >
               <CalendarCheck className="w-4 h-4" />
-              <span className="hidden sm:inline">Contas a Pagar</span><span className="sm:hidden">Contas</span>
+              <span className="hidden sm:inline">Contas a Pagar</span>
+              <span className="sm:hidden">Contas</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)} className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3">
-              <Tags className="w-4 h-4 mr-1 md:mr-2" /><span className="hidden sm:inline">Categorias</span><span className="sm:hidden">Cat.</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCategoryListModal(true)}
+              className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
+            >
+              <Tags className="w-4 h-4 mr-1 md:mr-2" />
+              <span className="hidden sm:inline">Categorias</span>
+              <span className="sm:hidden">Cat.</span>
             </Button>
           </div>
-        </div>
+        </header>
 
         {/* Accounts Carousel */}
-        <div className="glass-card p-4">
+        <section className="surface-container rounded-2xl p-4 md:p-6 shadow-sm">
           <AccountsCarousel
             accounts={accountSummaries}
             onMovimentar={handleMovimentar}
             onViewHistory={handleViewStatement}
-            onAddAccount={() => { setEditingAccount(undefined); setShowAccountModal(true); }}
+            onAddAccount={() => {
+              setEditingAccount(undefined);
+              setShowAccountModal(true);
+            }}
             onEditAccount={handleEditAccount}
             onImportAccount={handleImportExtrato}
           />
-        </div>
+        </section>
 
         {/* KPI Sidebar - full width */}
-        <div className="glass-card p-4">
+        <section className="surface-container rounded-2xl p-4 md:p-6 shadow-sm">
           <KPISidebar transactions={transacoesPeriodo1} categories={categories} />
-        </div>
+        </section>
       </div>
 
       {/* Modals */}
