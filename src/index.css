@@ -70,6 +70,25 @@
     --sidebar-muted: 25 15% 50%;
     --sidebar-highlight: 25 50% 55%;
     --sidebar-divider: 30 18% 80%;
+
+    /* Material Expressive 3 semantic tokens (aliases over existing theme vars) */
+    --md-sys-color-surface: var(--background);
+    --md-sys-color-surface-container: var(--card);
+    --md-sys-color-surface-container-low: var(--background);
+    --md-sys-color-surface-container-high: var(--popover);
+
+    --md-sys-color-primary: var(--primary);
+    --md-sys-color-on-primary: var(--primary-foreground);
+    --md-sys-color-secondary: var(--secondary);
+    --md-sys-color-on-secondary: var(--secondary-foreground);
+    --md-sys-color-tertiary: var(--accent);
+    --md-sys-color-on-tertiary: var(--accent-foreground);
+
+    --md-sys-color-error: var(--destructive);
+    --md-sys-color-on-error: var(--destructive-foreground);
+    --md-sys-color-success: var(--success);
+    --md-sys-color-warning: var(--warning);
+    --md-sys-color-info: var(--info);
   }
 
   .theme-dark-neon {
@@ -115,6 +134,25 @@
     --sidebar-muted: 215 20% 50%;
     --sidebar-highlight: 270 100% 65%;
     --sidebar-divider: 220 20% 15%;
+
+    /* Material Expressive 3 semantic tokens (aliases over existing theme vars) */
+    --md-sys-color-surface: var(--background);
+    --md-sys-color-surface-container: var(--card);
+    --md-sys-color-surface-container-low: var(--background);
+    --md-sys-color-surface-container-high: var(--popover);
+
+    --md-sys-color-primary: var(--primary);
+    --md-sys-color-on-primary: var(--primary-foreground);
+    --md-sys-color-secondary: var(--secondary);
+    --md-sys-color-on-secondary: var(--secondary-foreground);
+    --md-sys-color-tertiary: var(--accent);
+    --md-sys-color-on-tertiary: var(--accent-foreground);
+
+    --md-sys-color-error: var(--destructive);
+    --md-sys-color-on-error: var(--destructive-foreground);
+    --md-sys-color-success: var(--success);
+    --md-sys-color-warning: var(--warning);
+    --md-sys-color-info: var(--info);
   }
 
   * { @apply border-border; }
@@ -171,11 +209,22 @@
   .sidebar-nav-item:hover { color: hsl(var(--sidebar-foreground)); background-color: hsl(var(--sidebar-accent) / 0.7); }
   .sidebar-nav-active { color: hsl(var(--sidebar-primary)); background-color: hsl(var(--sidebar-primary) / 0.15); }
   .sidebar-action-btn { color: hsl(var(--sidebar-muted)); }
-  .sidebar-action-btn:hover { color: hsl(var(--sidebar-primary)); background-color: hsl(var(--sidebar-primary) / 0.1); }
+  .sidebar-action-btn:hover { color: hsl(var(--sidebar-primary)); background-color: hsl(var(--primary) / 0.1); }
   .sidebar-theme-switcher-bg { background-color: hsl(var(--sidebar-accent) / 0.5); }
   .sidebar-collapse-btn { color: hsl(var(--sidebar-muted)); background-color: hsl(var(--sidebar-accent) / 0.5); }
   .sidebar-collapse-btn:hover { color: hsl(var(--sidebar-foreground)); background-color: hsl(var(--sidebar-accent)); }
   .sidebar-tooltip { background-color: hsl(var(--popover)); color: hsl(var(--popover-foreground)); border: 1px solid hsl(var(--border)); }
+
+  /* Material-style surface & color utilities built on theme tokens */
+  .surface { background-color: hsl(var(--md-sys-color-surface)); color: hsl(var(--foreground)); }
+  .surface-container { background-color: hsl(var(--md-sys-color-surface-container)); }
+  .surface-container-high { background-color: hsl(var(--md-sys-color-surface-container-high)); }
+
+  .md-primary { background-color: hsl(var(--md-sys-color-primary)); color: hsl(var(--md-sys-color-on-primary)); }
+  .md-secondary { background-color: hsl(var(--md-sys-color-secondary)); color: hsl(var(--md-sys-color-on-secondary)); }
+
+  .md-outline { border-color: hsl(var(--border)); }
+  .md-elevated { box-shadow: 0 4px 16px hsl(var(--foreground) / 0.18); }
 }
 
 @layer utilities {
