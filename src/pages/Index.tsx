@@ -10,15 +10,21 @@ import { SaudeFinanceira } from "@/components/dashboard/SaudeFinanceira";
 import { FluxoCaixaHeatmap } from "@/components/dashboard/FluxoCaixaHeatmap";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { DateRange, ComparisonDateRanges } from "@/types/finance";
-import { 
-  Activity,
-  LayoutDashboard
-} from "lucide-react";
-import { startOfMonth, endOfMonth, isWithinInterval, format, subMonths, subDays, startOfDay, endOfDay } from "date-fns";
+import { Activity, LayoutDashboard } from "lucide-react";
+import {
+  startOfMonth,
+  endOfMonth,
+  isWithinInterval,
+  format,
+  subMonths,
+  subDays,
+  startOfDay,
+  endOfDay,
+} from "date-fns";
 import { parseDateLocal } from "@/lib/utils";
 
 const Index = () => {
-  const { 
+  const {
     transacoesV2,
     contasMovimento,
     categoriasV2,
@@ -31,38 +37,55 @@ const Index = () => {
     setDateRanges, // <-- Use context setter
   } = useFinance();
 
-  const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
-    setDateRanges(ranges);
-  }, [setDateRanges]);
+  const handlePeriodChange = useCallback(
+    (ranges: ComparisonDateRanges) => {
+      setDateRanges(ranges);
+    },
+    [setDateRanges],
+  );
 
   // Helper para filtrar transações por um range específico
-  const filterTransactionsByRange = useCallback((range: DateRange) => {
-    if (!range.from || !range.to) return transacoesV2;
-    
-    // Normaliza os limites do período para garantir que o dia inteiro seja incluído
-    const rangeFrom = startOfDay(range.from);
-    const rangeTo = endOfDay(range.to);
-    
-    return transacoesV2.filter(t => {
-      const transactionDate = parseDateLocal(t.date);
-      return isWithinInterval(transactionDate, { start: rangeFrom, end: rangeTo });
-    });
-  }, [transacoesV2]);
+  const filterTransactionsByRange = useCallback(
+    (range: DateRange) => {
+      if (!range.from || !range.to) return transacoesV2;
+
+      // Normaliza os limites do período para garantir que o dia inteiro seja incluído
+      const rangeFrom = startOfDay(range.from);
+      const rangeTo = endOfDay(range.to);
+
+      return transacoesV2.filter((t) => {
+        const transactionDate = parseDateLocal(t.date);
+        return isWithinInterval(transactionDate, { start: rangeFrom, end: rangeTo });
+      });
+    },
+    [transacoesV2],
+  );
 
   // Transações do Período 1 (Principal)
-  const transacoesPeriodo1 = useMemo(() => filterTransactionsByRange(dateRanges.range1), [filterTransactionsByRange, dateRanges.range1]);
+  const transacoesPeriodo1 = useMemo(
+    () => filterTransactionsByRange(dateRanges.range1),
+    [filterTransactionsByRange, dateRanges.range1],
+  );
 
   // Transações do Período 2 (Comparação)
-  const transacoesPeriodo2 = useMemo(() => filterTransactionsByRange(dateRanges.range2), [filterTransactionsByRange, dateRanges.range2]);
+  const transacoesPeriodo2 = useMemo(
+    () => filterTransactionsByRange(dateRanges.range2),
+    [filterTransactionsByRange, dateRanges.range2],
+  );
 
   // Saldo por conta (usando a data final do período 1 para o saldo atual)
   const saldosPorConta = useMemo(() => {
     const targetDate = dateRanges.range1.to;
-    
-    return contasMovimento.map(conta => {
+
+    return contasMovimento.map((conta) => {
       // Usamos calculateBalanceUpToDate para obter o saldo acumulado até o final do período
-      const saldo = calculateBalanceUpToDate(conta.id, targetDate, transacoesV2, contasMovimento);
-      
+      const saldo = calculateBalanceUpToDate(
+        conta.id,
+        targetDate,
+        transacoesV2,
+        contasMovimento,
+      );
+
       return {
         ...conta,
         saldo: saldo,
@@ -73,7 +96,13 @@ const Index = () => {
   // Liquidez imediata (contas correntes, poupança, reserva e RENDA FIXA)
   const liquidezImediata = useMemo(() => {
     return saldosPorConta
-      .filter(c => c.accountType === 'corrente' || c.accountType === 'poupanca' || c.accountType === 'reserva' || c.accountType === 'renda_fixa')
+      .filter(
+        (c) =>
+          c.accountType === "corrente" ||
+          c.accountType === "poupanca" ||
+          c.accountType === "reserva" ||
+          c.accountType === "renda_fixa",
+      )
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 
@@ -93,47 +122,70 @@ const Index = () => {
   // Receitas e despesas do período ATUAL (P1)
   const receitasPeriodo1 = useMemo(() => {
     return transacoesPeriodo1
-      .filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'receita' || t.operationType === 'rendimento'))
+      .filter(
+        (t) =>
+          t.operationType !== "initial_balance" &&
+          (t.operationType === "receita" || t.operationType === "rendimento"),
+      )
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesPeriodo1]);
 
   // Despesas e despesas do período ATUAL (P1)
   const despesasPeriodo1 = useMemo(() => {
     return transacoesPeriodo1
-      .filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo'))
+      .filter(
+        (t) =>
+          t.operationType !== "initial_balance" &&
+          (t.operationType === "despesa" || t.operationType === "pagamento_emprestimo"),
+      )
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesPeriodo1]);
 
   // Receitas e despesas do período ANTERIOR (P2)
   const receitasPeriodo2 = useMemo(() => {
     return transacoesPeriodo2
-      .filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'receita' || t.operationType === 'rendimento'))
+      .filter(
+        (t) =>
+          t.operationType !== "initial_balance" &&
+          (t.operationType === "receita" || t.operationType === "rendimento"),
+      )
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesPeriodo2]);
 
   // Despesas e despesas do período ANTERIOR (P2)
   const despesasPeriodo2 = useMemo(() => {
     return transacoesPeriodo2
-      .filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo'))
+      .filter(
+        (t) =>
+          t.operationType !== "initial_balance" &&
+          (t.operationType === "despesa" || t.operationType === "pagamento_emprestimo"),
+      )
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesPeriodo2]);
 
   // Variação do patrimônio (baseado no fluxo de caixa do período)
   const saldoPeriodo1 = receitasPeriodo1 - despesasPeriodo1;
   const saldoPeriodo2 = receitasPeriodo2 - despesasPeriodo2;
-  
+
   const variacaoPatrimonio = saldoPeriodo1 - saldoPeriodo2;
-  const variacaoPercentual = saldoPeriodo2 !== 0 
-    ? ((saldoPeriodo1 - saldoPeriodo2) / Math.abs(saldoPeriodo2)) * 100 
-    : 0;
+  const variacaoPercentual =
+    saldoPeriodo2 !== 0
+      ? ((saldoPeriodo1 - saldoPeriodo2) / Math.abs(saldoPeriodo2)) * 100
+      : 0;
 
   // Compromissos do período (despesas + parcelas empréstimo)
   const compromissosPeriodo = despesasPeriodo1;
 
   // Projeção 30 dias (baseado na média do período atual)
-  const diasNoPeriodo = dateRanges.range1.from && dateRanges.range1.to ? (dateRanges.range1.to.getTime() - dateRanges.range1.from.getTime()) / (1000 * 60 * 60 * 24) : 30;
+  const diasNoPeriodo =
+    dateRanges.range1.from && dateRanges.range1.to
+      ?
+          (dateRanges.range1.to.getTime() -
+            dateRanges.range1.from.getTime()) /
+        (1000 * 60 * 60 * 24)
+      : 30;
   const saldoMedioDiario = diasNoPeriodo > 0 ? saldoPeriodo1 / diasNoPeriodo : 0;
-  const projecao30Dias = saldoPeriodo1 + (saldoMedioDiario * 30);
+  const projecao30Dias = saldoPeriodo1 + saldoMedioDiario * 30;
 
   // Dados do cockpit
   const cockpitData = {
@@ -148,42 +200,49 @@ const Index = () => {
   // Dados para acompanhamento de ativos
   const investimentosRFTotal = useMemo(() => {
     return saldosPorConta
-      .filter(c => c.accountType === 'renda_fixa' || c.accountType === 'poupanca')
+      .filter(
+        (c) => c.accountType === "renda_fixa" || c.accountType === "poupanca",
+      )
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 
   const poupancaTotal = useMemo(() => {
     return saldosPorConta
-      .filter(c => c.accountType === 'poupanca')
+      .filter((c) => c.accountType === "poupanca")
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 
   const reservaEmergencia = useMemo(() => {
     return saldosPorConta
-      .filter(c => c.accountType === 'reserva')
+      .filter((c) => c.accountType === "reserva")
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 
   const criptoTotal = useMemo(() => {
     return saldosPorConta
-      .filter(c => c.accountType === 'cripto' && !c.name.toLowerCase().includes('stable'))
+      .filter(
+        (c) => c.accountType === "cripto" && !c.name.toLowerCase().includes("stable"),
+      )
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
-  
+
   const stablesTotal = useMemo(() => {
     return saldosPorConta
-      .filter(c => c.accountType === 'cripto' && c.name.toLowerCase().includes('stable'))
+      .filter(
+        (c) => c.accountType === "cripto" && c.name.toLowerCase().includes("stable"),
+      )
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 
   // Dados para saúde financeira
-  
+
   // 1. Liquidez Ratio (Liquidez Geral: Ativo Total / Passivo Total)
   const liquidezRatio = totalDividas > 0 ? totalAtivosPeriodo / totalDividas : 999;
 
   // 2. Endividamento Percent (Passivo Total / Ativo Total * 100)
-  const endividamentoPercent = totalAtivosPeriodo > 0 ? (totalDividas / totalAtivosPeriodo) * 100 : 0;
-  
+  const endividamentoPercent =
+    totalAtivosPeriodo > 0 ? (totalDividas / totalAtivosPeriodo) * 100 : 0;
+
   // 3. Diversificação (quantos tipos de ativos diferentes > 0)
   const tiposAtivos = [
     investimentosRFTotal > 0,
@@ -204,15 +263,28 @@ const Index = () => {
       const data = subMonths(now, i);
       const m = data.getMonth();
       const y = data.getFullYear();
-      
-      const txMes = transacoesV2.filter(t => {
+
+      const txMes = transacoesV2.filter((t) => {
         const d = parseDateLocal(t.date);
         return d.getMonth() === m && d.getFullYear() === y;
       });
-      
-      const rec = txMes.filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'receita' || t.operationType === 'rendimento')).reduce((a, t) => a + t.amount, 0);
-      const desp = txMes.filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo')).reduce((a, t) => a + t.amount, 0);
-      
+
+      const rec = txMes
+        .filter(
+          (t) =>
+            t.operationType !== "initial_balance" &&
+            (t.operationType === "receita" || t.operationType === "rendimento"),
+        )
+        .reduce((a, t) => a + t.amount, 0);
+      const desp = txMes
+        .filter(
+          (t) =>
+            t.operationType !== "initial_balance" &&
+            (t.operationType === "despesa" ||
+              t.operationType === "pagamento_emprestimo"),
+        )
+        .reduce((a, t) => a + t.amount, 0);
+
       if (rec > desp) ultimos6Meses.push(true);
       else ultimos6Meses.push(false);
     }
@@ -221,43 +293,46 @@ const Index = () => {
 
   // 5. Dependência de renda (Comprometimento Fixo: Despesas Fixas / Receitas Totais * 100)
   const despesasFixasPeriodo = useMemo(() => {
-    const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
+    const categoriasMap = new Map(categoriasV2.map((c) => [c.id, c]));
     return transacoesPeriodo1
-        .filter(t => {
-            const cat = categoriasMap.get(t.categoryId || '');
-            return cat?.nature === 'despesa_fixa' && t.operationType !== 'initial_balance';
-        })
-        .reduce((acc, t) => acc + t.amount, 0);
+      .filter((t) => {
+        const cat = categoriasMap.get(t.categoryId || "");
+        return cat?.nature === "despesa_fixa" && t.operationType !== "initial_balance";
+      })
+      .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesPeriodo1, categoriasV2]);
-  
-  const dependenciaRenda = receitasPeriodo1 > 0 ? (despesasFixasPeriodo / receitasPeriodo1) * 100 : 0;
+
+  const dependenciaRenda =
+    receitasPeriodo1 > 0 ? (despesasFixasPeriodo / receitasPeriodo1) * 100 : 0;
 
   return (
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-center animate-fade-in">
+        <header className="flex flex-col gap-3 md:flex-row md:items-center animate-fade-in">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-primary/10">
+            <div className="p-2 rounded-xl surface-container-high hover-scale">
               <LayoutDashboard className="h-5 w-5 md:h-6 md:w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-fluid-2xl font-bold text-foreground">Central Financeira</h1>
+              <h1 className="text-fluid-2xl font-bold text-foreground">
+                Central Financeira
+              </h1>
               <p className="text-fluid-sm text-muted-foreground">
                 Visão rápida da sua situação financeira
               </p>
             </div>
           </div>
           <div className="md:ml-auto">
-            <PeriodSelector 
+            <PeriodSelector
               initialRanges={dateRanges}
-              onDateRangeChange={handlePeriodChange} 
+              onDateRangeChange={handlePeriodChange}
             />
           </div>
-        </div>
+        </header>
 
         {/* Bloco 1 - Cockpit */}
-        <section className="animate-fade-in-up">
+        <section className="surface-container rounded-2xl p-4 md:p-6 shadow-sm animate-fade-in">
           <CockpitCards data={cockpitData} />
         </section>
 
@@ -266,16 +341,33 @@ const Index = () => {
           {/* Coluna esquerda - Movimentações e Fluxo */}
           <div className="lg:col-span-2 space-y-4 md:space-y-6">
             {/* Bloco 3 - Movimentações Relevantes */}
-            <section className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-              <MovimentacoesRelevantes transacoes={transacoesPeriodo1} limit={6} />
+            <section
+              className="surface-container rounded-2xl p-4 md:p-6 shadow-sm animate-fade-in"
+              style={{ animationDelay: "100ms" }}
+            >
+              <MovimentacoesRelevantes
+                transacoes={transacoesPeriodo1}
+                limit={6}
+              />
             </section>
 
             {/* Fluxo de Caixa Heatmap */}
-            <section className="animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-              <FluxoCaixaHeatmap 
-                month={dateRanges.range1.from ? format(dateRanges.range1.from, 'MM') : format(new Date(), 'MM')} 
-                year={dateRanges.range1.from ? dateRanges.range1.from.getFullYear() : new Date().getFullYear()} 
-                transacoes={transacoesPeriodo1} 
+            <section
+              className="surface-container rounded-2xl p-4 md:p-6 shadow-sm animate-fade-in"
+              style={{ animationDelay: "200ms" }}
+            >
+              <FluxoCaixaHeatmap
+                month={
+                  dateRanges.range1.from
+                    ? format(dateRanges.range1.from, "MM")
+                    : format(new Date(), "MM")
+                }
+                year={
+                  dateRanges.range1.from
+                    ? dateRanges.range1.from.getFullYear()
+                    : new Date().getFullYear()
+                }
+                transacoes={transacoesPeriodo1}
               />
             </section>
           </div>
@@ -283,7 +375,10 @@ const Index = () => {
           {/* Coluna direita - Ativos e Saúde */}
           <div className="space-y-4 md:space-y-6">
             {/* Bloco 4 - Acompanhamento de Ativos */}
-            <section className="animate-fade-in-up" style={{ animationDelay: '150ms' }}>
+            <section
+              className="surface-container rounded-2xl p-4 md:p-6 shadow-sm animate-fade-in"
+              style={{ animationDelay: "150ms" }}
+            >
               <AcompanhamentoAtivos
                 investimentosRF={investimentosRFTotal}
                 criptomoedas={criptoTotal}
@@ -294,7 +389,10 @@ const Index = () => {
             </section>
 
             {/* Bloco 6 - Saúde Financeira */}
-            <section className="animate-fade-in-up" style={{ animationDelay: '250ms' }}>
+            <section
+              className="surface-container rounded-2xl p-4 md:p-6 shadow-sm animate-fade-in"
+              style={{ animationDelay: "250ms" }}
+            >
               <SaudeFinanceira
                 liquidez={liquidezRatio}
                 endividamento={endividamentoPercent}
