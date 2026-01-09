@@ -91,19 +91,39 @@
 
     /* Material Expressive 3 semantic tokens (aliases sobre vars do tema) */
     --md-sys-color-surface: var(--background);
-    --md-sys-color-surface-container: var(--card);
+    --md-sys-color-surface-container-lowest: var(--background);
     --md-sys-color-surface-container-low: var(--background);
+    --md-sys-color-surface-container: var(--card);
     --md-sys-color-surface-container-high: var(--popover);
+    --md-sys-color-surface-container-highest: var(--popover);
+    --md-sys-color-surface-variant: var(--muted);
+
+    --md-sys-color-on-surface: var(--foreground);
+    --md-sys-color-on-surface-variant: var(--muted-foreground);
+    --md-sys-color-inverse-surface: var(--foreground);
+    --md-sys-color-inverse-on-surface: var(--background);
 
     --md-sys-color-primary: var(--primary);
     --md-sys-color-on-primary: var(--primary-foreground);
+    --md-sys-color-primary-container: var(--secondary);
+    --md-sys-color-on-primary-container: var(--secondary-foreground);
+
     --md-sys-color-secondary: var(--secondary);
     --md-sys-color-on-secondary: var(--secondary-foreground);
+    --md-sys-color-secondary-container: var(--muted);
+    --md-sys-color-on-secondary-container: var(--muted-foreground);
+
     --md-sys-color-tertiary: var(--accent);
     --md-sys-color-on-tertiary: var(--accent-foreground);
+    --md-sys-color-tertiary-container: var(--accent);
+    --md-sys-color-on-tertiary-container: var(--accent-foreground);
 
     --md-sys-color-error: var(--destructive);
     --md-sys-color-on-error: var(--destructive-foreground);
+
+    --md-sys-color-outline: var(--border);
+    --md-sys-color-outline-variant: var(--muted);
+
     --md-sys-color-success: var(--success);
     --md-sys-color-warning: var(--warning);
     --md-sys-color-info: var(--info);
@@ -164,19 +184,39 @@
 
     /* Material Expressive 3 semantic tokens (aliases over existing theme vars) */
     --md-sys-color-surface: var(--background);
-    --md-sys-color-surface-container: var(--card);
+    --md-sys-color-surface-container-lowest: var(--background);
     --md-sys-color-surface-container-low: var(--background);
+    --md-sys-color-surface-container: var(--card);
     --md-sys-color-surface-container-high: var(--popover);
+    --md-sys-color-surface-container-highest: var(--popover);
+    --md-sys-color-surface-variant: var(--muted);
+
+    --md-sys-color-on-surface: var(--foreground);
+    --md-sys-color-on-surface-variant: var(--muted-foreground);
+    --md-sys-color-inverse-surface: var(--foreground);
+    --md-sys-color-inverse-on-surface: var(--background);
 
     --md-sys-color-primary: var(--primary);
     --md-sys-color-on-primary: var(--primary-foreground);
+    --md-sys-color-primary-container: var(--secondary);
+    --md-sys-color-on-primary-container: var(--secondary-foreground);
+
     --md-sys-color-secondary: var(--secondary);
     --md-sys-color-on-secondary: var(--secondary-foreground);
+    --md-sys-color-secondary-container: var(--muted);
+    --md-sys-color-on-secondary-container: var(--muted-foreground);
+
     --md-sys-color-tertiary: var(--accent);
     --md-sys-color-on-tertiary: var(--accent-foreground);
+    --md-sys-color-tertiary-container: var(--accent);
+    --md-sys-color-on-tertiary-container: var(--accent-foreground);
 
     --md-sys-color-error: var(--destructive);
     --md-sys-color-on-error: var(--destructive-foreground);
+
+    --md-sys-color-outline: var(--border);
+    --md-sys-color-outline-variant: var(--muted);
+
     --md-sys-color-success: var(--success);
     --md-sys-color-warning: var(--warning);
     --md-sys-color-info: var(--info);
@@ -210,9 +250,26 @@
     .cq-gap-md { gap: clamp(0.25rem, 1.5cqw, 1rem); }
   }
 
+  /* ==================== MATERIAL 3 SURFACES, SHAPES & ELEVATION ==================== */
+  .md-surface-0 { background-color: hsl(var(--md-sys-color-surface)); color: hsl(var(--md-sys-color-on-surface)); }
+  .md-surface-1 { background-color: hsl(var(--md-sys-color-surface-container-low)); }
+  .md-surface-2 { background-color: hsl(var(--md-sys-color-surface-container)); }
+  .md-surface-3 { background-color: hsl(var(--md-sys-color-surface-container-high)); }
+  .md-surface-4 { background-color: hsl(var(--md-sys-color-surface-container-highest)); }
+
+  .md-shape-sm { border-radius: calc(var(--radius) - 4px); }
+  .md-shape-md { border-radius: calc(var(--radius) - 2px); }
+  .md-shape-lg { border-radius: var(--radius); }
+
+  .md-elev-0 { box-shadow: none; }
+  .md-elev-1 { box-shadow: 0 1px 3px hsl(var(--md-sys-color-on-surface) / 0.08), 0 1px 2px hsl(var(--md-sys-color-on-surface) / 0.04); }
+  .md-elev-2 { box-shadow: 0 2px 6px hsl(var(--md-sys-color-on-surface) / 0.10), 0 4px 10px hsl(var(--md-sys-color-on-surface) / 0.06); }
+  .md-elev-3 { box-shadow: 0 4px 10px hsl(var(--md-sys-color-on-surface) / 0.12), 0 8px 16px hsl(var(--md-sys-color-on-surface) / 0.08); }
+  .md-elev-4 { box-shadow: 0 8px 18px hsl(var(--md-sys-color-on-surface) / 0.16), 0 12px 26px hsl(var(--md-sys-color-on-surface) / 0.10); }
+
   .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-border/40 rounded-xl;
-    box-shadow: 0 0 0 1px hsl(var(--border) / 0.1), 0 4px 20px hsl(var(--foreground) / 0.05), inset 0 1px 0 hsl(var(--background) / 0.5);
+    @apply md-surface-2 md-elev-2 md-shape-lg;
+    box-shadow: 0 0 0 1px hsl(var(--md-sys-color-outline) / 0.12), 0 6px 24px hsl(var(--md-sys-color-on-surface) / 0.08), inset 0 1px 0 hsl(var(--md-sys-color-surface-container-highest) / 0.8);
   }
 
   .stat-card-positive { border-left: 1px solid hsl(var(--success)); }
